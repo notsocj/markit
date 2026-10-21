@@ -49,7 +49,7 @@ import { webIdFor } from "./lib/scored.js";
 import { dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, preScoreAll, penalizeCommunities, keepTop, droppedSummary } from "./lib/filters.js";
 import { tryReadFeedback, BROKEN_FEEDBACK } from "./lib/feedback.js";
 import { communityPenalties, COMMUNITY_PENALTY } from "./lib/learn.js";
-import { paidBudget, quotaBudget, safeReason } from "./search.js";
+import { paidBudget, paidCaps, quotaBudget, safeReason } from "./search.js";
 import { ADAPTERS } from "./adapters/index.js";
 
 export const MAX_WEB_RESULTS = 100;
@@ -125,13 +125,25 @@ const newMeter = () => ({ requests: 0, posts: 0, credits: 0, context: 0 });
  */
 export function paidContextBudget(adapter, { settings, usage, raw, meter, now }) {
   const unit = adapter.costUnit ?? "posts";
-  const Unit = unit === "credits" ? "Credits" : "Posts";
-  const perRun = settings[adapter.name]?.[`max${Unit}PerRun`];
+  const { perRun } = paidCaps(adapter, settings);
   const base = paidBudget(adapter, settings, usage, now); // already counts this month's search spend
   if (!Number.isFinite(perRun) || base.remaining <= 0) return { unit, remaining: 0 };
-  const searchSpent = raw.sources?.find((s) => s.name === adapter.name)?.used?.[unit] ?? 0;
+  // Everything this account spent during the search. One account can run two jobs (e.g.
+  // SocialCrawl as the Reddit provider, plus the "socialcrawl" Threads source), and a
+  // Reddit job is listed as "reddit" with provider "<account>", so add up every match.
+  const billedHere = (raw.sources ?? []).filter((s) => (s.provider ?? s.name) === adapter.name);
+  const searchSpent = billedHere.reduce((sum, s) => sum + (s.used?.[unit] ?? 0), 0);
   const remaining = Math.min(base.remaining, perRun - searchSpent) - (meter[unit] ?? 0);
-  return { unit, remaining: Math.max(0, remaining) };
+  const out = { unit, remaining: Math.max(0, remaining) };
+  // Dollar-capped accounts (Apify): what's left this month, minus context spent so far.
+  if (Number.isFinite(base.usd)) out.usd = Math.max(0, base.usd - (meter.usd ?? 0));
+  return out;
+}
+
+/** The adapter that fetches a post's thread context: Reddit posts use their provider. */
+export function contextAdapterFor(post, adapters) {
+  const name = post.source === "reddit" ? post.provider : post.source;
+  return adapters.find((a) => a.name === name);
 }
 
 /**
@@ -181,7 +193,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
   const appNames = [profile.name];
   for (const post of posts.slice(0, settings.maxContext ?? 15)) {
     if (post.source === "web") continue; // the agent may open web pages itself
-    const adapter = adapters.find((a) => a.name === post.source);
+    const adapter = contextAdapterFor(post, adapters);
     if (!adapter || typeof adapter.context !== "function" || !adapter.isEnabled(env)) {
       contextStats.unsupported++;
       continue;
@@ -199,6 +211,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
         continue;
       }
       budget = { [b.unit]: b.remaining };
+      if (Number.isFinite(b.usd)) budget.usd = b.usd;
     } else if (adapter.quota?.period === "day" && adapter.contextUsesQuota !== false) {
       // Free daily quota shared with search (e.g. Stack Exchange): leave room for 2 calls.
       const left = quotaBudget(adapter, env, usage, now).remaining - meter.requests;
@@ -208,7 +221,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
       }
     }
     try {
-      const ctx = await adapter.context(post, { env, limit: 5, meter, http, budget, appNames });
+      const ctx = await adapter.context(post, { env, settings, limit: 5, meter, http, budget, appNames });
       if (ctx) {
         post.context = ctx;
         contextStats.fetched++;

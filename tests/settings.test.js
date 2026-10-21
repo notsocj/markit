@@ -69,13 +69,15 @@ async function start() {
   const envFile = join(configDir, ".env");
   writeFileSync(envFile, `# my keys\nX_BEARER_TOKEN=${SECRET}\nYOUTUBE_API_KEY=\n`, { mode: 0o600 });
   writeFileSync(join(configDir, "apps", "gridpeek.json"), JSON.stringify(PROFILE));
+  writeFileSync(join(configDir, "settings.json"), JSON.stringify({ reddit: { provider: "apify" } }));
   const dash = createDashboard({
     reportsDir: join(home, "reports"),
     feedbackFile: join(configDir, "feedback.json"),
     envFile,
     appsDir: join(configDir, "apps"),
     usageFile: join(configDir, "usage.json"),
-    adapters: [fakeAdapter("x", "ok"), fakeAdapter("youtube", "invalid")],
+    settingsFile: join(configDir, "settings.json"),
+    adapters: [fakeAdapter("x", "ok"), fakeAdapter("youtube", "invalid"), { ...fakeAdapter("scrapecreators", "ok"), checkUsesQuota: true, checkCost: { credits: 1 }, isEnabled: () => true }],
   });
   servers.push(dash);
   const { port } = await dash.start({ port: 0 });
@@ -109,7 +111,13 @@ test("the page carries a per-start token; GET /api/settings says which keys are 
   const x = r.json().sources.find((s) => s.source === "x");
   assert.deepEqual([x.ready, x.keys[0].set], [true, true]);
   assert.equal(r.json().sources.find((s) => s.source === "youtube").ready, false);
-  assert.deepEqual(r.json().apps, [{ name: "gridpeek", sources: ["hackernews", "web"], socialcrawlPlatforms: ["reddit"] }]);
+  assert.deepEqual(r.json().apps, [{ name: "gridpeek", sources: ["hackernews", "web"] }]);
+  // The Reddit provider from settings.json, and a key row for each provider.
+  assert.deepEqual(r.json().reddit, { provider: "apify", label: "Reddit (via Apify)" });
+  assert.equal(r.json().allSources.find((s) => s.source === "reddit").label, "Reddit (via Apify)");
+  for (const [source, env] of [["scrapecreators", "SCRAPECREATORS_API_KEY"], ["apify", "APIFY_API_TOKEN"], ["socialcrawl", "SOCIALCRAWL_API_KEY"]]) {
+    assert.equal(r.json().sources.find((s) => s.source === source).keys[0].env, env);
+  }
 });
 
 test("POST /api/settings/key writes .env (write-only), keeping other lines; needs origin + token", async () => {
@@ -158,27 +166,36 @@ test("POST /api/settings/test runs that source's check() and returns only the re
   assert.equal((await post(port, "/api/settings/test", { source: "x" })).status, 403, "token needed");
 });
 
-test("POST /api/settings/app changes only sources / socialcrawlPlatforms, validated like /markit-setup", async () => {
+test("testing a key that costs credits (ScrapeCreators' balance call) is counted in usage.json", async () => {
+  const { port, configDir, token } = await start();
+  assert.equal((await post(port, "/api/settings/test", { source: "scrapecreators" }, token)).json().result, "ok");
+  const usage = JSON.parse(readFileSync(join(configDir, "usage.json"), "utf8"));
+  assert.deepEqual(Object.values(usage.months)[0].scrapecreators, { requests: 1, posts: 0, credits: 1, context: 0 });
+});
+
+test("POST /api/settings/app changes only sources, validated like /markit-setup", async () => {
   const { port, configDir, token } = await start();
   const file = join(configDir, "apps", "gridpeek.json");
-  const r = await post(port, "/api/settings/app", { app: "gridpeek", sources: ["hackernews", "web", "socialcrawl"], socialcrawlPlatforms: ["reddit", "threads"] }, token);
+  // An old profile field must not "upgrade" the socialcrawl (Threads) switch back into Reddit.
+  writeFileSync(file, JSON.stringify({ ...PROFILE, socialcrawlPlatforms: ["reddit"] }));
+  const r = await post(port, "/api/settings/app", { app: "gridpeek", sources: ["hackernews", "web", "reddit", "socialcrawl"] }, token);
   assert.equal(r.status, 200, r.text);
   const saved = JSON.parse(readFileSync(file, "utf8"));
-  assert.deepEqual(saved.sources, ["hackernews", "web", "socialcrawl"]);
-  assert.deepEqual(saved.socialcrawlPlatforms, ["reddit", "threads"]);
+  assert.deepEqual(saved.sources, ["hackernews", "web", "reddit", "socialcrawl"]);
+  assert.deepEqual(saved.socialcrawlPlatforms, ["threads"], "marked as upgraded");
   assert.deepEqual(saved.keywords, PROFILE.keywords, "everything else kept");
 
   const bad = [
     { app: "gridpeek", sources: ["hackernews", "evil"] },
     { app: "gridpeek", sources: [] },
-    { app: "gridpeek", socialcrawlPlatforms: ["tiktok"] },
+    { app: "gridpeek", sources: ["web"], socialcrawlPlatforms: ["threads"] },
     { app: "gridpeek", keywords: ["x"] },
     { app: "../gridpeek", sources: ["web"] },
     { app: "nope", sources: ["web"] },
     { app: "gridpeek" },
   ];
   for (const body of bad) assert.equal((await post(port, "/api/settings/app", body, token)).status, 400, JSON.stringify(body));
-  assert.deepEqual(JSON.parse(readFileSync(file, "utf8")).sources, ["hackernews", "web", "socialcrawl"], "unchanged by bad requests");
+  assert.deepEqual(JSON.parse(readFileSync(file, "utf8")).sources, ["hackernews", "web", "reddit", "socialcrawl"], "unchanged by bad requests");
 });
 
 test("without envFile/appsDir the Settings endpoints don't exist", async () => {

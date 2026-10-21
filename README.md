@@ -27,7 +27,8 @@ For each match, marKit explains **why it fits**, scores it, and **drafts an hone
 ```
 /markit-find
    │
-   ├─ search.js     searches Hacker News, Stack Exchange, Bluesky, YouTube, Threads, X, SocialCrawl (Reddit)
+   ├─ search.js     searches Hacker News, Stack Exchange, Bluesky, YouTube, Threads, X, and Reddit
+   │                (through the ONE provider you chose: ScrapeCreators, Apify, or SocialCrawl)
    │                with YOUR keys, removes posts you've already seen  → raw.json
    ├─ your agent    runs web searches (forums, Q&A)                    → web.json
    ├─ candidates.js drops old, excluded, other-language and duplicate posts, pre-scores
@@ -142,12 +143,13 @@ Reports are saved to `~/markit-reports/<app>/<date-time>/report.md`, and posts y
 | YouTube | free | Google API key | 100 searches/day (YouTube's limit since June 2026); finds videos |
 | Threads | free | Meta token | **only searches your own posts until Meta approves your app in App Review** (plan for 1–4 weeks), so it's off by default |
 | X | **paid** | Bearer token | ~$0.005 per post returned |
-| SocialCrawl | **paid** | API key | the reliable way to search **Reddit**, and optionally **Threads** with no Meta App Review (switch it on in dashboard → Settings); 100 free credits on signup |
+| Reddit | **paid**, can be $0 | one provider's key | through ONE provider you choose: **ScrapeCreators** (cheapest per search, credits never expire), **Apify** (can stay at $0 with its $5 monthly free usage), or **SocialCrawl**. Off until you pick one in `/markit-setup` |
+| Threads via SocialCrawl | **paid** | SocialCrawl key | public **Threads** posts with no Meta App Review (switch it on in dashboard → Settings); 100 free credits on signup |
 | Web search | free | none | your agent searches forums and Q&A sites |
 
 Step-by-step key instructions: [`skills/markit-setup/references/setup-guide.md`](skills/markit-setup/references/setup-guide.md).
 
-**A note on Reddit:** AI agents' web search rarely returns Reddit threads (Reddit restricts search crawlers), so without SocialCrawl, Reddit coverage is thin.
+**A note on Reddit:** AI agents' web search rarely returns Reddit threads (Reddit restricts search crawlers), so without a Reddit provider, Reddit coverage is thin. Only the provider you choose (`"reddit": { "provider": ... }` in `settings.json`) searches Reddit, so you never pay twice for the same search, and a post is recognized as the same post whichever provider found it.
 
 ## Costs (paid sources only)
 
@@ -156,17 +158,19 @@ marKit works well with free sources only. If you enable a paid one, marKit stops
 | Source | Price | Default caps | Worst case at defaults |
 |---|---|---|---|
 | X | ~$0.005 per post (no free tier) | 30 posts per run, 900 per month | ~$0.15 per run, ~$4.50 per month |
-| SocialCrawl | 1 credit per keyword search; 100 free credits, then from £15 / 2,500 credits | 50 credits per run, 1,500 per month | a typical run uses 5–8 credits |
+| Reddit via ScrapeCreators | 1 credit per keyword search; 100 free credits, then $47 / 25,000 credits (about $0.002 a search); credits never expire | 30 credits per run, 1,000 per month | a typical run uses 5–8 credits (about $0.01–$0.02) |
+| Reddit via Apify | about $2 per 1,000 posts found + about $0.02 per run (free plan prices); **$5 of free usage every month** | 50 results per run, ~$4.50 per month (marKit's estimate) | ~$0.12 per run; ~$4.50 per month, inside the free $5 |
+| Reddit or Threads via SocialCrawl | 1 credit per keyword search; 100 free credits, then from £15 / 2,500 credits | 50 credits per run, 1,500 per month | a typical run uses 5–8 credits |
 
-Thread context (reading a post's replies) is **off for paid sources** by default. Set `"contextForPaidSources": true` in `settings.json` to allow it; it still stays inside the caps above (X: billed per reply returned; SocialCrawl: 5 credits per Reddit comment page). `maxCandidates` (40) and `maxContext` (15) in the same file control how many posts your agent judges and how many threads get checked.
+Thread context (reading a post's replies) is **off for paid sources** by default. Set `"contextForPaidSources": true` in `settings.json` to allow it; it still stays inside the caps above (X: billed per reply returned; ScrapeCreators: 1 credit per post; Apify: each comment is a billed result, up to 10 per post; SocialCrawl: 5 credits per Reddit comment page). `maxCandidates` (40) and `maxContext` (15) in the same file control how many posts your agent judges and how many threads get checked.
 
-**Also set a spending limit in each platform's own console** (X: console.x.com). That's your hard safety net; marKit's caps are a second one. `/markit-usage` shows this month's spend estimate and warns near a cap.
+**Also set a spending limit in each platform's own console** (X: console.x.com; Apify: Console → Billing → Limits). That's your hard safety net; marKit's caps are a second one. ScrapeCreators and SocialCrawl sell prepaid credit packs, so you can't spend more than you bought. Apify runs also carry a per-run charge limit that Apify itself enforces. `/markit-usage` shows this month's spend estimate and warns near a cap.
 
 ## Privacy and security
 
 marKit follows six hard rules:
 
-1. **No browser automation.** Only official APIs, your own keys, and your agent's web search. No scraping, no logged-in browser sessions.
+1. **No browser automation.** marKit only calls APIs with your own keys, plus your agent's web search. It never drives a browser, scrapes pages itself, or uses a logged-in session. (The optional paid Reddit providers are third-party services that collect public Reddit data on their own servers; marKit only calls their APIs.)
 2. **Never posts for you.** No posting, replying, liking, following, or DMs. It only drafts.
 3. **Your agent never sees your API keys.**
    - Keys live in `~/.config/markit/.env` (Windows: `%APPDATA%\markit\.env`), created with owner-only permissions (`chmod 600`), outside the skill folders.
@@ -203,7 +207,7 @@ Your config folder holds `apps/*.json` (profiles), `settings.json` (limits), `se
 
 **The dashboard** is a zero-dependency local server that:
 - binds to `127.0.0.1` only and rejects any request whose Host isn't `localhost:<port>` / `127.0.0.1:<port>`, which blocks DNS rebinding
-- reads the reports folder. From the config folder it touches `feedback.json` (your decisions) and, through Settings: `.env` (**write-only**: a key goes in, but the server never sends one back, logs it, or prints it), app profiles (only their `sources` and `socialcrawlPlatforms`, validated like `/markit-setup`), and `usage.json` (counting key tests)
+- reads the reports folder. From the config folder it touches `feedback.json` (your decisions) and, through Settings: `.env` (**write-only**: a key goes in, but the server never sends one back, logs it, or prints it), app profiles (only their `sources`, validated like `/markit-setup`), and `usage.json` (counting key tests)
 - Settings requests also need a random token the server puts into its own page at startup, so no other page or program can change your keys or sources
 - accepts only `{ id, status, reason?, note? }` (same-origin JSON, under 1 KB) to save a decision: status and reason from fixed lists, the note stripped of HTML and cut to 140 characters, and the id must be a card in your reports
 - shows post text as plain text under a strict Content-Security-Policy

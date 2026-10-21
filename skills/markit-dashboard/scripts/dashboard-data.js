@@ -76,7 +76,7 @@ function listRunNames(reportsDir, app) {
  * The fields a card may have. Anything else in the source files is dropped, so the
  * dashboard only ever sends what it needs.
  */
-const CARD_FIELDS = ["number", "id", "source", "site", "url", "title", "excerpt", "author", "createdAt", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention"];
+const CARD_FIELDS = ["number", "id", "source", "provider", "site", "url", "title", "excerpt", "author", "createdAt", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention"];
 
 /** Engagement as plain numbers/booleans only (e.g. { score: 12, comments: 4 }). */
 function cleanEngagement(engagement) {
@@ -111,7 +111,8 @@ function pick(card) {
   out.contextLine = contextLine(out.context);
   out.alsoPostedAt = cleanUrls(card.alsoPostedAt);
   if (Number.isFinite(card.preScore)) out.preScore = card.preScore;
-  out.platform = sourceLabel(card).replace(/ r\/.*$/, ""); // "Reddit r/formula1" → "Reddit" for filtering
+  // "Reddit r/formula1 (via Apify)" → "Reddit" for filtering, whichever provider found it.
+  out.platform = sourceLabel(card).replace(/ \(via [^)]*\)$/, "").replace(/ r\/.*$/, "");
   out.label = sourceLabel(card); // full display name
   return out;
 }

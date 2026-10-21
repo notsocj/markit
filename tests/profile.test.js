@@ -95,11 +95,29 @@ test("languages defaults to English and validates codes", () => {
   assert.throws(() => validateProfile({ ...good(), languages: [] }, "gridpeek"), /"languages" must be a list/);
 });
 
-test("socialcrawlPlatforms: defaults to Reddit, accepts Threads, rejects anything else", async () => {
+test("old SocialCrawl-for-Reddit profiles are upgraded to the \"reddit\" source", async () => {
   const { validateProfile } = await import("../skills/markit-find/scripts/lib/profile.js");
   const base = { name: "gridpeek", url: "https://x.example", oneLiner: "o", audience: "a", keywords: ["a b c", "d e f", "g h i"] };
-  assert.deepEqual(validateProfile(base).profile.socialcrawlPlatforms, ["reddit"]);
-  assert.deepEqual(validateProfile({ ...base, socialcrawlPlatforms: ["Reddit", "threads"] }).profile.socialcrawlPlatforms, ["reddit", "threads"]);
-  assert.throws(() => validateProfile({ ...base, socialcrawlPlatforms: ["tiktok"] }), /Unknown SocialCrawl platform/);
-  assert.throws(() => validateProfile({ ...base, socialcrawlPlatforms: [] }), /socialcrawlPlatforms/);
+  const sources = (extra) => validateProfile({ ...base, ...extra }).profile.sources;
+  // Before Reddit providers, "socialcrawl" alone meant Reddit (platforms defaulted to ["reddit"]).
+  assert.deepEqual(sources({ sources: ["hackernews", "socialcrawl", "web"] }), ["hackernews", "reddit", "web"]);
+  assert.deepEqual(sources({ sources: ["socialcrawl"], socialcrawlPlatforms: ["Reddit", "threads"] }), ["reddit", "socialcrawl"]);
+  // Threads only: stays "socialcrawl" (which now means Threads through SocialCrawl).
+  assert.deepEqual(sources({ sources: ["socialcrawl"], socialcrawlPlatforms: ["threads"] }), ["socialcrawl"]);
+  // Already has "reddit": not added twice.
+  assert.deepEqual(sources({ sources: ["reddit", "socialcrawl"], socialcrawlPlatforms: ["reddit"] }), ["reddit"]);
+  // Saved profiles say ["threads"], which marks them as upgraded: validating again keeps
+  // "socialcrawl" as Threads instead of turning it into Reddit a second time.
+  const { profile, warnings } = validateProfile({ ...base, sources: ["socialcrawl"], socialcrawlPlatforms: ["reddit"] });
+  assert.deepEqual(profile.socialcrawlPlatforms, ["threads"]);
+  assert.deepEqual(warnings.filter((w) => /socialcrawlPlatforms/.test(w)), []);
+  const resaved = validateProfile({ ...profile, sources: ["reddit", "socialcrawl"] }).profile;
+  assert.deepEqual(resaved.sources, ["reddit", "socialcrawl"]);
+});
+
+test("\"reddit\" is a default source: it costs nothing until a provider is chosen", async () => {
+  const { DEFAULT_SOURCES, ALL_SOURCES } = await import("../skills/markit-find/scripts/lib/profile.js");
+  assert.ok(DEFAULT_SOURCES.includes("reddit"));
+  assert.ok(ALL_SOURCES.includes("reddit"));
+  assert.ok(!DEFAULT_SOURCES.includes("socialcrawl") && !DEFAULT_SOURCES.includes("x"), "paid sources stay opt-in");
 });

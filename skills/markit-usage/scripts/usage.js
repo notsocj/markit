@@ -14,6 +14,11 @@
 //     – Bluesky           not set up
 //     ✗ YouTube           invalid key → run /markit-setup
 //     ✓ X                 paid      210 / 900 posts this month · ~$1.05
+//     ✓ ScrapeCreators    paid      12 / 1000 credits this month · 88 credits left (never expire)
+//     – Apify             not set up
+//     – SocialCrawl       not set up
+//
+//   Reddit: via ScrapeCreators
 //
 //   Apps: gridpeek
 //   Last run: gridpeek · Oct 21, 9:00 PM · 12 opportunities
@@ -36,10 +41,16 @@ import { loadShared } from "./shared.js";
 const config = await loadShared("lib/config.js");
 const usageLib = await loadShared("lib/usage.js");
 const { ALL_SOURCES, SOURCE_LABELS } = await loadShared("lib/profile.js");
+const { REDDIT_PROVIDERS, PROVIDER_LABELS, redditProvider, redditLabel } = await loadShared("lib/reddit.js");
 const { ADAPTERS } = await loadShared("adapters/index.js");
 
-// Every API source, in a fixed order. ("web" is the agent's own search: nothing to check.)
-const SOURCES = ALL_SOURCES.filter((name) => name !== "web");
+// Every API account to check, in a fixed order: the free and keyed sources, then the paid
+// Reddit providers (SocialCrawl's row also covers its Threads search). "web" is the agent's
+// own search and "reddit" is served by a provider, so neither has a row of its own.
+const SOURCES = [...ALL_SOURCES.filter((name) => !["web", "reddit", "socialcrawl"].includes(name)), ...REDDIT_PROVIDERS];
+
+// Row names: providers by their company name ("Apify"), other sources by SOURCE_LABELS.
+const rowLabel = (name) => PROVIDER_LABELS[name] ?? SOURCE_LABELS[name] ?? name;
 
 const NAME_WIDTH = 18;
 const TIER_WIDTH = 10;
@@ -89,7 +100,10 @@ function usageText(adapter, { env, settings, usage, now }) {
   }
 
   // Paid sources: this month's spend against the monthly cap in settings.json.
-  if (adapter.paid) {
+  // Apify's cap is in (estimated) dollars, so it writes its own summary.
+  if (adapter.paid && typeof adapter.usageSummary === "function") {
+    parts.push(adapter.usageSummary(usageLib.getMonthUsage(adapter.name, usage, now), settings));
+  } else if (adapter.paid) {
     const unit = adapter.costUnit ?? "posts";
     const Unit = unit === "credits" ? "Credits" : "Posts";
     const cap = settings[adapter.name]?.[`max${Unit}PerMonth`];
@@ -105,7 +119,7 @@ function usageText(adapter, { env, settings, usage, now }) {
 
 /** One row of the Sources table. */
 async function sourceRow(name, { adapters, env, checks, settings, usage, now, full, http }) {
-  const label = (SOURCE_LABELS[name] ?? name).padEnd(NAME_WIDTH);
+  const label = rowLabel(name).padEnd(NAME_WIDTH);
   const adapter = adapters.find((a) => a.name === name);
   if (!adapter) return `  – ${label}not available yet`;
   const tier = (adapter.paid ? "paid" : "free").padEnd(TIER_WIDTH);
@@ -151,11 +165,23 @@ export const COMMANDS = [
  * @param {object} args
  * @param {boolean} [args.full=true] - false for --check-only
  */
+/**
+ * "Reddit: via ScrapeCreators" plus a hint when the provider has no key (or none is chosen).
+ * Reddit is searched by ONE provider, so this line says which account pays for it.
+ */
+export function redditLine(settings, env, adapters = ADAPTERS) {
+  const provider = redditProvider(settings);
+  if (provider === "none") return "Reddit: no provider chosen, so only web search covers it → run /markit-setup to pick one";
+  const adapter = adapters.find((a) => a.name === provider);
+  const ready = adapter?.isEnabled(env);
+  return `Reddit: ${redditLabel(provider).replace(/^Reddit \((.*)\)$/, "$1")}${ready ? "" : ` (no ${PROVIDER_LABELS[provider]} key yet → run /markit-setup)`}`;
+}
+
 export async function buildScreen({ adapters = ADAPTERS, env, checks, settings, usage, apps = [], now = new Date(), full = true, http }) {
   const rows = [];
   for (const name of SOURCES) rows.push(await sourceRow(name, { adapters, env, checks, settings, usage, now, full, http }));
 
-  if (!full) return ["Sources", ...rows].join("\n");
+  if (!full) return ["Sources", ...rows, "", redditLine(settings, env, adapters)].join("\n");
 
   const month = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(now);
   const lastRun = usage.lastRun
@@ -168,6 +194,8 @@ export async function buildScreen({ adapters = ADAPTERS, env, checks, settings, 
     "Sources",
     ...rows,
     "  (usage numbers are marKit's own count, not the platforms')",
+    "",
+    redditLine(settings, env, adapters),
     "",
     `Apps: ${apps.length ? apps.join(", ") : "none yet → run /markit-setup"}`,
     `Last run: ${lastRun}`,
@@ -194,7 +222,8 @@ async function main() {
   const now = new Date();
   for (const name of Object.keys(checks)) {
     const adapter = ADAPTERS.find((a) => a.name === name);
-    if (adapter?.checkUsesQuota !== false) usageLib.recordUsage(name, { requests: 1 }, paths.usageFile, now);
+    // checkCost: a check that costs credits (ScrapeCreators' balance call) counts as spent.
+    if (adapter?.checkUsesQuota !== false) usageLib.recordUsage(name, { requests: 1, ...(adapter?.checkCost ?? {}) }, paths.usageFile, now);
   }
 
   console.log(

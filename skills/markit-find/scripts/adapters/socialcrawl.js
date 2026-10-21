@@ -1,9 +1,16 @@
-// socialcrawl.js — searches Reddit (and optionally Threads) through SocialCrawl.
-// OPTIONAL and PAID (credits).
+// socialcrawl.js — searches Reddit and/or Threads through SocialCrawl. OPTIONAL and PAID (credits).
 //
-// Why: agents' web search almost never returns Reddit threads (tested 2026-10-21), and
-// Reddit is where many "what app do you use for X?" conversations happen. SocialCrawl is a
-// paid REST API that reads Reddit (and other platforms) for us.
+// Two jobs, both through the same SocialCrawl account and credit caps:
+//   - REDDIT: SocialCrawl is one of the three Reddit providers (lib/reddit.js). It searches
+//     Reddit only when settings.json says "reddit": { "provider": "socialcrawl" }.
+//     Results are ordinary Reddit posts: source "reddit", provider "socialcrawl", id
+//     "reddit-<post id>", the same as from ScrapeCreators or Apify.
+//   - THREADS: the "socialcrawl" profile source means Threads through SocialCrawl.
+// search.js tells search() which platforms to search (opts.platforms) and runs both jobs
+// one after the other with ONE shared credit budget, so together they never pass the caps.
+//
+// Why Reddit needs a paid API: agents' web search almost never returns Reddit threads
+// (tested 2026-10-21), and Reddit is where many "what app do you use for X?" conversations happen.
 //
 // API: https://www.socialcrawl.dev/v1, header `x-api-key: sc_...`. Checked 2026-10-21:
 //   - GET /v1/reddit/search: query, sort=new, since (date), max_pages=1
@@ -17,7 +24,7 @@
 //   - GET /v1/credits/balance costs 0 credits: used for the key check and balance note.
 //   - errors: 401 bad/missing key, 402 out of credits or per-key budget, 429 rate limit.
 //
-// THREADS (optional, profile "socialcrawlPlatforms": ["reddit", "threads"]). Checked 2026-10-22
+// THREADS (the "socialcrawl" profile source). Checked 2026-10-22
 // on socialcrawl.dev/platforms/threads/search.md:
 //   - GET /v1/threads/search: query, start_date (YYYY-MM-DD, enforced by SocialCrawl), expand
 //   - 1 credit per result window (~15–20 posts). Threads only matches phrases it already
@@ -39,6 +46,7 @@
 import { safeFetch } from "../lib/safe-fetch.js";
 import { makePost, searchQuery } from "../lib/normalize.js";
 import { buildContext } from "../lib/context.js";
+import { makeRedditPost } from "../lib/reddit.js";
 
 // Reddit comments cost 5 credits per page (checked 2026-10-22).
 export const COMMENTS_COST = 5;
@@ -50,26 +58,22 @@ const BASE = "https://www.socialcrawl.dev/v1";
 
 const headers = (env) => ({ "x-api-key": env.SOCIALCRAWL_API_KEY ?? "" });
 
-/** Convert one Reddit result into a marKit Post (reading fields defensively). */
+/** Convert one Reddit result into a marKit Reddit Post (reading fields defensively). */
 export function toPost(raw, matchedKeyword) {
   const item = raw.post ?? raw; // some responses may wrap the post
   const ext = item.ext ?? {};
-  const subreddit = ext.subreddit ?? item.subreddit ?? "";
-  return makePost({
-    source: "socialcrawl",
-    platformId: item.id,
+  return makeRedditPost({
+    provider: "socialcrawl",
+    id: item.id,
     url: item.url ?? ext.permalink ?? "",
     title: ext.title ?? item.title ?? "",
     text: item.content?.text ?? ext.selftext ?? item.text ?? "",
     author: item.author?.username ?? (typeof item.author === "string" ? item.author : ""),
     createdAt: item.published_at ?? item.created_at,
-    engagement: {
-      score: item.engagement?.likes ?? 0,
-      comments: item.engagement?.comments ?? 0,
-    },
+    score: item.engagement?.likes,
+    comments: item.engagement?.comments,
+    subreddit: ext.subreddit ?? item.subreddit ?? "",
     matchedKeyword,
-    // Shown in the report instead of "SocialCrawl", e.g. "Reddit r/formula1".
-    site: subreddit ? `Reddit r/${String(subreddit).replace(/^r\//, "")}` : "Reddit",
   });
 }
 
@@ -119,18 +123,20 @@ export default {
   costUnit: "credits",
   // No costPerUnit: credits are sold in GBP packs, so /markit-usage shows the balance instead.
   checkUsesQuota: false,
+  // Also a Reddit provider: search.js runs it for the "reddit" source when chosen.
+  redditProvider: true,
 
   isEnabled(env = {}) {
     return Boolean(env.SOCIALCRAWL_API_KEY);
   },
 
   /**
-   * Search every platform the profile asks for (default: Reddit only), in turn, for one
-   * keyword. Before each call we check the credits left (budget.credits from search.js
-   * minus what this keyword already spent), so a run never goes over its caps.
+   * Search the given platforms (search.js passes ["reddit"] for the Reddit provider job and
+   * ["threads"] for the "socialcrawl" source) for one keyword. Before each call we check the
+   * credits left (budget.credits from search.js minus what this keyword already spent), so a
+   * run never goes over its caps.
    */
-  async search(keyword, { since, limit = 25, env = {}, meter = {}, http = {}, budget, profile = {} } = {}) {
-    const platforms = Array.isArray(profile.socialcrawlPlatforms) && profile.socialcrawlPlatforms.length ? profile.socialcrawlPlatforms : ["reddit"];
+  async search(keyword, { since, limit = 25, env = {}, meter = {}, http = {}, budget, platforms = ["reddit"] } = {}) {
     const spentBefore = meter.credits ?? 0;
     const left = () => (budget?.credits === undefined ? Infinity : budget.credits - ((meter.credits ?? 0) - spentBefore));
     const day = since.toISOString().slice(0, 10); // YYYY-MM-DD

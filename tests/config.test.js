@@ -150,6 +150,8 @@ test("parseEnv handles quotes, export, comments, CRLF, BOM, and repeats", () => 
     THREADS_ACCESS_TOKEN: "second",
     X_BEARER_TOKEN: "quoted value",
     SOCIALCRAWL_API_KEY: "single",
+    SCRAPECREATORS_API_KEY: "",
+    APIFY_API_TOKEN: "",
   });
 });
 

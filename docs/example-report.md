@@ -11,7 +11,7 @@ Oct 21, 2026 · 10:43 PM · last 7 days
 | Stack Exchange | 1 | ✓ |
 | Bluesky | 1 | ✓ |
 | YouTube | – | skipped (no key) |
-| SocialCrawl | 2 | ✓ |
+| Reddit (via ScrapeCreators) | 2 | ✓ |
 | X | – | skipped (no key) |
 | Web search | 0 | ✓ (13 queries for the agent to run) |
 

@@ -1,4 +1,5 @@
 // Tests for adapters/socialcrawl.js (fake fetch; field names from the API docs, 2026-10-21).
+// SocialCrawl's Reddit results use the shared Reddit Post shape (lib/reddit.js).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -36,8 +37,8 @@ test("Reddit search: quoted topic, newest, one page, x-api-key header, credits c
 
   assert.deepEqual(posts, [
     {
-      id: "sc-1abcde",
-      source: "socialcrawl",
+      id: "reddit-1abcde",
+      source: "reddit",
       url: "https://www.reddit.com/r/formula1/comments/1abcde/first_gp/",
       title: "First GP: how do you stay organized?",
       excerpt: "Going to Austin, how do you all keep tickets, hotel and the schedule straight?",
@@ -46,6 +47,7 @@ test("Reddit search: quoted topic, newest, one page, x-api-key header, credits c
       engagement: { score: 15, comments: 9 },
       matchedKeyword: "going to my first Grand Prix",
       site: "Reddit r/formula1",
+      provider: "socialcrawl",
     },
   ]);
 });
@@ -54,7 +56,7 @@ test("cached results cost 0 credits; wrapped items are unwrapped", async () => {
   const meter = {};
   const posts = await socialcrawl.search("a b", { since, env, meter, http: { fetchImpl: fakeFetch([json(envelope([{ post: item }], { credits_used: 0, cached: true }))]) } });
   assert.equal(meter.credits, 0);
-  assert.equal(posts[0].id, "sc-1abcde");
+  assert.equal(posts[0].id, "reddit-1abcde");
 });
 
 test("no call when the credit budget is spent; errors never leak the key", async () => {
@@ -87,7 +89,7 @@ test("shape: paid in credits", () => {
   assert.equal(socialcrawl.isEnabled({}), false);
 });
 
-// --- Threads through SocialCrawl (profile "socialcrawlPlatforms") --------------------------
+// --- Threads through SocialCrawl (the "socialcrawl" source; search.js passes platforms) ----
 // Shapes from socialcrawl.dev/platforms/threads/search.md (checked 2026-10-22).
 
 const threadsItem = {
@@ -99,16 +101,16 @@ const threadsItem = {
   engagement: { likes: 7, comments: 3, shares: 1 },
 };
 
-test("Threads is off by default: only Reddit is searched", async () => {
+test("without platforms, search() is the Reddit provider job: only Reddit is searched", async () => {
   const fetchImpl = fakeFetch([json(envelope([]))]);
-  await socialcrawl.search("first Grand Prix", { since, env, budget: { credits: 10 }, http: { fetchImpl }, profile: {} });
+  await socialcrawl.search("first Grand Prix", { since, env, budget: { credits: 10 }, http: { fetchImpl } });
   assert.deepEqual(fetchImpl.calls.map((c) => c.url.pathname), ["/v1/reddit/search"]);
 });
 
 test("Threads on: searches both, Threads posts get their own ids and site, credits counted", async () => {
   const fetchImpl = fakeFetch((u) => (u.pathname.endsWith("/threads/search") ? json(envelope([threadsItem], { credits_used: 2 })) : json(envelope([item]))));
   const meter = {};
-  const posts = await socialcrawl.search("first Grand Prix trip advice", { since, env, meter, budget: { credits: 10 }, http: { fetchImpl }, profile: { socialcrawlPlatforms: ["reddit", "threads"] } });
+  const posts = await socialcrawl.search("first Grand Prix trip advice", { since, env, meter, budget: { credits: 10 }, http: { fetchImpl }, platforms: ["reddit", "threads"] });
   assert.deepEqual(fetchImpl.calls.map((c) => c.url.pathname), ["/v1/reddit/search", "/v1/threads/search"]);
   const t = fetchImpl.calls[1].url.searchParams;
   assert.equal(t.get("query"), "first Grand Prix trip", "shortened like the other APIs (searchQuery)");
@@ -124,15 +126,15 @@ test("Threads on: searches both, Threads posts get their own ids and site, credi
 
 test("Threads never overspends: exact phrase only when < 5 credits left, skipped at 0", async () => {
   const fetchImpl = fakeFetch([json(envelope([])), json(envelope([], { credits_used: 1 }))]);
-  await socialcrawl.search("a b", { since, env, budget: { credits: 3 }, http: { fetchImpl }, profile: { socialcrawlPlatforms: ["reddit", "threads"] } });
+  await socialcrawl.search("a b", { since, env, budget: { credits: 3 }, http: { fetchImpl }, platforms: ["reddit", "threads"] });
   assert.equal(fetchImpl.calls[1].url.searchParams.get("expand"), "false", "2 credits left after Reddit: no relaxing");
 
   const oneLeft = fakeFetch([json(envelope([]))]);
-  await socialcrawl.search("a b", { since, env, budget: { credits: 1 }, http: { fetchImpl: oneLeft }, profile: { socialcrawlPlatforms: ["reddit", "threads"] } });
+  await socialcrawl.search("a b", { since, env, budget: { credits: 1 }, http: { fetchImpl: oneLeft }, platforms: ["reddit", "threads"] });
   assert.deepEqual(oneLeft.calls.map((c) => c.url.pathname), ["/v1/reddit/search"], "Reddit used the last credit, so no Threads call");
 
   const threadsOnly = fakeFetch([json(envelope([]))]);
-  await socialcrawl.search("a b", { since, env, budget: { credits: 1 }, http: { fetchImpl: threadsOnly }, profile: { socialcrawlPlatforms: ["threads"] } });
+  await socialcrawl.search("a b", { since, env, budget: { credits: 1 }, http: { fetchImpl: threadsOnly }, platforms: ["threads"] });
   assert.deepEqual(threadsOnly.calls.map((c) => c.url.pathname), ["/v1/threads/search"]);
   assert.equal(threadsOnly.calls[0].url.searchParams.get("expand"), "false");
 });

@@ -11,7 +11,10 @@ import { validateAppName } from "./config.js";
 
 // Every source marKit knows about. "web" isn't a script: it means the agent runs its
 // own web searches (Reddit, Quora, forums) using queries search.js generates.
-export const ALL_SOURCES = ["hackernews", "stackexchange", "bluesky", "youtube", "threads", "x", "socialcrawl", "web"];
+// "reddit" is searched through the ONE provider chosen in settings.json (lib/reddit.js).
+// "socialcrawl" means Threads through SocialCrawl (for Reddit, pick SocialCrawl as the
+// Reddit provider instead).
+export const ALL_SOURCES = ["hackernews", "stackexchange", "bluesky", "youtube", "threads", "x", "reddit", "socialcrawl", "web"];
 
 // Display names, used in terminal output, reports, and /markit-usage.
 export const SOURCE_LABELS = {
@@ -21,23 +24,29 @@ export const SOURCE_LABELS = {
   youtube: "YouTube",
   threads: "Threads",
   x: "X",
-  socialcrawl: "SocialCrawl",
+  // search.js shows "Reddit (via ScrapeCreators)" etc. once it knows the provider.
+  reddit: "Reddit",
+  socialcrawl: "Threads (via SocialCrawl)",
   web: "Web search",
 };
 
 // Used when a profile doesn't list sources. Only the free ones: paid sources (x,
 // socialcrawl) must be switched on deliberately, so nobody gets billed by accident.
+// "reddit" is included because it costs nothing by itself: it only runs once the user has
+// chosen a paid Reddit provider in settings.json (the default provider is "none").
 // Threads is left out too: until Meta approves your app in App Review, its search only
 // finds your OWN posts, so it would look broken to most people. Add "threads" if approved.
-export const DEFAULT_SOURCES = ["hackernews", "stackexchange", "bluesky", "youtube", "web"];
+export const DEFAULT_SOURCES = ["hackernews", "stackexchange", "bluesky", "youtube", "reddit", "web"];
 
 export const DEFAULT_REPLY_TONE = "casual, friendly, short";
 
-// What the SocialCrawl source searches (adapters/socialcrawl.js). Reddit by default; add
-// "threads" to also search public Threads posts through SocialCrawl, which needs no Meta
-// App Review (unlike the "threads" source). Each platform costs credits per keyword.
-export const SOCIALCRAWL_PLATFORMS = ["reddit", "threads"];
-export const DEFAULT_SOCIALCRAWL_PLATFORMS = ["reddit"];
+// Older profiles chose what SocialCrawl searched with "socialcrawlPlatforms" (["reddit"],
+// ["threads"], or both; missing meant ["reddit"]). Reddit now comes from the Reddit provider,
+// so the "socialcrawl" source means Threads only, and every saved profile says so with
+// socialcrawlPlatforms: ["threads"]. That also marks the profile as already upgraded: only a
+// profile WITHOUT the field (or with "reddit" in it) is an old one (see "sources" below).
+const OLD_SOCIALCRAWL_PLATFORMS = ["reddit", "threads"];
+export const SOCIALCRAWL_PLATFORMS = ["threads"];
 
 // softwarerecs.stackexchange.com exists exactly for "recommend me software" questions.
 export const DEFAULT_STACKEXCHANGE_SITES = ["softwarerecs"];
@@ -68,6 +77,30 @@ function cleanList(value) {
 }
 
 const isText = (value) => typeof value === "string" && value.trim() !== "";
+
+/**
+ * Upgrade a profile written before Reddit providers existed. Back then the "socialcrawl"
+ * source searched Reddit (and Threads too if "socialcrawlPlatforms" said so). Now:
+ *   - Reddit is the "reddit" source (through whichever provider settings.json names);
+ *   - "socialcrawl" means Threads through SocialCrawl only.
+ * So "socialcrawl" + platforms with "reddit" becomes "reddit", and "socialcrawl" stays only
+ * if Threads was on. A profile without socialcrawlPlatforms is from before that field existed,
+ * when "socialcrawl" meant Reddit. Profiles saved since say ["threads"] and stay as they are.
+ */
+export function upgradeSocialcrawlSources(sources, platforms) {
+  if (!sources.includes("socialcrawl")) return sources;
+  // When the field is missing, the old default applies: Reddit only.
+  const old = Array.isArray(platforms) ? platforms.map((p) => String(p).trim().toLowerCase()).filter((p) => OLD_SOCIALCRAWL_PLATFORMS.includes(p)) : ["reddit"];
+  const out = [];
+  for (const source of sources) {
+    if (source !== "socialcrawl") out.push(source);
+    else {
+      if (old.includes("reddit") && !sources.includes("reddit")) out.push("reddit");
+      if (old.includes("threads")) out.push("socialcrawl");
+    }
+  }
+  return out.length ? out : sources;
+}
 
 /**
  * Check a profile and return a cleaned copy plus any warnings.
@@ -157,6 +190,7 @@ export function validateProfile(input, name = input?.name) {
     const unknown = sources.filter((s) => !ALL_SOURCES.includes(s));
     if (unknown.length) errors.push(`Unknown source(s): ${unknown.join(", ")}. Choose from: ${ALL_SOURCES.join(", ")}.`);
     if (sources.length === 0) errors.push(`"sources" can't be empty.`);
+    sources = upgradeSocialcrawlSources(sources, input.socialcrawlPlatforms);
   }
 
   // --- Stack Exchange sites ---
@@ -181,17 +215,6 @@ export function validateProfile(input, name = input?.name) {
     languages = languages.map((l) => l.toLowerCase());
     const badLangs = languages.filter((l) => !/^[a-z]{2,3}(-[a-z0-9]{1,8})*$/.test(l));
     if (badLangs.length) errors.push(`Invalid language code(s): ${badLangs.join(", ")}. Use codes like "en", "es", "pt-br".`);
-  }
-
-  // --- socialcrawlPlatforms (optional, default ["reddit"]): which platforms the paid
-  //     SocialCrawl source searches. Only used when "socialcrawl" is in sources. ---
-  let socialcrawlPlatforms = input.socialcrawlPlatforms === undefined ? [...DEFAULT_SOCIALCRAWL_PLATFORMS] : cleanList(input.socialcrawlPlatforms);
-  if (socialcrawlPlatforms === null || socialcrawlPlatforms.length === 0) {
-    errors.push(`"socialcrawlPlatforms" must be a list with one or both of: ${SOCIALCRAWL_PLATFORMS.join(", ")}.`);
-  } else {
-    socialcrawlPlatforms = socialcrawlPlatforms.map((p) => p.toLowerCase());
-    const badPlatforms = socialcrawlPlatforms.filter((p) => !SOCIALCRAWL_PLATFORMS.includes(p));
-    if (badPlatforms.length) errors.push(`Unknown SocialCrawl platform(s): ${badPlatforms.join(", ")}. Use: ${SOCIALCRAWL_PLATFORMS.join(", ")}.`);
   }
 
   // --- lookbackDays (optional: settings.json's value is used if it's missing) ---
@@ -222,7 +245,7 @@ export function validateProfile(input, name = input?.name) {
     sources,
     stackexchangeSites,
     languages,
-    socialcrawlPlatforms,
+    socialcrawlPlatforms: [...SOCIALCRAWL_PLATFORMS],
     replyTone: isText(input.replyTone) ? input.replyTone.trim() : DEFAULT_REPLY_TONE,
   };
   if (input.lookbackDays !== undefined) profile.lookbackDays = input.lookbackDays;

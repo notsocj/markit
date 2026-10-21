@@ -16,7 +16,12 @@
 //                                       node_modules, build output, and lock files are never
 //                                       listed. See lib/project.js.
 //   node setup.js status                Print whether marKit is set up, where the .env file is,
-//                                       and which apps exist.
+//                                       which apps exist, and the Reddit provider.
+//   node setup.js reddit --provider <p> Choose who searches Reddit: scrapecreators, apify,
+//                                       socialcrawl, or none. Saves settings.json
+//                                       reddit.provider (keeping every other setting) and
+//                                       switches the "reddit" source on for every app (off
+//                                       does nothing to apps: with "none" it's just skipped).
 //
 // SECURITY: this script WRITES the .env template but never READS it. Keys are added by the
 // user in their own editor. Nothing here prints key values.
@@ -27,8 +32,9 @@ import { loadShared } from "./shared.js";
 
 // Load shared code from the sibling markit-find folder (exits with a clear message if missing).
 const config = await loadShared("lib/config.js");
-const { writeJsonFile } = await loadShared("lib/files.js");
+const { writeJsonFile, readJsonFile } = await loadShared("lib/files.js");
 const { validateProfile } = await loadShared("lib/profile.js");
+const { REDDIT_PROVIDERS, PROVIDER_LABELS, redditProvider, redditLabel } = await loadShared("lib/reddit.js");
 const { scanProject } = await loadShared("lib/project.js");
 
 // Windows doesn't use Unix-style permissions (chmod 600 does nothing useful there).
@@ -64,7 +70,14 @@ THREADS_ACCESS_TOKEN=
 # X developer console, pay-per-use. Set a spending limit there!
 X_BEARER_TOKEN=
 
-# socialcrawl.dev credits: marKit uses it to search Reddit. 100 free credits on signup.
+# ---------- Reddit (optional, paid): fill in ONE, then run /markit-setup to choose it ----------
+# ScrapeCreators: cheapest per search (1 credit), credits never expire. 100 free.
+SCRAPECREATORS_API_KEY=
+
+# Apify: can stay at $0 for light use (Apify includes $5 of usage every month).
+APIFY_API_TOKEN=
+
+# socialcrawl.dev credits: Reddit, and Threads with no Meta App Review. 100 free.
 SOCIALCRAWL_API_KEY=
 `;
 
@@ -150,6 +163,12 @@ async function app({ name, overwrite, "dry-run": dryRun }) {
     throw new Error("marKit: the profile on stdin is not valid JSON.");
   }
 
+  // Profiles written now use today's meaning of "socialcrawl" (Threads through SocialCrawl;
+  // Reddit is the "reddit" source). Without this mark, validateProfile would read a new
+  // profile's "socialcrawl" as an old Reddit setup and turn it into "reddit".
+  if (input && typeof input === "object" && !Array.isArray(input) && input.socialcrawlPlatforms === undefined) {
+    input.socialcrawlPlatforms = ["threads"];
+  }
   const { profile, warnings } = validateProfile(input, name);
   const file = config.appPath(name, paths);
 
@@ -195,13 +214,59 @@ function status() {
   const setUp = config.isSetUp(paths);
   const apps = setUp ? config.listApps(paths) : [];
   // JSON so the agent can read it reliably. Contains paths and app names only, no keys.
+  const redditChoice = setUp ? redditProvider(config.loadSettings(paths)) : "none";
   console.log(
     JSON.stringify(
-      { setUp, configDir: paths.dir, envFile: paths.envFile, envFileExists: existsSync(paths.envFile), apps },
+      { setUp, configDir: paths.dir, envFile: paths.envFile, envFileExists: existsSync(paths.envFile), apps, redditProvider: redditChoice },
       null,
       2
     )
   );
+}
+
+// ---------------------------------------------------------------------------
+// reddit
+// ---------------------------------------------------------------------------
+
+function reddit({ provider }) {
+  const choice = String(provider ?? "").trim().toLowerCase();
+  if (![...REDDIT_PROVIDERS, "none"].includes(choice)) {
+    throw new Error(`marKit: --provider must be one of: ${[...REDDIT_PROVIDERS, "none"].join(", ")}.`);
+  }
+  const paths = config.getPaths();
+  if (!config.isSetUp(paths)) throw new Error("marKit: not set up yet. Run: node setup.js init");
+
+  // Change only reddit.provider; keep everything else in settings.json exactly as it was.
+  // The chosen provider's caps are written out too (if missing) so they're easy to find.
+  const saved = readJsonFile(paths.settingsFile, {});
+  const next = { ...saved, reddit: { ...(saved.reddit ?? {}), provider: choice } };
+  if (choice !== "none" && !next[choice]) next[choice] = config.DEFAULT_SETTINGS[choice];
+  writeJsonFile(paths.settingsFile, next);
+
+  const lines = [choice === "none" ? "✓ Reddit provider: none (only the agent's web search covers Reddit)" : `✓ Reddit provider: ${PROVIDER_LABELS[choice]} (${redditLabel(choice)} in reports)`];
+  if (choice !== "none") {
+    // Every app searches Reddit from now on (the provider is one choice for all apps).
+    for (const name of config.listApps(paths)) {
+      const file = config.appPath(name, paths);
+      const current = readJsonFile(file, null);
+      if (!current) continue;
+      const { profile } = validateProfile(current, name); // also upgrades old SocialCrawl-for-Reddit profiles
+      if (!profile.sources.includes("reddit")) {
+        profile.sources = [...profile.sources.filter((s) => s !== "web"), "reddit", ...(profile.sources.includes("web") ? ["web"] : [])];
+        writeJsonFile(file, profile);
+        lines.push(`✓ Added "reddit" to ${name}'s sources`);
+      } else if (JSON.stringify(profile) !== JSON.stringify(current)) {
+        writeJsonFile(file, profile);
+      }
+    }
+    const caps = next[choice];
+    lines.push(
+      choice === "apify"
+        ? `  Caps (settings.json apify): ${caps.maxResultsPerRun} results per run, about $${Number(caps.maxEstimatedCostPerMonth).toFixed(2)} per month (estimated from $${caps.pricePerThousandResults} per 1,000 results)`
+        : `  Caps (settings.json ${choice}): ${caps.maxCreditsPerRun} credits per run, ${caps.maxCreditsPerMonth} per month`
+    );
+  }
+  console.log(lines.join("\n"));
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +277,8 @@ const USAGE = `Usage:
   node setup.js init
   node setup.js app --name <name> [--overwrite] [--dry-run]   (profile JSON on stdin)
   node setup.js scan [--dir <path>]
-  node setup.js status`;
+  node setup.js status
+  node setup.js reddit --provider <scrapecreators|apify|socialcrawl|none>`;
 
 try {
   const { positionals, values } = parseArgs({
@@ -222,6 +288,7 @@ try {
       overwrite: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
       dir: { type: "string" },
+      provider: { type: "string" },
     },
   });
   const command = positionals[0];
@@ -230,6 +297,7 @@ try {
   else if (command === "app") await app(values);
   else if (command === "scan") scan(values);
   else if (command === "status") status();
+  else if (command === "reddit") reddit(values);
   else {
     console.log(USAGE);
     process.exitCode = command ? 1 : 0;

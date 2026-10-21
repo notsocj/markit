@@ -13,8 +13,13 @@
 //   3. Per source: drop posts outside the lookback window, posts already reported
 //      (seen.json), and posts containing the profile's `exclude` words; then cap to
 //      maxPostsPerSource, mixing keywords fairly.
-//   4. Paid sources (X, SocialCrawl) stop once their per-run OR monthly cap is reached,
-//      checked against usage.json. A source over its monthly cap is skipped entirely.
+//   4. Paid sources (X, the Reddit provider, SocialCrawl) stop once their per-run OR monthly
+//      cap is reached, checked against usage.json. A source over its monthly cap is skipped.
+//      REDDIT: the "reddit" source runs through the ONE provider chosen in settings.json
+//      ("reddit": { "provider": "scrapecreators" | "apify" | "socialcrawl" | "none" }), so a
+//      Reddit search is never paid for twice. Two jobs on the same paid account (SocialCrawl
+//      as Reddit provider AND the "socialcrawl" Threads source) run one after the other and
+//      share one budget, so together they stay inside that account's caps.
 //      Free sources with a daily quota (YouTube, Stack Exchange, Threads) stop the same way
 //      when marKit's count says today's quota is used up.
 //   5. Record requests / posts / credits per source in usage.json (counts only).
@@ -38,9 +43,26 @@ import { makeExcludeMatcher, isWithinWindow, interleave } from "./lib/filters.js
 import { buildWebQueries } from "./lib/web-queries.js";
 import { writeJsonFile } from "./lib/files.js";
 import { pickApp } from "./lib/project.js";
+import { redditProvider, redditLabel } from "./lib/reddit.js";
 import { ADAPTERS } from "./adapters/index.js";
 
 const label = (name) => SOURCE_LABELS[name] ?? name;
+
+// The units paid sources are billed in, and how their caps are named in settings.json
+// (x.maxPostsPerRun, scrapecreators.maxCreditsPerMonth, apify.maxResultsPerRun, ...).
+const UNIT_WORD = { posts: "Posts", credits: "Credits", results: "Results" };
+
+/**
+ * A paid source's caps: { perRun, monthly } in its own unit. Most read
+ * settings[<name>].max<Unit>PerRun / max<Unit>PerMonth; an adapter whose monthly cap is in
+ * dollars (Apify) supplies its own caps() instead.
+ */
+export function paidCaps(adapter, settings) {
+  if (typeof adapter.caps === "function") return adapter.caps(settings);
+  const Unit = UNIT_WORD[adapter.costUnit ?? "posts"] ?? "Posts";
+  const caps = settings[adapter.name] ?? {};
+  return { perRun: caps[`max${Unit}PerRun`], monthly: caps[`max${Unit}PerMonth`] };
+}
 
 /**
  * Turn an error into a short, key-safe reason like "HTTP 403".
@@ -61,11 +83,10 @@ export function safeReason(err, sourceName) {
  * @returns {{ unit, remaining, reason?, limitedBy? }}
  */
 export function paidBudget(adapter, settings, usage, now = new Date()) {
+  // Apify's monthly cap is an estimated dollar amount, so it works out its own budget.
+  if (typeof adapter.budget === "function") return adapter.budget(settings, usage, now);
   const unit = adapter.costUnit ?? "posts";
-  const caps = settings[adapter.name] ?? {};
-  const Unit = unit === "credits" ? "Credits" : "Posts";
-  const perRun = caps[`max${Unit}PerRun`];
-  const monthly = caps[`max${Unit}PerMonth`];
+  const { perRun, monthly } = paidCaps(adapter, settings);
 
   // Missing caps means "don't spend": safer than spending without limits.
   if (!Number.isFinite(perRun) || !Number.isFinite(monthly)) {
@@ -98,48 +119,84 @@ export function quotaBudget(adapter, env, usage, now = new Date()) {
 }
 
 /**
- * Run one source for every keyword and return its status, kept posts, and usage meter.
+ * Run one job (a source, searched through one adapter) for every keyword and return its
+ * status, kept posts, and usage meter.
+ *
+ * job: { name, label, adapter, platforms?, provider? }
+ *   name      the profile source ("reddit", "hackernews", ...), used in raw.json
+ *   label     display name, e.g. "Reddit (via ScrapeCreators)"
+ *   platforms what a multi-platform adapter should search (SocialCrawl: ["reddit"] or ["threads"])
+ *   provider  for "reddit": which provider adapter did the searching
  */
-async function runSource(adapter, { keywords, since, perKeywordLimit, maxPosts, env, profile, http, budget, seen, isExcluded }) {
-  // Adapters add to `requests` and `credits`; we count `posts` here.
+async function runSource(job, { keywords, since, perKeywordLimit, maxPosts, env, profile, settings, http, budget, seen, isExcluded, now }) {
+  const { adapter } = job;
+  // Adapters add to `requests` and `credits` (Apify also to `results` and `usd`); we
+  // count `posts` here.
   const meter = { requests: 0, posts: 0, credits: 0 };
   const lists = [];
   const errors = [];
   let capped = false;
+  let attempts = keywords.length;
 
-  for (const [i, keyword] of keywords.entries()) {
-    let limit = perKeywordLimit;
-    let left;
-    if (budget) {
-      left = budget.remaining - meter[budget.unit];
-      if (left <= 0) {
-        capped = true;
-        break; // cap reached: no more calls to this paid source
-      }
-      if (budget.unit === "posts") {
-        // Share what's left across the keywords still to search, so the first keyword can't
-        // use the whole per-run cap (found on a real run: X's first keyword took 25 of 30
-        // posts and the other 7 keywords were never searched). Never below the adapter's
-        // minimum per request (X: 10), so with 30 posts and 8 keywords, 3 keywords get 10.
-        const fairShare = Math.floor(left / (keywords.length - i));
-        limit = Math.min(limit, left, Math.max(fairShare, adapter.minResults ?? 1));
+  // What's left to spend right now: the run's budget minus this job's spending so far.
+  // `usd` is passed along for adapters with a dollar cap (Apify).
+  const budgetLeft = () => {
+    if (!budget) return undefined;
+    const left = { [budget.unit]: budget.remaining - (meter[budget.unit] ?? 0) };
+    if (Number.isFinite(budget.usd)) left.usd = budget.usd - (meter.usd ?? 0);
+    return left;
+  };
+  const common = { since, env, profile, settings, meter, http, now, platforms: job.platforms };
+
+  if (typeof adapter.searchAll === "function") {
+    // Adapters that pay a fee per call (Apify charges per actor run) search every keyword in
+    // ONE call and tag each post with the keyword that found it.
+    attempts = 1;
+    const left = budgetLeft();
+    if (budget && left[budget.unit] <= 0) capped = true;
+    else {
+      try {
+        const posts = await adapter.searchAll(keywords, { ...common, limit: perKeywordLimit, budget: left });
+        meter.posts += posts.length;
+        for (const keyword of keywords) lists.push(posts.filter((p) => p.matchedKeyword === keyword));
+        // Posts the adapter couldn't tie to a keyword still count (kept in a list of their own).
+        const untagged = posts.filter((p) => !keywords.includes(p.matchedKeyword));
+        if (untagged.length) lists.push(untagged);
+      } catch (err) {
+        errors.push(err);
       }
     }
-    try {
-      const posts = await adapter.search(keyword, {
-        since,
-        limit,
-        env,
-        profile,
-        meter,
-        http,
-        // Paid adapters use this to avoid overspending inside one call.
-        budget: budget ? { [budget.unit]: left } : undefined,
-      });
-      meter.posts += posts.length;
-      lists.push(posts);
-    } catch (err) {
-      errors.push(err);
+  } else {
+    for (const [i, keyword] of keywords.entries()) {
+      let limit = perKeywordLimit;
+      let left;
+      if (budget) {
+        left = budget.remaining - (meter[budget.unit] ?? 0);
+        if (left <= 0) {
+          capped = true;
+          break; // cap reached: no more calls to this paid source
+        }
+        if (budget.unit === "posts") {
+          // Share what's left across the keywords still to search, so the first keyword can't
+          // use the whole per-run cap (found on a real run: X's first keyword took 25 of 30
+          // posts and the other 7 keywords were never searched). Never below the adapter's
+          // minimum per request (X: 10), so with 30 posts and 8 keywords, 3 keywords get 10.
+          const fairShare = Math.floor(left / (keywords.length - i));
+          limit = Math.min(limit, left, Math.max(fairShare, adapter.minResults ?? 1));
+        }
+      }
+      try {
+        const posts = await adapter.search(keyword, {
+          ...common,
+          limit,
+          // Paid adapters use this to avoid overspending inside one call.
+          budget: budgetLeft(),
+        });
+        meter.posts += posts.length;
+        lists.push(posts);
+      } catch (err) {
+        errors.push(err);
+      }
     }
   }
 
@@ -156,22 +213,51 @@ async function runSource(adapter, { keywords, since, perKeywordLimit, maxPosts, 
   const keep = (post) => isWithinWindow(post, since) && !seen.has(post.id) && !isExcluded(post);
   const kept = interleave(lists.map((list) => list.filter(keep)), maxPosts);
 
-  const status = { name: adapter.name, label: label(adapter.name), status: "ok", count: kept.length, fetched: unique.size, removed };
+  const status = { name: job.name, label: job.label, status: "ok", count: kept.length, fetched: unique.size, removed };
+  if (job.provider) status.provider = job.provider;
   const reasons = [];
-  if (errors.length && errors.length === keywords.length) {
+  if (errors.length && errors.length === attempts) {
     status.status = "error";
     reasons.push(safeReason(errors[0], adapter.name));
   } else if (errors.length) {
-    reasons.push(`${errors.length} of ${keywords.length} searches failed (${safeReason(errors[0], adapter.name)})`);
+    reasons.push(`${errors.length} of ${attempts} searches failed (${safeReason(errors[0], adapter.name)})`);
   }
   if (capped) reasons.push(`stopped at ${budget.limitedBy}`);
   if (reasons.length) status.reason = reasons.join("; ");
   if (typeof meter.quotaRemaining === "number") status.quotaRemaining = meter.quotaRemaining;
-  // What this source spent during the search (counts only). candidates.js uses it so the
+  // What this job spent during the search (counts only). candidates.js uses it so the
   // per-run cap of a paid source covers search AND thread context together.
   status.used = { requests: meter.requests, posts: meter.posts, credits: meter.credits };
+  for (const field of ["results", "usd"]) if (meter[field]) status.used[field] = meter[field];
 
   return { status, posts: kept, meter };
+}
+
+/**
+ * Turn the profile's sources into jobs: which adapter searches each source, and how.
+ * Returns { job } for each source to run, or { skip: reason } when it can't run.
+ */
+export function planJobs(profile, settings, adapters, env) {
+  const provider = redditProvider(settings);
+  return profile.sources
+    .filter((name) => name !== "web")
+    .map((name) => {
+      if (name === "reddit") {
+        if (provider === "none") return { name, label: label(name), skip: "no Reddit provider chosen (run /markit-setup, or set reddit.provider in settings.json)" };
+        const adapter = adapters.find((a) => a.name === provider);
+        const job = { name, label: redditLabel(provider), adapter, platforms: ["reddit"], provider };
+        if (!adapter) return { ...job, skip: "not available yet" };
+        if (!adapter.isEnabled(env)) return { ...job, skip: `no ${adapter.label ?? provider} key` };
+        return { job };
+      }
+      const adapter = adapters.find((a) => a.name === name);
+      // The "socialcrawl" source is Threads through SocialCrawl (Reddit comes from the
+      // Reddit provider, so it's never searched twice).
+      const job = { name, label: label(name), adapter, platforms: name === "socialcrawl" ? ["threads"] : undefined };
+      if (!adapter) return { ...job, skip: "not available yet" };
+      if (!adapter.isEnabled(env)) return { ...job, skip: "no key" };
+      return { job };
+    });
 }
 
 /**
@@ -179,7 +265,8 @@ async function runSource(adapter, { keywords, since, perKeywordLimit, maxPosts, 
  *
  * @returns {Promise<{ raw: object, meters: { name: string, meter: object }[] }>}
  *   raw    — the raw.json content
- *   meters — what each source used, for usage.json
+ *   meters — what each paid account / source used, for usage.json (by adapter name, so a
+ *            Reddit provider's spending counts against that provider's caps)
  */
 export async function runSearch({ profile, settings, env = {}, adapters = ADAPTERS, seen = new Set(), usage = { months: {}, days: {} }, now = new Date(), lookbackDays, http }) {
   const lookback = lookbackDays ?? profile.lookbackDays ?? settings.lookbackDays;
@@ -192,38 +279,69 @@ export async function runSearch({ profile, settings, env = {}, adapters = ADAPTE
     maxPosts: settings.maxPostsPerSource,
     env,
     profile,
+    settings,
     http,
     seen,
     isExcluded,
+    now,
   };
 
-  const skipped = (name, reason) => Promise.resolve({ status: { name, label: label(name), status: "skipped", count: 0, reason }, posts: [], meter: null });
+  const skipped = ({ name, label: shown, provider }, reason) => {
+    const status = { name, label: shown, status: "skipped", count: 0, reason };
+    if (provider) status.provider = provider;
+    return { status, posts: [], meter: null };
+  };
 
-  const tasks = profile.sources
-    .filter((name) => name !== "web")
-    .map((name) => {
-      const adapter = adapters.find((a) => a.name === name);
-      if (!adapter) return skipped(name, "not available yet");
-      if (!adapter.isEnabled(env)) return skipped(name, "no key");
+  // Jobs that bill the same account run one after another in a group, sharing ONE budget
+  // (the second job gets what the first left). Different accounts run in parallel.
+  const plan = planJobs(profile, settings, adapters, env);
+  const groups = new Map();
+  for (const [i, entry] of plan.entries()) {
+    const key = entry.job ? entry.job.adapter.name : `skip-${i}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
+  }
 
-      let budget;
-      if (adapter.paid) {
-        budget = paidBudget(adapter, settings, usage, now);
-        if (budget.remaining <= 0) return skipped(name, budget.reason);
-      } else if (adapter.quota?.period === "day") {
-        budget = quotaBudget(adapter, env, usage, now);
-        if (budget.remaining <= 0) return skipped(name, budget.reason);
+  const runGroup = async (entries) => {
+    const out = [];
+    let budget;
+    const first = entries.find((e) => e.job)?.job.adapter;
+    if (first?.paid) budget = paidBudget(first, settings, usage, now);
+    else if (first?.quota?.period === "day") budget = quotaBudget(first, env, usage, now);
+
+    for (const entry of entries) {
+      if (!entry.job) {
+        out.push(skipped(entry, entry.skip));
+        continue;
       }
-      // Belt and braces: runSource already catches adapter errors per keyword, but if
-      // anything else throws, this keeps one source from breaking the whole run.
-      return runSource(adapter, { ...shared, budget }).catch((err) => ({
-        status: { name, label: label(name), status: "error", count: 0, reason: safeReason(err, name) },
-        posts: [],
-        meter: null,
-      }));
-    });
+      const { job } = entry;
+      if (budget && budget.remaining <= 0) {
+        out.push(skipped(job, budget.reason ?? `stopped at ${budget.limitedBy}`));
+        continue;
+      }
+      try {
+        const result = await runSource(job, { ...shared, budget });
+        out.push({ ...result, billedTo: job.adapter.name });
+        if (budget) {
+          // Hand what's left to the next job on this account.
+          budget = { ...budget, remaining: budget.remaining - (result.meter[budget.unit] ?? 0) };
+          if (Number.isFinite(budget.usd)) budget.usd -= result.meter.usd ?? 0;
+          if (budget.remaining <= 0) budget.reason = `stopped at ${budget.limitedBy}`;
+        }
+      } catch (err) {
+        // Belt and braces: runSource already catches adapter errors per keyword, but if
+        // anything else throws, this keeps one source from breaking the whole run.
+        out.push({ status: { name: job.name, label: job.label, status: "error", count: 0, reason: safeReason(err, job.adapter.name) }, posts: [], meter: null });
+      }
+    }
+    return out;
+  };
 
-  const results = await Promise.all(tasks);
+  // Keep the profile's order in raw.json, whatever order the groups finish in.
+  const finished = await Promise.all([...groups.values()].map(runGroup));
+  const byEntry = new Map();
+  [...groups.values()].forEach((entries, g) => entries.forEach((entry, i) => byEntry.set(entry, finished[g][i])));
+  const results = plan.map((entry) => byEntry.get(entry));
 
   const webQueries = profile.sources.includes("web") ? buildWebQueries(profile) : [];
   const sources = results.map((r) => r.status);
@@ -245,7 +363,7 @@ export async function runSearch({ profile, settings, env = {}, adapters = ADAPTE
     webQueries,
     posts,
   };
-  const meters = results.filter((r) => r.meter).map((r) => ({ name: r.status.name, meter: r.meter }));
+  const meters = results.filter((r) => r.meter).map((r) => ({ name: r.billedTo ?? r.status.name, meter: r.meter }));
   return { raw, meters };
 }
 

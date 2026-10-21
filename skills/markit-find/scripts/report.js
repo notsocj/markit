@@ -76,6 +76,9 @@ export function buildReport({ raw, scored, seenDates = {}, now = new Date(), tim
     // The keyword that found the post comes from the scripts too (feedback learns from it).
     const found = c ?? fromSearch.get(post.id);
     if (found?.matchedKeyword) post.matchedKeyword = found.matchedKeyword;
+    // Which paid service found a Reddit post ("Reddit r/x (via Apify)" in the report).
+    if (found?.provider) post.provider = found.provider;
+    else delete post.provider;
     post.context = cleanContext(c ? c.context : post.context);
     if (c?.alsoPostedAt) post.alsoPostedAt = c.alsoPostedAt;
     if (Number.isFinite(c?.preScore)) post.preScore = c.preScore;
@@ -102,7 +105,7 @@ export function buildReport({ raw, scored, seenDates = {}, now = new Date(), tim
 }
 
 // The fields a card needs, and nothing else (cards.json is read by the dashboard).
-const CARD_FIELDS = ["id", "source", "site", "url", "title", "excerpt", "author", "createdAt", "engagement", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention", "context", "alsoPostedAt", "preScore"];
+const CARD_FIELDS = ["id", "source", "provider", "site", "url", "title", "excerpt", "author", "createdAt", "engagement", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention", "context", "alsoPostedAt", "preScore"];
 
 /** cards.json content: run info plus the numbered cards exactly as report.md shows them. */
 export function buildCards(raw, numbered, prefilter, keywordHealth = null) {

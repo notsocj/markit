@@ -9,7 +9,7 @@
 // Inside that folder:
 //   .env           API keys (chmod 600). Only scripts read it, never the agent.
 //   apps/*.json    one profile per app
-//   settings.json  reports folder, lookback days, paid-source caps
+//   settings.json  reports folder, lookback days, Reddit provider, paid-source caps
 //   seen.json      IDs of posts already reported
 //   usage.json     API call counts per source
 //   feedback.json  what you did with each card (Replied / Skipped + reason), for learning
@@ -33,6 +33,8 @@ export const KNOWN_KEYS = [
   "THREADS_ACCESS_TOKEN",
   "X_BEARER_TOKEN",
   "SOCIALCRAWL_API_KEY",
+  "SCRAPECREATORS_API_KEY",
+  "APIFY_API_TOKEN",
 ];
 
 // Defaults used when settings.json is missing a value (or doesn't exist yet).
@@ -45,12 +47,31 @@ export const DEFAULT_SETTINGS = {
   // many of the best get thread context (comments) fetched.
   maxCandidates: 40,
   maxContext: 15,
-  // Thread context costs money on X and SocialCrawl, so it's off for them unless enabled
-  // (and then it still stays within the caps below).
+  // Thread context costs money on X and the Reddit providers, so it's off for them unless
+  // enabled (and then it still stays within the caps below).
   contextForPaidSources: false,
+  // Which ONE paid service searches Reddit: "scrapecreators", "apify", "socialcrawl", or
+  // "none" (Reddit is then only covered by the agent's web search). See lib/reddit.js.
+  reddit: { provider: "none" },
   x: { maxPostsPerRun: 30, maxPostsPerMonth: 900 },
   socialcrawl: { maxCreditsPerRun: 50, maxCreditsPerMonth: 1500 },
+  // 1 credit per request; credits never expire.
+  scrapecreators: { maxCreditsPerRun: 30, maxCreditsPerMonth: 1000 },
+  // Apify bills per result returned (plus a small fee per actor run). marKit can only
+  // ESTIMATE the cost from these prices (the actor's Store page, free plan, checked
+  // 2026-10-22), so the monthly cap is a dollar estimate kept just under Apify's $5 of free
+  // monthly usage. Update the prices if you pick another actor or your plan is cheaper.
+  apify: {
+    redditActor: "harshmaur~reddit-scraper",
+    pricePerThousandResults: 2.0,
+    pricePerRun: 0.02,
+    maxResultsPerRun: 50,
+    maxEstimatedCostPerMonth: 4.5,
+  },
 };
+
+// settings.json sections that are merged key by key with their defaults (see loadSettings).
+const NESTED_SETTINGS = ["reddit", "x", "socialcrawl", "scrapecreators", "apify"];
 
 /**
  * Turn "~/something" into "/Users/you/something". Other paths are returned unchanged.
@@ -155,7 +176,7 @@ export function parseEnv(text) {
  * The .env file is the ONLY source of keys. We don't use process.loadEnvFile() or
  * process.env on purpose: with those, a key already set in your shell (say, an
  * X_BEARER_TOKEN exported for another project) would silently win over .env, and marKit
- * could bill the wrong X or SocialCrawl account. process.env is never read or changed here.
+ * could bill the wrong X or Reddit-provider account. process.env is never read or changed here.
  *
  * The returned object holds secrets. Pass it to adapters, but never print it,
  * log it, or write it to a file.
@@ -172,11 +193,13 @@ export function loadSettings(paths = getPaths(), home = homedir()) {
   const settings = {
     ...DEFAULT_SETTINGS,
     ...saved,
-    // The nested cap objects are merged separately so a settings.json that only sets
-    // x.maxPostsPerRun still keeps the default x.maxPostsPerMonth.
-    x: { ...DEFAULT_SETTINGS.x, ...(saved.x ?? {}) },
-    socialcrawl: { ...DEFAULT_SETTINGS.socialcrawl, ...(saved.socialcrawl ?? {}) },
   };
+  // The nested objects are merged separately so a settings.json that only sets
+  // x.maxPostsPerRun still keeps the default x.maxPostsPerMonth.
+  for (const key of NESTED_SETTINGS) {
+    const own = saved[key] && typeof saved[key] === "object" && !Array.isArray(saved[key]) ? saved[key] : {};
+    settings[key] = { ...DEFAULT_SETTINGS[key], ...own };
+  }
   settings.reportsDir = expandHome(settings.reportsDir, home);
   return settings;
 }

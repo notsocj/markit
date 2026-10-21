@@ -87,6 +87,7 @@ markit/                          ← GitHub repo root
     │       │   ├── seen.js      ← remembers posts already shown, to avoid repeats
     │       │   ├── usage.js     ← records API calls / posts / credits per source per month
     │       │   ├── normalize.js ← shared Post shape + helpers (excerpt, dates)
+    │       │   ├── reddit.js    ← Reddit provider choice + the one Reddit Post shape (section 19)
     │       │   └── safe-fetch.js← fetch wrapper: timeout, retries, key-safe errors
     │       └── adapters/        ← SHARED (search uses .search, usage uses .check)
     │           ├── hackernews.js    ← free, no key
@@ -95,7 +96,9 @@ markit/                          ← GitHub repo root
     │           ├── youtube.js       ← free quota, needs Google API key
     │           ├── threads.js       ← free, needs Meta access token
     │           ├── x.js             ← OPTIONAL, paid (pay-per-use), needs bearer token
-    │           └── socialcrawl.js   ← OPTIONAL, paid credits, Reddit/TikTok/Facebook
+    │           ├── socialcrawl.js   ← OPTIONAL, paid credits: Reddit provider + Threads
+    │           ├── scrapecreators.js← OPTIONAL Reddit provider, paid credits (section 19)
+    │           └── apify.js         ← OPTIONAL Reddit provider, per result, can stay at $0 (section 19)
     │
     ├── markit-dashboard/        ← milestone 10 (section 15)
     │   ├── SKILL.md             ← starts the local server in the background, gives the URL
@@ -126,7 +129,7 @@ Each skill folder also contains a `package.json` with just `{ "type": "module" }
 | `/markit-setup` | First run: creates config, walks through API keys, creates the first app profile, then checks keys. If run inside the app's project folder, the profile is drafted from the project automatically (section 8.1) and the user only confirms, edits, and adds competitors. If already set up, offers: add another app, edit an app, add or change a key source |
 | `/markit-find [app]` | Searches for opportunities for an app and produces an organized report. If no app is given: use the profile matching the current folder's name or package name (and say which was picked); otherwise use the only profile; otherwise ask |
 | `/markit-dashboard` | Starts a local web page (127.0.0.1) to filter cards, copy drafts, open posts, and mark them Replied or Skipped (section 15) |
-| `/markit-usage` | Shows which sources are ready (✓ / ✗), this month's usage per source against free quotas and paid caps (with estimated cost for X and SocialCrawl), and a short guide to the four commands |
+| `/markit-usage` | Shows which sources are ready (✓ / ✗), this month's usage per source against free quotas and paid caps (with estimated cost for X and Apify, and credits left for ScrapeCreators and SocialCrawl), which Reddit provider is in use, and a short guide to the four commands |
 
 In Codex, the same skills are invoked as `$markit-setup`, `$markit-find`, `$markit-usage`. Install paths differ per agent (see README section in milestone 9).
 
@@ -171,7 +174,7 @@ description: Set up marKit, the app-marketing finder. Creates the config, guides
 
 ## If marKit is not set up yet
 1. Run `node scripts/setup.js init` (creates config folder + blank .env with chmod 600 + settings.json).
-2. Ask which sources they want. Free ones are recommended by default; X and SocialCrawl are paid and optional.
+2. Ask which sources they want. Free ones are recommended by default; X is paid and optional. For Reddit, explain the three paid providers (ScrapeCreators, Apify, SocialCrawl) or none, and save the choice with `setup.js reddit --provider <name>` (section 19).
 3. For each chosen source that needs a key, show its steps from `references/setup-guide.md`,
    tell the user the exact path of the .env file, and ask them to paste the key there in their own editor.
    Wait for them to confirm. Never ask to see the key.
@@ -268,7 +271,11 @@ Sources
   ✗ YouTube           invalid key → run /markit-setup
   ✓ Threads           free      38 / 2,200 searches today · token expires in 12 days
   ✓ X                 paid      210 / 900 posts this month · ~$1.05
+  ✓ ScrapeCreators    paid      12 / 1000 credits this month · 88 credits left (never expire)
+  – Apify             not set up
   – SocialCrawl       not set up
+
+Reddit: via ScrapeCreators
 
 Apps: gridpeek, keepr
 Last run: gridpeek · Oct 21, 9:00 PM · 12 opportunities
@@ -343,7 +350,14 @@ THREADS_ACCESS_TOKEN=
 # X developer console, pay-per-use. Set a spending limit there!
 X_BEARER_TOKEN=
 
-# socialcrawl.dev credits (Reddit, TikTok, Facebook).
+# ---------- Reddit (optional, paid): fill in ONE, then run /markit-setup to choose it ----------
+# ScrapeCreators: cheapest per search (1 credit), credits never expire. 100 free.
+SCRAPECREATORS_API_KEY=
+
+# Apify: can stay at $0 for light use (Apify includes $5 of usage every month).
+APIFY_API_TOKEN=
+
+# socialcrawl.dev credits: Reddit, and Threads with no Meta App Review. 100 free.
 SOCIALCRAWL_API_KEY=
 ```
 
@@ -357,10 +371,21 @@ SOCIALCRAWL_API_KEY=
   "maxCandidates": 40,
   "maxContext": 15,
   "contextForPaidSources": false,
+  "reddit": { "provider": "none" },
   "x": { "maxPostsPerRun": 30, "maxPostsPerMonth": 900 },
-  "socialcrawl": { "maxCreditsPerRun": 50, "maxCreditsPerMonth": 1500 }
+  "socialcrawl": { "maxCreditsPerRun": 50, "maxCreditsPerMonth": 1500 },
+  "scrapecreators": { "maxCreditsPerRun": 30, "maxCreditsPerMonth": 1000 },
+  "apify": {
+    "redditActor": "harshmaur~reddit-scraper",
+    "pricePerThousandResults": 2.0,
+    "pricePerRun": 0.02,
+    "maxResultsPerRun": 50,
+    "maxEstimatedCostPerMonth": 4.5
+  }
 }
 ```
+
+`reddit.provider` is one of `scrapecreators`, `apify`, `socialcrawl`, `none` (anything else counts as `none`). Nested sections are merged key by key with these defaults.
 
 The caps protect users from surprise bills on paid sources. `search.js` must stop calling a paid source once its per-run **or** monthly cap is reached (checked against `usage.json`), and say so in raw.json's `sources` status.
 
@@ -406,7 +431,8 @@ The caps protect users from surprise bills on paid sources. `search.js` must sto
 Field rules (enforced by `lib/profile.js`, which reports every problem at once):
 - Required: `name` (1–40 lowercase letters, numbers, hyphens), `url` (http/https), `oneLiner` (≤ 200 chars), `audience`, `keywords` (1–8; fewer than 3 or single-word keywords give a warning).
 - Optional: `description`, `features` (≤ 10 short phrases), `competitors`, `exclude`, `replyTone` (default "casual, friendly, short"), `stackexchangeSites` (default `["softwarerecs"]`), `languages` (default `["en"]`; codes like `"en"`, `"pt-br"`; see section 16), `lookbackDays` (1–30; if missing, `settings.json` is used).
-- `sources` defaults to the free sources only. Paid sources (`x`, `socialcrawl`) must be listed explicitly.
+- `sources` defaults to the free sources plus `reddit` (which costs nothing until a Reddit provider is chosen in settings.json). Paid sources (`x`, `socialcrawl` = Threads through SocialCrawl) must be listed explicitly.
+- `socialcrawlPlatforms`: saved as `["threads"]` on every profile, which marks it as upgraded (section 19). Older values (`["reddit"]`, `["reddit", "threads"]`, or a missing field) are read once to upgrade `sources`.
 - Unknown fields are dropped with a warning.
 
 **Keyword guidance** (setup should explain this to users): intent phrases beat single words. Good: "best app for tracking F1 sessions", "alternative to X", "how do you organize your race weekend". Weak: "F1" (way too broad, wastes quota).
@@ -443,8 +469,8 @@ It prints JSON with the choice and a ready-to-say `message`, e.g. `Using app pro
 
 ```js
 {
-  id: "hn-41234567",          // "<source>-<platform id>", globally unique
-  source: "hackernews",       // adapter name
+  id: "hn-41234567",          // "<source>-<platform id>", globally unique; Reddit: "reddit-<post id>"
+  source: "hackernews",       // adapter name; "reddit" for Reddit posts from ANY provider
   url: "https://...",         // direct link to the post
   title: "Ask HN: ...",       // may be empty for short posts
   excerpt: "...",             // first ~500 chars of text, whitespace collapsed
@@ -452,8 +478,9 @@ It prints JSON with the choice and a ready-to-say `message`, e.g. `Using app pro
   createdAt: "2026-10-21T08:00:00Z",
   engagement: { score: 12, comments: 4 }, // whatever the platform provides
   matchedKeyword: "F1 schedule app",
-  site: "Reddit r/formula1",  // optional: where the post really lives when the source is a
-                              // go-between (SocialCrawl) or web search; shown in the report
+  site: "Reddit r/formula1",  // optional: where the post really lives (a subreddit, Threads via
+                              // SocialCrawl, a web search result's site); shown in the report
+  provider: "scrapecreators", // Reddit posts only: which paid service found it (section 19)
   lang: ["en"]                // optional: language(s) the PLATFORM reports (X "lang",
 }                             // Bluesky record.langs); missing = unknown
 ```
@@ -610,8 +637,11 @@ As built in milestone 5 (`lib/render-report.js`, `report.js`):
 | `youtube` | YouTube Data API v3 `search.list` (videos, `order=date`, `publishedAfter`) | API key | **Since 2026-06-01 search.list has its own quota: 100 calls/day** (1 per call), separate from the 10,000-unit pool; resets midnight Pacific. 1 call per keyword. Bad key → 400 (`API_KEY_INVALID`), quota/not enabled → 403. `check()` uses `i18nLanguages.list` (1 unit, other pool). Only videos are searchable (no comment search) |
 | `threads` | Threads API `graph.threads.com/v1.0/keyword_search`, `search_type=RECENT` | Access token | Needs `threads_basic` + `threads_keyword_search`. **Without App Review approval, search only returns the authenticated user's own posts**, so Threads is NOT in the default sources. Limit: 2,200 queries per rolling 24 h (empty results don't count). No like/reply counts in results. Long-lived tokens last 60 days; `check()` calls `/me` (400 + OAuthException 190 → invalid); `notes()` calls `debug_token` for "token expires in N days", a missing-permission warning, and the App Review reminder |
 | `x` (optional) | X API v2 `api.x.com/2/tweets/search/recent` | Bearer token | **$0.005 per post read**, no free tier; users set a spending limit in console.x.com. Query = trimmed topic + `-is:retweet` (≤ 512 chars), `max_results` 10–100, `start_time` clamped to 7 days. **No `expansions=author_id`** (each user returned costs $0.010); links use `x.com/i/status/<id>`. Never requests more than `budget.posts`; skips when fewer than 10 are left (X's minimum). Sends `tweet.fields`, switches once to `post.fields` on a 400 (the live spec renamed it). `check()` uses `/2/usage/tweets` |
-| `socialcrawl` (optional) | SocialCrawl `GET https://www.socialcrawl.dev/v1/reddit/search` (`x-api-key` header) | API key | Covers **Reddit**. Quoted topic (words otherwise match ANY), `sort=new`, `since=YYYY-MM-DD`, `max_pages=1` = 1 credit (cached = 0; actual `credits_used` is counted). 100 free credits; packs from £15/2,500. Posts carry `site: "Reddit r/<sub>"`. `check()` and `notes()` ("N credits left") use the free `/v1/credits/balance`. 401 invalid, 402 out of credits, 429 rate limit |
-| `web` | The agent's own web search tool | No | Not a script. `search.js` only generates `webQueries` (`lib/web-queries.js`): one Reddit query per keyword (full intent phrase, unquoted), `"<competitor>" alternative` on Reddit (≤ 3), Quora for the first 2 keywords, and `<trimmed topic> forum` for the first 2; deduped, ≤ 16. The agent runs them. Results lag hours to days behind live posts. **Tested 2026-10-21 with Claude Code's web search:** `site:reddit.com` was not honored and Reddit threads almost never appeared (Reddit restricts crawlers); results were forum threads (useful) mixed with articles and directories (not repliable). Reliable Reddit coverage needs SocialCrawl (paid) |
+| `reddit` (optional) | The ONE provider in settings.json `reddit.provider` | that provider's key | Not an adapter: search.js runs it through `scrapecreators`, `apify`, or `socialcrawl` (section 19). `none` (default) → skipped with "no Reddit provider chosen" |
+| `scrapecreators` (Reddit provider) | ScrapeCreators `GET https://api.scrapecreators.com/v1/reddit/search` (`x-api-key` header) | API key | Quoted topic, `sort=new`, `timeframe` = smallest window covering the lookback (day/week/month/year), never `trim` (trimmed results lack selftext). 1 credit per request; `credits_charged` is counted. Some errors are HTTP 200 + `success: false` → treated as that status. `check()` = `/v1/account/credit-balance` (listed at 1 credit: `checkCost`), whose balance `notes()` reuses. 401 invalid, 402 out of credits. No rate limit, no spending limit on their side |
+| `apify` (Reddit provider) | Apify `POST https://api.apify.com/v2/actors/<actor>/run-sync-get-dataset-items` (`Authorization: Bearer`) | API token | Actor `apify.redditActor` (default `harshmaur~reddit-scraper`). ONE run per search for all keywords (`searchAll`): `searchTerms` (quoted topics), `searchSort: "new"`, `postedAfter: "N days"`, `maxPostsCount` per term; query `timeout=240`, `maxTotalChargeUsd` (Apify enforces it), never retried. Cost estimate = results × price/1000 + run fee. `check()`/`notes()` use the free `/v2/users/me/limits` (this cycle's USD use and limit). 401 invalid, 402 usage limit, 408 run over 300 s |
+| `socialcrawl` (optional) | SocialCrawl `GET https://www.socialcrawl.dev/v1/reddit/search` and `/v1/threads/search` (`x-api-key` header) | API key | A **Reddit provider** (when chosen) and the `socialcrawl` profile source = **Threads** (section 18). Reddit: quoted topic (words otherwise match ANY), `sort=new`, `since=YYYY-MM-DD`, `max_pages=1` = 1 credit (cached = 0; actual `credits_used` is counted). 100 free credits; packs from £15/2,500. `check()` and `notes()` ("N credits left") use the free `/v1/credits/balance`. 401 invalid, 402 out of credits, 429 rate limit |
+| `web` | The agent's own web search tool | No | Not a script. `search.js` only generates `webQueries` (`lib/web-queries.js`): one Reddit query per keyword (full intent phrase, unquoted), `"<competitor>" alternative` on Reddit (≤ 3), Quora for the first 2 keywords, and `<trimmed topic> forum` for the first 2; deduped, ≤ 16. The agent runs them. Results lag hours to days behind live posts. **Tested 2026-10-21 with Claude Code's web search:** `site:reddit.com` was not honored and Reddit threads almost never appeared (Reddit restricts crawlers); results were forum threads (useful) mixed with articles and directories (not repliable). Reliable Reddit coverage needs a Reddit provider (paid) |
 
 Every adapter exports the same interface:
 
@@ -632,8 +662,9 @@ export default {
 - `http`: extra `safeFetch` options; tests pass a fake `fetchImpl` here.
 - `check()` returns `"error"` for network problems or outages (shown as "✗ unreachable").
 - Adapters are listed in `adapters/index.js`.
+- Reddit providers (section 19) also have: `redditProvider: true`; `caps(settings)` and `budget(settings, usage, now)` when the caps aren't `max<Unit>PerRun/PerMonth` (Apify: results per run, estimated dollars per month); `searchAll(keywords, opts)` to search every keyword in one call (runSource prefers it); `usageSummary(monthUsage, settings)` for /markit-usage; `checkCost` (counts added to usage.json when check() costs something). search() and context() also receive `settings`, `now`, and (multi-platform adapters) `platforms`.
 - Optional fields (milestone 6/8): `quota` (free daily/rolling/monthly allowance, shown by usage.js AND enforced by search.js for `period: "day"`: the source stops, or is skipped, when marKit's count says today's quota is used), `costUnit` + `costPerUnit` (paid sources), `notes(env)` (extra status text), `checkUsesQuota: false` (the check call doesn't count against the shown quota, so usage.js doesn't record it).
-- **Default sources** for new profiles: `hackernews`, `stackexchange`, `bluesky`, `youtube`, `web`. Threads (App Review), X and SocialCrawl (paid) must be added to `sources` deliberately.
+- **Default sources** for new profiles: `hackernews`, `stackexchange`, `bluesky`, `youtube`, `reddit`, `web` (`reddit` only runs once a provider is chosen). Threads (App Review), X and SocialCrawl's Threads (paid) must be added to `sources` deliberately.
 
 **Keyword → API query.** Profile keywords are intent phrases ("app for planning F1 race weekend"), which work for web search but find nothing on strict keyword APIs that require every word to match (tested 2026-10-21: 0 hits all-time on HN and Stack Exchange). Adapters therefore search `searchQuery(keyword)` from `lib/normalize.js`, which drops grammar and generic intent words ("app", "best", "how", "planning"…): "app for planning F1 race weekend" → "F1 race weekend", "alternative to TripIt" → "TripIt". `matchedKeyword` stays the original phrase, and the agent judges intent while scoring. Web search queries keep the full phrase.
 
@@ -642,7 +673,7 @@ export default {
 Details (as built in milestone 4):
 - Within one source, keywords run one after another (gentler on rate limits; lets paid sources stop exactly at their cap).
 - Per source: drop posts outside the window, seen posts, and `exclude` matches (whole word, case-insensitive, simple plurals: "job" also catches "jobs" but "bet" doesn't catch "better"), then cap to `maxPostsPerSource`, taking one post per keyword in turn so one busy keyword can't crowd out the rest.
-- Paid sources declare `costUnit` (`"posts"` for X, `"credits"` for SocialCrawl). Budget = min(per-run cap, monthly cap − this month's usage). Over the monthly cap → `skipped` with the reason; mid-run → stop calling and note `stopped at per-run cap (30 posts)`. Missing caps → don't spend. Adapters also receive `budget: { posts | credits: left }`.
+- Paid sources declare `costUnit` (`"posts"` for X, `"credits"` for SocialCrawl and ScrapeCreators, `"results"` for Apify). Budget = min(per-run cap, monthly cap − this month's usage). Over the monthly cap → `skipped` with the reason; mid-run → stop calling and note `stopped at per-run cap (30 posts)`. Missing caps → don't spend. Adapters also receive `budget: { posts | credits: left }`.
 - Error reasons come only from `SourceError`s (key-safe); any other error is reported as `unexpected error (<type>)`.
 - Source statuses: `ok`, `skipped`, `error`, and `agent` for web (the agent runs it). Each status also has `label`, `count` (kept), `fetched`, `removed: { seen, excluded, outsideWindow }`, and optionally `quotaRemaining`.
 - raw.json also includes `since` (ISO date) so the agent can drop old web results.
@@ -666,6 +697,7 @@ Details (as built in milestone 4):
 11. **Match quality: prefilter + thread context:** `candidates.js` merges raw.json + the agent's web.json, runs a deterministic prefilter (age, exclude words, already reported, language, cross-post dedupe, pre-score, top-N cap) and fetches thread context for the top candidates through optional adapter `context()` methods (paid sources off by default, always within caps). scoring.md / reply-guide.md / SKILL.md updated; report and dashboard show the prefilter summary and a one-line thread summary. (Section 16.)
 12. **Feedback loop:** Skip asks for a one-tap reason (dashboard chips, or `feedback.js` from chat) plus an optional note; decisions and the agent's "irrelevant" verdicts go to `feedback.json` (180 days, replaces status.json). `learn.js` / `learned.js` turn them into a short Lessons block (keyword health productive/noisy/dead, communities you keep skipping, calibration, recent notes) that the agent reads before scoring; the prefilter lowers communities you keep skipping; noisy/dead keywords get up to 3 proposed replacements in chat, report.md, and the dashboard, applied only after the user says yes. (Section 17.)
 13. **Dashboard Settings + Threads through SocialCrawl:** a Settings page in the dashboard to paste API keys (write-only into `.env`, tested with each adapter's check(), never shown again) and switch sources per app; SocialCrawl can also search Threads (profile `socialcrawlPlatforms`), with no Meta App Review. (Section 18.)
+14. **Reddit providers:** ScrapeCreators and Apify join SocialCrawl as Reddit providers; settings.json `reddit.provider` picks ONE (default `none`). One Reddit Post shape (`source: "reddit"`, `provider`, `reddit-<id>`) so posts dedupe across providers; caps per provider (Apify's monthly cap in estimated dollars); `setup.js reddit --provider`; /markit-usage shows the provider and usage. (Section 19.)
 
 ---
 
@@ -675,7 +707,7 @@ Details (as built in milestone 4):
 - Auto-posting or scheduling replies
 - A hosted web version or any server
 - Discord, Telegram, private Facebook groups (private communities)
-- Paid sources other than X and SocialCrawl
+- Paid sources other than X and the three Reddit providers (ScrapeCreators, Apify, SocialCrawl)
 
 ---
 
@@ -784,9 +816,11 @@ All adapters build this with `buildContext()`, which keeps only username + excer
 | Threads | — | — | not implemented: Meta documents reading replies only for the user's **own** posts |
 | X (paid) | recent search `conversation_id:<id> -is:retweet` | billed per post returned | only if `contextForPaidSources`; skipped when < 10 posts of budget remain (X minimum) |
 | SocialCrawl (paid) | `GET /v1/reddit/post/comments?url=` | 5 credits per page | only if `contextForPaidSources`; no locked flag in the API |
+| ScrapeCreators (paid) | `GET /v1/reddit/post/comments?url=` | 1 credit | only if `contextForPaidSources`; nested `replies.items` flattened in Reddit's order; no locked flag |
+| Apify (paid) | actor run with `startUrls: [{ url }]`, `crawlCommentsPerPost: true`, `maxCommentsPerPost` ≤ 10 | each comment + the post is a billed result, plus the run fee | only if `contextForPaidSources`; within both the results and the dollars left |
 | Web results | — | — | the agent may open the top few pages with its own fetch tool |
 
-`candidates.js` fetches context for the top `maxContext` (default 15) candidates, sequentially. Paid sources need `settings.contextForPaidSources: true` (default false) and get `budget = min(per-run cap − search spend this run (raw.json used), monthly cap − this month's usage) − context spend so far`. Free daily quotas shared with search (Stack Exchange) need room for 2 requests. Failures are counted (key-safe reasons only) and never stop the run. All calls are recorded in usage.json (`requests`, `posts`, `credits`, and the new `context` counter for calls that use a separate pool).
+`candidates.js` fetches context for the top `maxContext` (default 15) candidates, sequentially. Reddit posts use their `provider`'s adapter, and that account's search spend counts every job it ran this run (`(status.provider ?? status.name) === adapter`). Paid sources need `settings.contextForPaidSources: true` (default false) and get `budget = min(per-run cap − search spend this run (raw.json used), monthly cap − this month's usage) − context spend so far`. Free daily quotas shared with search (Stack Exchange) need room for 2 requests. Failures are counted (key-safe reasons only) and never stop the run. All calls are recorded in usage.json (`requests`, `posts`, `credits`, and the new `context` counter for calls that use a separate pool).
 
 ### candidates.json
 
@@ -873,7 +907,7 @@ Reasons (codes → labels): `not_my_audience` Not my audience · `already_solved
 
 ### Threads through SocialCrawl
 
-- Profile field `socialcrawlPlatforms`: `["reddit"]` (default), `["reddit", "threads"]`, or `["threads"]`. Validated in `lib/profile.js`; only used when `"socialcrawl"` is in `sources`.
+- **Changed in milestone 14 (section 19):** the `socialcrawl` profile source now means Threads only; Reddit through SocialCrawl is the `reddit` source with `reddit.provider: "socialcrawl"`. `socialcrawlPlatforms` is saved as `["threads"]` and older values only upgrade `sources`.
 - `adapters/socialcrawl.js` searches each platform per keyword. Threads: `GET /v1/threads/search?query=&start_date=&expand=` (checked 2026-10-22 on socialcrawl.dev/platforms/threads/search.md). 1 credit per result window; Threads only matches phrases it already knows, so `expand=true` (SocialCrawl splits an unknown phrase into word pairs, up to 4 more credits, billed only for pairs that found posts) is used only when at least 5 credits are left under the caps, else `expand=false`. The adapter checks the remaining credits before every call, so a run never goes over its caps.
 - Threads results: `source: "socialcrawl"`, `site: "Threads"`, id `sc-th-<id>` (can't clash with Reddit ids), no title, engagement `{ likes, replies, reposts }`. Thread context (paid, only with `contextForPaidSources`) uses `GET /v1/threads/post/comments` (1 credit).
 - The Meta-token `threads` source stays as it was (needs App Review for public search).
@@ -882,13 +916,39 @@ Reasons (codes → labels): `not_my_audience` Not my audience · `already_solved
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/api/settings` | per source: cost, key names, `set: true/false` (never values), ready; each app's `sources` and `socialcrawlPlatforms` |
+| GET | `/api/settings` | per source: cost, key names, `set: true/false` (never values), ready (including the three Reddit providers' keys); each app's `sources`; `reddit: { provider, label }` from settings.json |
 | POST | `/api/settings/key` | exactly `{ name, value }`: `name` ∈ `KNOWN_KEYS`, value key-like (`[A-Za-z0-9._~+/=%:@-]`, ≤ 1000 chars; "" removes). Writes `.env` atomically with chmod 600, keeping every other line. Answers `{ name, set }` only |
 | POST | `/api/settings/test` | exactly `{ source }`: runs that adapter's `check()` (8 s timeout, no retries) → `ok` / `invalid` / `quota` / `error` / `not-set`; counted in usage.json like /markit-usage |
-| POST | `/api/settings/app` | `{ app, sources?, socialcrawlPlatforms? }` (nothing else): merged into the profile and checked by `validateProfile()` before writing |
+| POST | `/api/settings/app` | exactly `{ app, sources }`: merged into the profile (marked upgraded) and checked by `validateProfile()` before writing |
 
 - **Keys are write-only:** browser → local server → `.env`. The server never sends a key back, logs it, or prints it (so it can't reach the agent's chat or the background task output). The page uses password fields, clears them after saving, and never stores a key.
 - Settings POSTs need, on top of Host and Origin checks and JSON-only bodies (≤ 4 KB): the header `x-markit-token` equal to a random value the server puts into its own page at startup.
 - The Settings view is reachable from the "No reports yet" screen too, so keys can be added before the first run.
-- Sources switches show which sources lack a key ("No key yet, so it's skipped") and the cost notes; SocialCrawl has sub-switches for Reddit and Threads (at least one must stay on).
+- Sources switches show which sources lack a key ("No key yet, so it's skipped") and the cost notes. The Reddit switch is labeled with its provider ("Reddit (via Apify)") and checks that provider's key; the provider itself is changed with /markit-setup.
 
+## 19. Reddit providers (milestone 14)
+
+Reddit is where many "what app do you use for X?" threads are, and agents' web search rarely returns them. marKit reads Reddit through ONE paid provider the user picks; all prices checked 2026-10-22.
+
+| Provider | Price | Free | Why pick it |
+|---|---|---|---|
+| `scrapecreators` | 1 credit per request; $47 / 25,000 credits | 100 credits | cheapest per search; credits never expire |
+| `apify` | default actor: $2.00 / 1,000 results + ~$0.02 per run (free plan) | $5 of usage every month | stays at $0 for light use |
+| `socialcrawl` | 1 credit per keyword; from £15 / 2,500 | 100 credits | also does Threads |
+
+**Choice (`lib/reddit.js`).** `settings.json` `reddit.provider` (default `none`; unknown values → `none`, never a guess). The `reddit` profile source runs through that provider only, so a search is never paid for twice. A chosen provider without a key is skipped ("no Apify key"), never swapped for another. `setup.js reddit --provider <p>` saves the choice (keeping every other setting, writing that provider's default caps if missing) and adds `reddit` to every app's sources; `status` reports `redditProvider`.
+
+**One Post shape.** Every provider calls `makeRedditPost()`: `source: "reddit"`, `provider`, id `reddit-<post id>` where the id comes from the link's `/comments/<id>/` (else the provider's id without `t3_`), links limited to reddit.com, `site: "Reddit r/<sub>"`. So seen.json and feedback.json recognize a post whichever provider found it. Labels: `Reddit (via ScrapeCreators)` for the source status (terminal, report sources table, dashboard Settings) and `Reddit r/formula1 (via ScrapeCreators)` on cards; the dashboard's platform filter strips both suffixes to "Reddit". `report.js` copies `provider` from raw.json / candidates.json (never from the agent), and cards.json carries it.
+
+**search.js.** `planJobs()` turns sources into jobs: `reddit` → the provider adapter with `platforms: ["reddit"]`; `socialcrawl` → SocialCrawl with `platforms: ["threads"]`. Jobs that bill the same account (SocialCrawl's Reddit + Threads) run in sequence and share ONE budget; different accounts run in parallel; raw.json keeps the profile's order. Usage is recorded under the billing adapter's name (`meters[].name`), so caps are per provider. Statuses for Reddit jobs carry `provider`.
+
+**Caps.**
+- ScrapeCreators: `scrapecreators.maxCreditsPerRun` (30), `maxCreditsPerMonth` (1,000).
+- Apify: `apify.maxResultsPerRun` (50) and `maxEstimatedCostPerMonth` ($4.50, under the $5 free credit). `budget()` = min(per-run results, results the dollars left can buy after one run fee) plus `usd` left; search shares results evenly across keywords (fewer keywords run when fewer results are left than keywords); every run sends `maxTotalChargeUsd` = min(estimate rounded up to a cent, dollars left). usage.json gets `results` and `usd` (estimate) under `apify`. A failed run is never retried; on a timeout, network error, or 5xx the whole charge cap is counted as spent (Apify may have billed); 400–404/429 count nothing.
+- Apify moved Store actors from pay-per-result to pay-per-event in 2026; for the default actor the event is one result, so the per-result price still applies. `maxItems` only works for true pay-per-result actors, so marKit relies on `maxPostsCount` + `maxTotalChargeUsd`.
+
+**/markit-usage.** One row per provider (ScrapeCreators: credits vs cap + balance from the check; Apify: results and estimated dollars vs cap + Apify's own cycle usage; SocialCrawl: credits vs cap + balance), then `Reddit: via <provider>` (or "no provider chosen" / "no key yet → run /markit-setup").
+
+**Profiles.** `upgradeSocialcrawlSources()` turns old `socialcrawl` (Reddit) into `reddit`, keeping `socialcrawl` only if Threads was on. Saved profiles carry `socialcrawlPlatforms: ["threads"]` as the upgraded mark (`setup.js app` and the dashboard add it), so validating again never re-converts a Threads switch.
+
+**Tests** (`tests/scrapecreators.test.js`, `tests/apify.test.js`, `tests/reddit-providers.test.js`, mocked fetch): only the chosen provider runs and `none` runs nothing; the same post gets the same id from all three providers and a post seen via one provider is dropped via another; per-run and monthly caps for both, including Apify's dollar cap and SocialCrawl's shared Reddit + Threads budget; keys only in headers, never in URLs, raw.json, usage.json, or errors; each adapter's `check()` for valid, invalid, and quota responses.

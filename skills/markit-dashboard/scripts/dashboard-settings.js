@@ -6,9 +6,10 @@
 // your agent's chat or in the background task's output. The page only ever learns "set" or
 // "not set", and the result of a test call ("ok", "invalid", ...).
 //
-// SOURCES: the page can switch each source on or off for an app, and choose what
-// SocialCrawl searches (Reddit, Threads). Only those two profile fields can change, and the
-// profile goes through the same validateProfile() as /markit-setup before it's saved.
+// SOURCES: the page can switch each source on or off for an app. Only the profile's
+// "sources" can change, and the profile goes through the same validateProfile() as
+// /markit-setup before it's saved. The Reddit provider (settings.json reddit.provider) is
+// shown but not changed here: /markit-setup explains the options and changes it.
 //
 // This module imports shared code with plain imports, like dashboard-data.js: dashboard.js
 // loads it only after shared.js has confirmed the sibling markit-find folder exists.
@@ -18,7 +19,8 @@ import path from "node:path";
 import { KNOWN_KEYS, loadEnv, listApps, validateAppName } from "../../markit-find/scripts/lib/config.js";
 import { keyStatus, writeEnvValue, validateKeyValue } from "../../markit-find/scripts/lib/env-file.js";
 import { readJsonFile, writeJsonFile } from "../../markit-find/scripts/lib/files.js";
-import { validateProfile, ALL_SOURCES, SOURCE_LABELS, SOCIALCRAWL_PLATFORMS, DEFAULT_SOURCES } from "../../markit-find/scripts/lib/profile.js";
+import { validateProfile, upgradeSocialcrawlSources, ALL_SOURCES, SOURCE_LABELS, DEFAULT_SOURCES, SOCIALCRAWL_PLATFORMS } from "../../markit-find/scripts/lib/profile.js";
+import { redditProvider, redditLabel, PROVIDER_LABELS } from "../../markit-find/scripts/lib/reddit.js";
 import { recordUsage } from "../../markit-find/scripts/lib/usage.js";
 import { ADAPTERS } from "../../markit-find/scripts/adapters/index.js";
 
@@ -34,15 +36,18 @@ export const SOURCE_INFO = [
   { source: "youtube", cost: "free", keys: [{ env: "YOUTUBE_API_KEY", label: "API key" }], help: "Google Cloud → enable YouTube Data API v3 → Credentials → API key (restrict it to that API).", link: "https://console.cloud.google.com/apis/library/youtube.googleapis.com" },
   { source: "threads", cost: "free", keys: [{ env: "THREADS_ACCESS_TOKEN", label: "Access token" }], help: "Meta app → Access the Threads API → User Token Generator. Only finds your own posts until Meta approves App Review; Threads through SocialCrawl needs no review.", link: "https://developers.facebook.com/apps" },
   { source: "x", cost: "paid", keys: [{ env: "X_BEARER_TOKEN", label: "Bearer token" }], help: "X console → your app → Keys & Tokens → Bearer Token. Add credits and set a spending limit there.", link: "https://console.x.com" },
-  { source: "socialcrawl", cost: "paid", keys: [{ env: "SOCIALCRAWL_API_KEY", label: "API key" }], help: "socialcrawl.dev dashboard → API key (starts with sc_). 100 free credits. Covers Reddit, and Threads if you switch it on below.", link: "https://www.socialcrawl.dev" },
+  // The three Reddit providers. Only the one chosen in settings.json searches Reddit.
+  { source: "scrapecreators", label: PROVIDER_LABELS.scrapecreators, cost: "paid", keys: [{ env: "SCRAPECREATORS_API_KEY", label: "API key" }], help: "Reddit provider, cheapest per search: 1 credit each, credits never expire, 100 free. Sign up at scrapecreators.com and copy the API key from your dashboard. Testing the key uses 1 credit.", link: "https://scrapecreators.com" },
+  { source: "apify", label: PROVIDER_LABELS.apify, cost: "paid", keys: [{ env: "APIFY_API_TOKEN", label: "API token" }], help: "Reddit provider that can stay at $0: Apify includes $5 of usage every month. Console → Settings → API & Integrations → API token.", link: "https://console.apify.com/settings/integrations" },
+  { source: "socialcrawl", label: PROVIDER_LABELS.socialcrawl, cost: "paid", keys: [{ env: "SOCIALCRAWL_API_KEY", label: "API key" }], help: "socialcrawl.dev dashboard → API key (starts with sc_). 100 free credits. A Reddit provider, and it can search Threads with no Meta App Review.", link: "https://www.socialcrawl.dev" },
 ];
 
 /** Everything the Settings page shows. Key VALUES are never included. */
-export function getSettings({ envFile, appsDir }) {
+export function getSettings({ envFile, appsDir, settingsFile }) {
   const set = keyStatus(envFile);
   const sources = SOURCE_INFO.map((info) => ({
     ...info,
-    label: SOURCE_LABELS[info.source] ?? info.source,
+    label: info.label ?? SOURCE_LABELS[info.source] ?? info.source,
     keys: info.keys.map((k) => ({ ...k, set: set[k.env] })),
     // Ready = has every required key (sources with only optional keys are always ready).
     ready: info.keys.filter((k) => !k.optional).every((k) => set[k.env]),
@@ -50,16 +55,21 @@ export function getSettings({ envFile, appsDir }) {
   const apps = listApps({ appsDir }).map((name) => {
     try {
       const profile = readJsonFile(path.join(appsDir, `${name}.json`), {});
-      return {
-        name,
-        sources: Array.isArray(profile.sources) ? profile.sources : [...DEFAULT_SOURCES],
-        socialcrawlPlatforms: Array.isArray(profile.socialcrawlPlatforms) ? profile.socialcrawlPlatforms : ["reddit"],
-      };
+      // Old profiles that used "socialcrawl" for Reddit are shown the way search.js reads them.
+      const sources = Array.isArray(profile.sources) ? upgradeSocialcrawlSources(profile.sources, profile.socialcrawlPlatforms) : [...DEFAULT_SOURCES];
+      return { name, sources };
     } catch {
       return null; // a broken profile is left for /markit-setup to fix
     }
   }).filter(Boolean);
-  return { sources, apps, allSources: ALL_SOURCES.map((s) => ({ source: s, label: SOURCE_LABELS[s] ?? s })), platforms: SOCIALCRAWL_PLATFORMS };
+  // The Reddit provider is a setting, not a secret: the page shows "Reddit (via Apify)".
+  const provider = settingsFile ? redditProvider(readJsonFile(settingsFile, {})) : "none";
+  return {
+    sources,
+    apps,
+    allSources: ALL_SOURCES.map((s) => ({ source: s, label: s === "reddit" ? redditLabel(provider) : SOURCE_LABELS[s] ?? s })),
+    reddit: { provider, label: redditLabel(provider) },
+  };
 }
 
 /**
@@ -98,7 +108,8 @@ export async function testSource({ envFile, usageFile }, source, { adapters = AD
   }
   if (usageFile && adapter.checkUsesQuota !== false) {
     try {
-      recordUsage(source, { requests: 1 }, usageFile);
+      // checkCost: a check that costs credits (ScrapeCreators' balance call) counts as spent.
+      recordUsage(source, { requests: 1, ...(adapter.checkCost ?? {}) }, usageFile);
     } catch {
       // counting is best-effort; the test result still stands
     }
@@ -107,14 +118,14 @@ export async function testSource({ envFile, usageFile }, source, { adapters = AD
 }
 
 /**
- * Validate an app sources update: { app, sources?, socialcrawlPlatforms? } and nothing else.
- * @returns {{ ok: true, app, sources?, socialcrawlPlatforms? } | { ok: false, error }}
+ * Validate an app sources update: exactly { app, sources }.
+ * @returns {{ ok: true, app, sources } | { ok: false, error }}
  */
 export function validateAppUpdate(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: "body must be a JSON object" };
-  const allowed = ["app", "sources", "socialcrawlPlatforms"];
-  if (!("app" in body) || Object.keys(body).some((k) => !allowed.includes(k)) || Object.keys(body).length < 2) {
-    return { ok: false, error: "body must be { app, sources?, socialcrawlPlatforms? }" };
+  const keys = Object.keys(body).sort();
+  if (keys.length !== 2 || keys[0] !== "app" || keys[1] !== "sources") {
+    return { ok: false, error: "body must be { app, sources }" };
   }
   try {
     validateAppName(body.app);
@@ -122,24 +133,22 @@ export function validateAppUpdate(body) {
     return { ok: false, error: "invalid app" };
   }
   const list = (v, known) => Array.isArray(v) && v.length <= known.length && v.every((s) => typeof s === "string" && known.includes(s));
-  if ("sources" in body && !list(body.sources, ALL_SOURCES)) return { ok: false, error: "sources must be a list of known sources" };
-  if ("socialcrawlPlatforms" in body && !list(body.socialcrawlPlatforms, SOCIALCRAWL_PLATFORMS)) return { ok: false, error: "socialcrawlPlatforms must be a list of: reddit, threads" };
-  return { ok: true, ...body };
+  if (!list(body.sources, ALL_SOURCES)) return { ok: false, error: "sources must be a list of known sources" };
+  return { ok: true, app: body.app, sources: body.sources };
 }
 
 /**
- * Change an app's sources and/or SocialCrawl platforms. Everything else in the profile stays
- * as it was, and the result is checked by validateProfile() before it's written.
+ * Change an app's sources. Everything else in the profile stays as it was, and the result
+ * is checked by validateProfile() before it's written.
  * @throws {Error} a "marKit: ..." message if the profile doesn't exist or doesn't validate
  */
-export function saveAppSources({ appsDir }, { app, sources, socialcrawlPlatforms }) {
+export function saveAppSources({ appsDir }, { app, sources }) {
   const file = path.join(appsDir, `${validateAppName(app)}.json`);
   if (!existsSync(file)) throw new Error(`marKit: no app named "${app}".`);
   const current = readJsonFile(file, null);
-  const next = { ...current };
-  if (sources) next.sources = sources;
-  if (socialcrawlPlatforms) next.socialcrawlPlatforms = socialcrawlPlatforms;
-  const { profile } = validateProfile(next, app); // throws a readable list of problems
+  // The page sends sources in today's meaning ("socialcrawl" = Threads), so mark the profile
+  // as upgraded; otherwise an old profile would have its Threads switch turned into Reddit.
+  const { profile } = validateProfile({ ...current, sources, socialcrawlPlatforms: SOCIALCRAWL_PLATFORMS }, app); // throws a readable list of problems
   writeJsonFile(file, profile);
-  return { app, sources: profile.sources, socialcrawlPlatforms: profile.socialcrawlPlatforms };
+  return { app, sources: profile.sources };
 }

@@ -18,7 +18,7 @@
 //                          each app's sources (dashboard-settings.js)
 //   POST /api/settings/key   { name, value }: write one key into .env (write-only)
 //   POST /api/settings/test  { source }: test that source's key with one small API call
-//   POST /api/settings/app   { app, sources?, socialcrawlPlatforms? }: change an app's sources
+//   POST /api/settings/app   { app, sources }: change an app's sources
 //
 // SECURITY (this is a web server, so it gets extra care):
 //   - Binds to 127.0.0.1 only: other computers on your network can't reach it.
@@ -36,7 +36,7 @@
 //     The Settings page only learns "set" / "not set" and test results.
 //   - Read-only everywhere else. Serves data from the REPORTS folder. From the config folder
 //     it touches feedback.json (Replied/Skipped), and through Settings: .env (write-only),
-//     app profiles (only "sources" and "socialcrawlPlatforms", validated like /markit-setup),
+//     app profiles (only "sources", validated like /markit-setup),
 //     and usage.json (counting key tests). It never serves .env or usage.
 //   - Strict Content-Security-Policy: only this page's own inline script/style (with a
 //     random nonce per start) may run; no external requests, no framing.
@@ -119,11 +119,12 @@ function readBody(req, limit) {
  * @param {string} [opts.envFile] - .env, for the Settings page (no Settings without it)
  * @param {string} [opts.appsDir] - apps/, for the Settings page's sources switches
  * @param {string} [opts.usageFile] - usage.json, to count key tests like /markit-usage does
+ * @param {string} [opts.settingsFile] - settings.json, read for the Reddit provider shown in Settings
  * @param {object[]} [opts.adapters] - for key tests (tests pass fakes)
  * @param {number} [opts.idleMs] - shut down after this long without requests
  * @param {(reason: string) => void} [opts.onStop] - called once after shutdown
  */
-export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, envFile, appsDir, usageFile, adapters, idleMs = IDLE_MS, onStop = () => {} }) {
+export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, envFile, appsDir, usageFile, settingsFile, adapters, idleMs = IDLE_MS, onStop = () => {} }) {
   const files = { feedbackFile, legacyStatusFile, reportsDir };
   const settingsOn = Boolean(envFile && appsDir);
   let port = null;
@@ -214,7 +215,7 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, en
 
       if (url.pathname === "/api/settings") {
         if (!settingsOn) return sendJson(req, res, 404, { error: "not found" });
-        return sendJson(req, res, 200, settingsLib.getSettings({ envFile, appsDir }));
+        return sendJson(req, res, 200, settingsLib.getSettings({ envFile, appsDir, settingsFile }));
       }
 
       if (url.pathname === "/api/runs") {
@@ -376,6 +377,7 @@ async function main() {
     envFile: paths.envFile,
     appsDir: paths.appsDir,
     usageFile: paths.usageFile,
+    settingsFile: paths.settingsFile,
     onStop: (reason) => {
       console.log(reason === "idle" ? "marKit dashboard stopped after 30 minutes without use." : "marKit dashboard stopped.");
       process.exit(0);

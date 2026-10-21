@@ -19,16 +19,22 @@ If the user pastes a key into the chat anyway: don't repeat it, don't write it a
 ## How to run the scripts
 `${CLAUDE_SKILL_DIR}` is this skill's folder (the one containing this SKILL.md); if your agent doesn't fill it in, use that folder's path. Run commands **from the user's current folder** (don't `cd`), because `scan` looks at the current folder. Scripts never print keys.
 
-Step 0: run `node ${CLAUDE_SKILL_DIR}/scripts/setup.js status`. It prints JSON with `setUp`, `configDir`, `envFile`, and `apps`. If `setUp` is false, do **First-time setup**; otherwise do **Already set up**.
+Step 0: run `node ${CLAUDE_SKILL_DIR}/scripts/setup.js status`. It prints JSON with `setUp`, `configDir`, `envFile`, `apps`, and `redditProvider`. If `setUp` is false, do **First-time setup**; otherwise do **Already set up**.
 
 ## First-time setup
 1. Run `node ${CLAUDE_SKILL_DIR}/scripts/setup.js init`. It creates the config folder, a blank private `.env` (chmod 600), `settings.json`, and `apps/`.
 2. Explain the sources and ask which ones they want:
    - **Free, no key:** Hacker News, Stack Exchange (an optional free key raises its quota from 300 to 10,000 requests/day), Bluesky, and web search (you, the agent, run it: forums, Q&A; it rarely finds Reddit).
    - **Free, needs a key:** YouTube (100 searches/day). Threads only finds the user's OWN posts until Meta approves their app in App Review, so only suggest it if they're willing to do that.
-   - **Paid, optional:** X (~$0.005 per post) and SocialCrawl (credits, 100 free; the reliable way to cover Reddit, and it can also search **Threads** with no Meta App Review: add `"threads"` to the profile's `socialcrawlPlatforms`). Both stop at the caps in `settings.json`. Paid sources and Threads must be added to the app's `sources` to be used; the dashboard's Settings page has switches for both.
+   - **Paid, optional:** X (~$0.005 per post). Stops at the caps in `settings.json`; add `"x"` to the app's `sources` to use it.
+   - **Reddit (paid, optional; pick ONE provider or none).** Web search rarely finds Reddit, so Reddit needs one of these. Explain them in plain words, then ask which one they want:
+     - **ScrapeCreators** (recommended): the cheapest per search (1 credit per keyword, about $0.002), and its credits are one-time purchases that **never expire**. 100 free credits to start.
+     - **Apify**: can **stay at $0** for light use, thanks to Apify's $5 of free usage every month. Billed per Reddit post found (about $2 per 1,000) plus about $0.02 per run; marKit keeps its estimate under $4.50 a month.
+     - **SocialCrawl**: a third option (1 credit per keyword, 100 free). It can also search **Threads** with no Meta App Review (the `"socialcrawl"` source).
+     - **None**: the agent's web search still covers Reddit, just thinly.
+     Only the chosen provider searches Reddit, so they never pay twice. Once its key is in `.env`, save the choice with `node ${CLAUDE_SKILL_DIR}/scripts/setup.js reddit --provider <scrapecreators|apify|socialcrawl|none>`: it sets `reddit.provider` in `settings.json` and switches the `"reddit"` source on for every app. Show its output.
    - Walk the user through `setup-guide.md` one platform at a time. If they send a screenshot of a platform's page, tell them exactly which field or button to use (e.g. X needs only the **Bearer Token**; Threads tokens come from the **User Token Generator**). You may write text they can paste into a sign-up form (use-case descriptions are in the guide), but never fill in forms, accept agreements, or submit anything for them. Never ask them to paste a key into the chat.
-   Recommend starting with the free ones, and SocialCrawl if Reddit matters for their app.
+   Recommend starting with the free ones, and a Reddit provider (ScrapeCreators, or Apify to stay at $0) if Reddit matters for their app.
 3. For each chosen source that needs a key: show its steps from `${CLAUDE_SKILL_DIR}/references/setup-guide.md`, then give the user two ways to add it, and wait for them to confirm. Never ask to see the key.
    - **Easiest: the dashboard's Settings page.** Run `/markit-dashboard` and open **Settings**: they paste the key there, it's written straight into `.env` on their computer, tested, and never shown again (you never see it either).
    - **Or their own editor:** tell them the exact `.env` path (`envFile` from step 0) and the variable name.
@@ -46,7 +52,8 @@ Ask what they want: add an app, edit an app, add or change a source key, change 
 - **Add an app:** see **Creating an app profile**.
 - **Edit an app:** read `<configDir>/apps/<name>.json` (profiles are not secret), apply the changes, show the result, and save it with `--overwrite` (see **Saving a profile**).
 - **Add or change a key:** as in First-time setup step 3, then run the key check (step 5).
-- **Change limits:** `<configDir>/settings.json` is not secret, so you may read and edit it: `reportsDir`, `lookbackDays`, `maxPostsPerSource`, and the paid caps `x.maxPostsPerRun`, `x.maxPostsPerMonth`, `socialcrawl.maxCreditsPerRun`, `socialcrawl.maxCreditsPerMonth`.
+- **Choose or change the Reddit provider:** explain the options (First-time setup step 2), then run `setup.js reddit --provider <name>` once its key is in `.env`. `--provider none` turns paid Reddit search off.
+- **Change limits:** `<configDir>/settings.json` is not secret, so you may read and edit it: `reportsDir`, `lookbackDays`, `maxPostsPerSource`, and the paid caps `x.maxPostsPerRun`, `x.maxPostsPerMonth`, `scrapecreators.maxCreditsPerRun`, `scrapecreators.maxCreditsPerMonth`, `apify.maxResultsPerRun`, `apify.maxEstimatedCostPerMonth` (dollars, marKit's estimate), `socialcrawl.maxCreditsPerRun`, `socialcrawl.maxCreditsPerMonth`. Apify's cost estimate uses `apify.pricePerThousandResults` and `apify.pricePerRun`; the scraper is `apify.redditActor`.
 - **Key check:** step 5.
 
 ## Creating an app profile
@@ -62,7 +69,7 @@ Ask what they want: add an app, edit an app, add or change a source key, change 
 **Keywords:** intent phrases beat single words. Good: "best app for tracking F1 sessions", "alternative to <competitor>", "how do you organize your race weekend". Weak: "F1" (far too broad; wastes quota). marKit trims filler words itself when searching APIs, and uses the full phrase for web search.
 
 ## Profile fields
-Required: `url`, `oneLiner` (one sentence), `audience`, `keywords` (1–8). Optional: `description`, `features` (≤ 10), `competitors`, `exclude` (words that disqualify a post, e.g. "hiring"), `sources` (default: all free sources; add `"x"` or `"socialcrawl"` only if the user wants paid sources), `stackexchangeSites` (default `["softwarerecs"]`; add relevant sites like `"travel"` or `"android"`, max 3 used), `replyTone` (default "casual, friendly, short"), `lookbackDays` (1–30).
+Required: `url`, `oneLiner` (one sentence), `audience`, `keywords` (1–8). Optional: `description`, `features` (≤ 10), `competitors`, `exclude` (words that disqualify a post, e.g. "hiring"), `sources` (default: the free sources plus `"reddit"`, which only runs once a Reddit provider is chosen; add `"x"`, or `"socialcrawl"` for Threads through SocialCrawl, only if the user wants those paid sources), `stackexchangeSites` (default `["softwarerecs"]`; add relevant sites like `"travel"` or `"android"`, max 3 used), `replyTone` (default "casual, friendly, short"), `lookbackDays` (1–30).
 
 ## Saving a profile
 Pipe the profile JSON into the script with a heredoc:

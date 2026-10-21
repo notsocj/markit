@@ -365,7 +365,6 @@
   .toggles { display: grid; gap: 2px; }
   .tg { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); cursor: pointer; }
   .tg:first-child { border-top: 0; }
-  .tg.sub { padding-left: 44px; border-top: 0; padding-top: 4px; }
   .tg-text { display: grid; min-width: 0; }
   .tg-text b { font-weight: 500; font-size: 13.5px; }
   .tg-text span { font-size: 12px; color: var(--muted); }
@@ -669,9 +668,11 @@ const HEALTH_LABELS = { productive: "Productive", noisy: "Noisy", dead: "Dead", 
 // Which platform logo to show for a card.
 function platformOf(card) {
   const label = String(card.platform || card.label || "");
-  // SocialCrawl can find Threads posts too (site "Threads"), so check the label first.
+  // SocialCrawl finds Threads posts too (site "Threads"), so check the label first.
+  // Reddit cards have source "reddit" (any provider); runs from before Reddit providers
+  // existed used source "socialcrawl" for Reddit.
   if (/^threads/i.test(label)) return { cls: "plat-threads", icon: "b-threads" };
-  if (card.source === "socialcrawl" || /^reddit/i.test(label)) return { cls: "plat-reddit", icon: "b-reddit" };
+  if (card.source === "reddit" || card.source === "socialcrawl" || /^reddit/i.test(label)) return { cls: "plat-reddit", icon: "b-reddit" };
   if (/^quora/i.test(label)) return { cls: "plat-quora", icon: "b-quora" };
   const map = {
     hackernews: { cls: "plat-hn", icon: "b-ycombinator" },
@@ -1253,9 +1254,16 @@ const SOURCE_NOTES = {
   youtube: "Free, needs an API key (100 searches a day).",
   threads: "Free, needs a Meta token. Only finds your own posts until Meta approves App Review.",
   x: "Paid: about $0.005 per post, capped at 30 posts per run.",
-  socialcrawl: "Paid credits (100 free). About 1 credit per keyword per platform.",
+  socialcrawl: "Paid credits. Public Threads posts with no Meta App Review; up to 5 credits per keyword when Threads doesn't know a phrase.",
   web: "Your agent's own web search. Free.",
 };
+// The "reddit" source runs through the provider chosen in settings.json (shown in its label).
+function redditNote(provider) {
+  if (provider === "scrapecreators") return "Paid: 1 ScrapeCreators credit per keyword. Change the provider with /markit-setup.";
+  if (provider === "apify") return "Paid per result through Apify (its $5 monthly free credit covers light use). Change the provider with /markit-setup.";
+  if (provider === "socialcrawl") return "Paid: 1 SocialCrawl credit per keyword. Change the provider with /markit-setup.";
+  return "No Reddit provider chosen yet, so it's skipped. Run /markit-setup to pick ScrapeCreators, Apify, or SocialCrawl.";
+}
 
 async function settingsPost(path, body) {
   return api(path, { method: "POST", headers: { "content-type": "application/json", "x-markit-token": PAGE_TOKEN }, body: JSON.stringify(body) });
@@ -1324,28 +1332,19 @@ function renderSettings() {
     const toggles = [];
     for (const { source, label } of st.allSources) {
       const on = appCfg.sources.includes(source);
-      const needsKey = source in ready && !ready[source];
+      // Reddit needs its PROVIDER's key; SocialCrawl's Threads source needs SocialCrawl's.
+      const provider = st.reddit ? st.reddit.provider : "none";
+      const keySource = source === "reddit" ? provider : source;
+      const needsKey = keySource in ready && !ready[keySource];
       const box = el("input", { cls: "switch", attrs: { type: "checkbox", "aria-label": label } });
       box.checked = on;
       box.addEventListener("change", () => {
         const next = box.checked ? [...appCfg.sources, source] : appCfg.sources.filter((s) => s !== source);
         saveApp(appCfg.name, { sources: next }, box);
       });
-      const note = SOURCE_NOTES[source] + (needsKey && on ? " No key yet, so it's skipped." : "");
+      const base = source === "reddit" ? redditNote(provider) : SOURCE_NOTES[source] || "";
+      const note = base + (needsKey && on ? " No key yet, so it's skipped." : "");
       toggles.push(el("label", { cls: "tg" }, [box, el("span", { cls: "tg-text" }, [el("b", { text: label }), el("span", { text: note })])]));
-      if (source === "socialcrawl") {
-        for (const [platform, text, sub] of [["reddit", "Reddit", "Subreddit posts and threads."], ["threads", "Threads", "Public Threads posts, no Meta App Review needed. Up to 5 credits per keyword when Threads doesn't know a phrase (only when credits allow)."]]) {
-          const pbox = el("input", { cls: "switch", attrs: { type: "checkbox", "aria-label": "SocialCrawl " + text } });
-          pbox.checked = appCfg.socialcrawlPlatforms.includes(platform);
-          pbox.disabled = !on;
-          pbox.addEventListener("change", () => {
-            const next = pbox.checked ? [...appCfg.socialcrawlPlatforms, platform] : appCfg.socialcrawlPlatforms.filter((p) => p !== platform);
-            if (!next.length) { pbox.checked = true; toast("Keep at least one: Reddit or Threads. To stop SocialCrawl, switch it off above."); return; }
-            saveApp(appCfg.name, { socialcrawlPlatforms: next }, pbox);
-          });
-          toggles.push(el("label", { cls: "tg sub" }, [pbox, el("span", { cls: "tg-text" }, [el("b", { text: "Search " + text }), el("span", { text: sub })])]));
-        }
-      }
     }
     sourcesCard = el("div", { cls: "card" }, [
       el("h2", {}, [icon("i-global-linear", "ic ic-sm"), "Sources for " + appCfg.name]),

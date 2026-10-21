@@ -14,8 +14,9 @@
 //     createdAt: "2026-10-21T08:00:00Z",
 //     engagement: { score: 12, comments: 4 },
 //     matchedKeyword: "F1 schedule app",
-//     site: "Reddit r/formula1",  // optional: where it really lives, when the source is a
-//                                 // go-between (SocialCrawl) or the agent's web search
+//     site: "Reddit r/formula1",  // optional: where it really lives (a subreddit, a site
+//                                 // found by the agent's web search, Threads via SocialCrawl)
+//     provider: "scrapecreators", // Reddit posts only: which paid service found it
 //     lang: ["en"]                // optional: languages the PLATFORM reports (X "lang",
 //   }                             // Bluesky "langs"); missing means unknown
 //
@@ -33,6 +34,8 @@ const ID_PREFIX = {
   threads: "th",
   x: "x",
   socialcrawl: "sc",
+  // Reddit posts from any provider (ScrapeCreators, Apify, SocialCrawl): "reddit-1abcde".
+  reddit: "reddit",
   web: "web",
 };
 

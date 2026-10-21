@@ -21,7 +21,8 @@ disallowed-tools: Read(~/.config/markit/.env)
    - a ✗ source: invalid key → suggest /markit-setup to fix the key; quota used up → wait (free) or check the plan/spending limit (paid); unreachable → try again later
    - a source marked "near limit" or "near cap"
    - a Threads token that expires soon (renew it: see /markit-setup)
-   - "not set up" sources the user might want (free: Bluesky, YouTube, Threads; paid: X, SocialCrawl for Reddit)
+   - "not set up" sources the user might want (free: Bluesky, YouTube, Threads; paid: X, and a Reddit provider: ScrapeCreators, Apify, or SocialCrawl)
+   - the **Reddit** line: which provider searches Reddit. If none is chosen, or the chosen one has no key, suggest /markit-setup. Apify's dollars are marKit's estimate; Apify's own number is shown next to it.
 3. If the user asked how to use marKit, briefly explain the four commands:
    - `/markit-setup`: set up keys and sources, add or edit app profiles
    - `/markit-find [app]`: find posts to reply to and get an organized report with honest draft replies

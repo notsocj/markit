@@ -8,8 +8,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { runChecks, buildScreen } from "../skills/markit-usage/scripts/usage.js";
+import { runChecks, buildScreen, redditLine } from "../skills/markit-usage/scripts/usage.js";
 import { DEFAULT_SETTINGS } from "../skills/markit-find/scripts/lib/config.js";
+import apify from "../skills/markit-find/scripts/adapters/apify.js";
+import { fakeFetch, json } from "./helpers/fake-fetch.js";
 
 const NOW = new Date("2026-10-21T13:00:00Z");
 const SECRET = "SUPER_SECRET_KEY_VALUE_123";
@@ -104,9 +106,41 @@ test("--check-only shows just the ✓ / ✗ table", async () => {
   const text = await buildScreen({ adapters: list, env, checks: await runChecks(list, env), settings: DEFAULT_SETTINGS, usage, now: NOW, full: false });
   const lines = text.split("\n");
   assert.equal(lines[0], "Sources");
-  assert.equal(lines.length, 8, "header + 7 sources");
+  // 6 sources + 3 Reddit providers (ScrapeCreators, Apify, SocialCrawl), then the Reddit line.
+  assert.equal(lines.filter((l) => /^  [✓✗–] /.test(l)).length, 9);
+  assert.equal(lines.at(-1), "Reddit: no provider chosen, so only web search covers it → run /markit-setup to pick one");
   assert.ok(lines.includes("  ✓ Stack Exchange    free"), "no usage numbers in check-only mode");
   assert.ok(!text.includes("Apps:") && !text.includes("Commands"));
+});
+
+test("Reddit providers: one row each, the chosen provider, and Apify's dollar estimate", async () => {
+  const usageNow = { months: { "2026-10": { apify: { requests: 3, posts: 30, credits: 0, results: 120, usd: 3.9 }, scrapecreators: { requests: 9, posts: 40, credits: 9 } } }, days: {}, lastRun: null };
+  // The real Apify adapter's check() and notes(), with Apify's usage endpoint faked.
+  const limits = fakeFetch([json({ data: { current: { monthlyUsageUsd: 1.25 }, limits: { maxMonthlyUsageUsd: 5 } } })]);
+  const realApify = { ...apify, check: (e) => apify.check(e, { http: { fetchImpl: limits } }) };
+  const list = [
+    fake("scrapecreators", { enabledBy: "SCRAPECREATORS_API_KEY", paid: true, costUnit: "credits", notes: async () => ["91 credits left (never expire)"] }),
+    realApify,
+    fake("socialcrawl", { enabledBy: "SOCIALCRAWL_API_KEY", paid: true, costUnit: "credits" }),
+  ];
+  const keys = { SCRAPECREATORS_API_KEY: SECRET, APIFY_API_TOKEN: SECRET };
+  const settings = { ...DEFAULT_SETTINGS, reddit: { provider: "apify" } };
+  const text = await buildScreen({ adapters: list, env: keys, checks: await runChecks(list, keys), settings, usage: usageNow, now: NOW });
+  const lines = text.split("\n");
+  for (const row of [
+    "  ✓ ScrapeCreators    paid      9 / 1000 credits this month · 91 credits left (never expire)",
+    "  ✓ Apify             paid      120 results · ~$3.90 / $4.50 this month (marKit's estimate) · near cap · Apify says $1.25 of $5.00 used this billing cycle",
+    "  – SocialCrawl       not set up",
+  ]) {
+    assert.ok(lines.includes(row), `missing row:\n${row}\n---\n${text}`);
+  }
+  assert.ok(lines.includes("Reddit: via Apify"));
+  assert.ok(!text.includes(SECRET));
+  assert.equal(limits.calls[0].init.headers.authorization, `Bearer ${SECRET}`);
+  assert.ok(!limits.calls[0].url.href.includes(SECRET), "the token is never in the URL");
+
+  // The Reddit line flags a chosen provider without a key.
+  assert.equal(redditLine({ reddit: { provider: "scrapecreators" } }, {}, list), "Reddit: via ScrapeCreators (no ScrapeCreators key yet → run /markit-setup)");
 });
 
 test("unreachable and not-set-up sources", async () => {

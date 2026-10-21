@@ -41,7 +41,7 @@ test("init creates folder, apps/, .env (600) and settings.json", () => {
   assert.match(out, /Created blank \.env/);
 
   const env = readFileSync(join(dir, ".env"), "utf8");
-  for (const key of ["STACKEXCHANGE_KEY=", "YOUTUBE_API_KEY=", "BLUESKY_HANDLE=", "BLUESKY_APP_PASSWORD=", "THREADS_ACCESS_TOKEN=", "X_BEARER_TOKEN=", "SOCIALCRAWL_API_KEY="]) {
+  for (const key of ["STACKEXCHANGE_KEY=", "YOUTUBE_API_KEY=", "BLUESKY_HANDLE=", "BLUESKY_APP_PASSWORD=", "THREADS_ACCESS_TOKEN=", "X_BEARER_TOKEN=", "SCRAPECREATORS_API_KEY=", "APIFY_API_TOKEN=", "SOCIALCRAWL_API_KEY="]) {
     assert.ok(env.includes(`\n${key}\n`), `template should have an empty ${key} line`);
   }
   if (!IS_WINDOWS) assert.equal(statSync(join(dir, ".env")).mode & 0o777, 0o600);
@@ -128,7 +128,46 @@ test("status reports setup state, .env path, and apps as JSON", () => {
   run(dir, ["init"]);
   run(dir, ["app", "--name", "gridpeek"], JSON.stringify(profile));
   const status = JSON.parse(run(dir, ["status"]).out);
-  assert.deepEqual(status, { setUp: true, configDir: dir, envFile: join(dir, ".env"), envFileExists: true, apps: ["gridpeek"] });
+  assert.deepEqual(status, { setUp: true, configDir: dir, envFile: join(dir, ".env"), envFileExists: true, apps: ["gridpeek"], redditProvider: "none" });
+});
+
+test("reddit --provider saves the choice, keeps other settings, and switches Reddit on for every app", () => {
+  const dir = freshDir();
+  run(dir, ["init"]);
+  const settingsFile = join(dir, "settings.json");
+  const before = JSON.parse(readFileSync(settingsFile, "utf8"));
+  writeFileSync(settingsFile, JSON.stringify({ ...before, lookbackDays: 3, scrapecreators: undefined }));
+  // An app without the "reddit" source (saved before Reddit providers existed).
+  run(dir, ["app", "--name", "gridpeek"], JSON.stringify({ ...profile, sources: ["hackernews", "web"] }));
+
+  const { code, out } = run(dir, ["reddit", "--provider", "ScrapeCreators"]);
+  assert.equal(code, 0);
+  assert.match(out, /Reddit provider: ScrapeCreators/);
+  assert.match(out, /Added "reddit" to gridpeek's sources/);
+  assert.match(out, /30 credits per run, 1000 per month/);
+  const after = JSON.parse(readFileSync(settingsFile, "utf8"));
+  assert.equal(after.reddit.provider, "scrapecreators");
+  assert.equal(after.lookbackDays, 3, "other settings are kept");
+  assert.deepEqual(after.scrapecreators, { maxCreditsPerRun: 30, maxCreditsPerMonth: 1000 }, "caps written out when missing");
+  const app = JSON.parse(readFileSync(join(dir, "apps", "gridpeek.json"), "utf8"));
+  assert.deepEqual(app.sources, ["hackernews", "reddit", "web"]);
+  assert.equal(JSON.parse(run(dir, ["status"]).out).redditProvider, "scrapecreators");
+
+  assert.equal(run(dir, ["reddit", "--provider", "none"]).code, 0);
+  assert.equal(JSON.parse(readFileSync(settingsFile, "utf8")).reddit.provider, "none");
+  const bad = run(dir, ["reddit", "--provider", "pushshift"]);
+  assert.equal(bad.code, 1);
+  assert.match(bad.err, /must be one of: scrapecreators, apify, socialcrawl, none/);
+});
+
+test("a new profile's \"socialcrawl\" means Threads (it isn't mistaken for an old Reddit setup)", () => {
+  const dir = freshDir();
+  run(dir, ["init"]);
+  const { code } = run(dir, ["app", "--name", "gridpeek"], JSON.stringify({ ...profile, sources: ["hackernews", "reddit", "socialcrawl"] }));
+  assert.equal(code, 0);
+  const saved = JSON.parse(readFileSync(join(dir, "apps", "gridpeek.json"), "utf8"));
+  assert.deepEqual(saved.sources, ["hackernews", "reddit", "socialcrawl"]);
+  assert.deepEqual(saved.socialcrawlPlatforms, ["threads"]);
 });
 
 test("unknown command prints usage and fails", () => {

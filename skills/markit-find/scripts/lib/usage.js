@@ -8,6 +8,8 @@
 // usage.json stores COUNTS ONLY: never keys, never post text. Its shape:
 //   {
 //     "months":  { "2026-10":    { "x": { "requests": 3, "posts": 30, "credits": 0, "context": 0 } } },
+//                (Apify also gets "results": items the actor returned, and "usd": marKit's
+//                 ESTIMATE of their cost from the prices in settings.json)
 //     "days":    { "2026-10-21": { "x": { "requests": 3, "posts": 30, "credits": 0, "context": 0 } } },
 //     "lastRun": { "app": "gridpeek", "ranAt": "2026-10-21T21:00:00Z", "opportunities": 12 }
 //   }
@@ -26,7 +28,8 @@ export const KEEP_DAYS = 35;
 // "context" counts thread-context calls that DON'T draw from the quota marKit shows for
 // that source (e.g. YouTube comment calls use a different pool than its 100 searches/day).
 // Context calls that do share the quota (e.g. Stack Exchange) are counted as "requests".
-const FIELDS = ["requests", "posts", "credits", "context"];
+const FIELDS = ["requests", "posts", "credits", "context", "results", "usd"];
+// "results" and "usd" only appear for sources that use them (Apify), so they're not here.
 const EMPTY = () => ({ requests: 0, posts: 0, credits: 0, context: 0 });
 
 /** "2026-10" for a date, in UTC. */
@@ -50,6 +53,12 @@ function addCounts(target, counts) {
   for (const field of FIELDS) {
     // Number(...) || 0 guards against undefined or garbage being passed in.
     target[field] = (Number(target[field]) || 0) + (Number(counts[field]) || 0);
+  }
+  // Dollar estimates are fractions: round to 1/10,000 of a dollar so adding many small
+  // amounts doesn't leave long tails like 0.30000000000000004 in the file.
+  target.usd = Math.round(target.usd * 1e4) / 1e4;
+  for (const field of ["results", "usd"]) {
+    if (target[field] === 0) delete target[field]; // keep entries for other sources tidy
   }
 }
 

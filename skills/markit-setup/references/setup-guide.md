@@ -21,7 +21,8 @@ Checked against each platform's docs on 2026-10-21 (Threads token steps re-check
 | YouTube | free (100 searches/day) | Google API key | videos (reply = comment) |
 | Threads | free | Meta token + **App Review** | public posts, only after Meta approves your app |
 | X | **paid**, ~$0.005 per post | Bearer token | posts (last 7 days) |
-| SocialCrawl | **paid** credits (100 free) | API key | **Reddit** posts |
+| Reddit (pick ONE provider) | **paid**, can be $0 (see below) | ScrapeCreators, Apify, or SocialCrawl key | **Reddit** posts |
+| SocialCrawl → Threads | **paid** credits (100 free) | SocialCrawl API key | public Threads posts, no App Review |
 | Web search | free | none | forums, Q&A (your agent runs it) |
 
 ---
@@ -32,7 +33,7 @@ Searched through Algolia's free HN Search API.
 
 ## Web search: no key
 
-Your agent runs the searches itself. Agents' web search rarely returns Reddit threads; for reliable Reddit coverage use SocialCrawl (below).
+Your agent runs the searches itself. Agents' web search rarely returns Reddit threads; for reliable Reddit coverage pick a Reddit provider (below).
 
 ## Stack Exchange: optional key
 
@@ -133,17 +134,63 @@ X charges about **$0.005 per post** returned by search (pricing checked 2026-10-
 
 X only searches the last 7 days.
 
-## SocialCrawl: API key (paid credits; covers Reddit, and Threads if you want)
+## Reddit: pick ONE provider (paid, optional)
 
-The reliable way to find Reddit threads. **1 credit per keyword** per run (cached results are free), so about 5–8 credits per run. New accounts get **100 free credits**, no card needed; packs start at £15 for 2,500 credits, and credits don't expire.
+Reddit is where many "what app do you use for X?" threads are, but AI agents' web search rarely finds them. marKit can read Reddit through one of three paid services. **Pick one**: only the chosen provider searches Reddit, so you never pay twice for the same search. Prices checked 2026-10-22.
 
-marKit stops at your caps: `socialcrawl.maxCreditsPerRun` (default 50) and `socialcrawl.maxCreditsPerMonth` (default 1,500).
+| Provider | Price | Free to start | Best for |
+|---|---|---|---|
+| **ScrapeCreators** (recommended) | 1 credit per keyword search; $47 for 25,000 credits (about $0.002 a search) | 100 free credits, no card | the cheapest per search; credits **never expire** |
+| **Apify** | about $2 per 1,000 Reddit posts, plus about $0.02 per run | **$5 of free usage every month** | staying at **$0** with light use |
+| **SocialCrawl** | 1 credit per keyword search; from £15 for 2,500 credits | 100 free credits | if you also want Threads through SocialCrawl |
 
-1. Sign up at https://www.socialcrawl.dev
+A typical run (5–8 keywords) costs 5–8 ScrapeCreators or SocialCrawl credits, or about 30–50 Apify results (about $0.08–$0.12).
+
+**After you add the key, choose the provider:** ask `/markit-setup` ("use ScrapeCreators for Reddit"). It saves `"reddit": { "provider": "scrapecreators" }` in `settings.json` (or `"apify"`, `"socialcrawl"`, `"none"`) and switches Reddit on for your apps. The dashboard's Settings page shows which provider is in use.
+
+marKit stops at its caps in `settings.json` whatever the provider says, and `/markit-usage` shows this month's use against them.
+
+### ScrapeCreators: API key (recommended)
+
+1. Sign up at https://scrapecreators.com (100 free credits, no card).
+2. Copy your **API key** from your ScrapeCreators dashboard.
+3. `.env`: `SCRAPECREATORS_API_KEY=...`
+4. Ask `/markit-setup` to use ScrapeCreators for Reddit.
+
+- **Caps:** `scrapecreators.maxCreditsPerRun` (default 30) and `scrapecreators.maxCreditsPerMonth` (default 1,000).
+- **Spending limit:** ScrapeCreators has no auto-recharge or spending-limit setting (checked 2026-10-22). You buy credit packs yourself, so you can never be charged more than what you bought.
+- **Note:** checking the key (`/markit-usage`, or Test in the dashboard) asks ScrapeCreators for your balance, which costs **1 credit**. `/markit-usage` then shows the credits left.
+- Thread context (reading a post's comments, only if `contextForPaidSources` is on) costs 1 credit per post.
+
+### Apify: API token (can stay at $0)
+
+Apify runs a Reddit scraper "actor" from its Store for you. The free plan includes **$5 of usage every month**, and marKit's default monthly cap (about $4.50, marKit's own estimate) stays just under it.
+
+1. Sign up at https://apify.com (free plan, no card).
+2. Open **Console → Settings → API & Integrations** (https://console.apify.com/settings/integrations) and copy your **API token**. Optional: "Limit token permissions" can make a token that only runs actors.
+3. `.env`: `APIFY_API_TOKEN=apify_api_...`
+4. Ask `/markit-setup` to use Apify for Reddit.
+
+- **Caps** (`settings.json` → `apify`): `maxResultsPerRun` (default 50) and `maxEstimatedCostPerMonth` (default 4.5, in dollars).
+- **How the cost is estimated:** `pricePerThousandResults` (default 2.0) and `pricePerRun` (default 0.02) are the free-plan prices of the default actor. If you're on a paid Apify plan (cheaper per result), you can lower them.
+- **Per run:** every run also tells Apify the most it may charge (`maxTotalChargeUsd`), so Apify itself stops the scraper before it costs more than what's left.
+- **Which scraper:** the actor is `apify.redditActor`, default `harshmaur~reddit-scraper`. It searches by keyword, newest first, with a date filter, and is priced per result. Another actor will only work if it accepts the same input fields.
+- **Spending limit:** on the free plan, Apify stops at the $5 included each month. On a paid plan, set one in **Console → Billing → Limits**.
+- `/markit-usage` shows marKit's estimate next to what Apify itself says you've used this billing cycle. The estimate counts by calendar month (UTC); Apify's cycle may start on another day.
+- Thread context (only if `contextForPaidSources` is on) bills each comment as a result: up to 10 comments plus the post, plus the run fee.
+
+### SocialCrawl: API key (Reddit, and Threads too)
+
+1. Sign up at https://www.socialcrawl.dev (100 free credits, no card needed).
 2. Copy your API key from the dashboard (it starts with `sc_`). If the dashboard lets you set a per-key budget, set one.
 3. `.env`: `SOCIALCRAWL_API_KEY=sc_...`
-4. Add `"socialcrawl"` to the app's `sources` (dashboard → Settings → Sources, ask `/markit-setup` to edit the app, or tell your agent "add SocialCrawl to my sources").
+4. **For Reddit:** ask `/markit-setup` to use SocialCrawl for Reddit.
 
-**Threads through SocialCrawl (optional):** SocialCrawl can also search public Threads posts, with **no Meta app, token, or App Review**. Switch it on in dashboard → Settings → Sources → SocialCrawl → "Search Threads", or set `"socialcrawlPlatforms": ["reddit", "threads"]` in the profile. Cost (checked 2026-10-22): 1 credit per keyword for an exact-phrase search; Threads only matches phrases it already knows, so marKit lets SocialCrawl split an unknown phrase into word pairs (up to 5 credits per keyword) **only when at least 5 credits are left** under your caps. Reading a Threads post's replies (thread context, only if `contextForPaidSources` is on) costs 1 credit.
+- **Cost and caps:** 1 credit per keyword (cached results are free). marKit stops at `socialcrawl.maxCreditsPerRun` (default 50) and `socialcrawl.maxCreditsPerMonth` (default 1,500).
+- `/markit-usage` shows your remaining credit balance.
 
-`/markit-usage` shows your remaining credit balance.
+**Threads through SocialCrawl (optional):** SocialCrawl can also search public Threads posts, with **no Meta app, token, or App Review**.
+- Turn it on with the **"Threads (via SocialCrawl)"** switch in dashboard → Settings → Sources, or by adding `"socialcrawl"` to the app's `sources`.
+- **Cost** (checked 2026-10-22): 1 credit per keyword for an exact-phrase search. Threads only matches phrases it already knows, so marKit lets SocialCrawl split an unknown phrase into word pairs (up to 5 credits per keyword), but **only when at least 5 credits are left** under your caps.
+- Reading a Threads post's replies (thread context, only if `contextForPaidSources` is on) costs 1 credit.
+- If SocialCrawl is also your Reddit provider, Reddit and Threads share the same SocialCrawl caps.

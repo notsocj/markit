@@ -11,6 +11,7 @@
 // HTML tags in text the agent wrote (softEscape), since the agent may have quoted a post.
 
 import { SOURCE_LABELS } from "./profile.js";
+import { PROVIDER_LABELS } from "./reddit.js";
 import { relativeTime } from "./normalize.js";
 import { contextLine } from "./context.js";
 import { prefilterLine } from "./filters.js";
@@ -59,12 +60,14 @@ export function sortPosts(posts) {
 
 /**
  * Display name for where a post came from: "Hacker News", or its `site` when it has one
- * ("Autosport Forums" for a web result, "Reddit r/formula1" for SocialCrawl).
+ * ("Autosport Forums" for a web result, "Threads" via SocialCrawl). Reddit posts also name
+ * the paid service that found them: "Reddit r/formula1 (via ScrapeCreators)".
  */
 export function sourceLabel(post) {
-  if (post.site) return post.site;
+  const via = post.source === "reddit" && PROVIDER_LABELS[post.provider] ? ` (via ${PROVIDER_LABELS[post.provider]})` : "";
+  if (post.site) return post.site + via;
   if (post.source === "web") return "Web";
-  return SOURCE_LABELS[post.source] ?? post.source;
+  return (SOURCE_LABELS[post.source] ?? post.source) + via;
 }
 
 /** A post's title for display, falling back to the start of its text. */

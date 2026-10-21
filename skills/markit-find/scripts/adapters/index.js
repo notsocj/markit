@@ -11,5 +11,9 @@ import youtube from "./youtube.js";
 import threads from "./threads.js";
 import x from "./x.js";
 import socialcrawl from "./socialcrawl.js";
+import scrapecreators from "./scrapecreators.js";
+import apify from "./apify.js";
 
-export const ADAPTERS = [hackernews, stackexchange, bluesky, youtube, threads, x, socialcrawl];
+// The last three are Reddit providers (lib/reddit.js): settings.json picks which one searches
+// the "reddit" source. SocialCrawl also serves the "socialcrawl" source (Threads).
+export const ADAPTERS = [hackernews, stackexchange, bluesky, youtube, threads, x, socialcrawl, scrapecreators, apify];
