@@ -198,6 +198,22 @@ export function readFeedback(file, { legacyStatusFile, now = new Date() } = {}) 
   return prune(entries.filter(wellFormed), now);
 }
 
+/** The message shown when feedback.json can't be read (no path: it's shown in the dashboard too). */
+export const BROKEN_FEEDBACK = "feedback.json in your marKit config folder isn't valid JSON, so your past Replied/Skipped decisions can't be used. Fix or delete it, then try again.";
+
+/**
+ * Like readFeedback, but a broken file never stops the caller: learning is optional, a run
+ * isn't. Returns { entries, broken }; when broken, callers must NOT write the file (that
+ * would wipe decisions the user may still recover by fixing it).
+ */
+export function tryReadFeedback(file, opts = {}) {
+  try {
+    return { entries: readFeedback(file, opts), broken: false };
+  } catch {
+    return { entries: [], broken: true };
+  }
+}
+
 /** Save entries (pruned, oldest first). */
 export function writeFeedback(file, entries, now = new Date()) {
   const kept = prune(entries.filter(wellFormed), now).sort((a, b) => String(a.decidedAt).localeCompare(String(b.decidedAt)));

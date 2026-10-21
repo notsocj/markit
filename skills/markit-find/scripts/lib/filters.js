@@ -219,6 +219,10 @@ export const PRESCORE = {
   intentMax: 24,
   competitor: 15,
   recency: [[24, 12], [72, 8], [168, 4]], // [max hours old, points]
+  // No date at all (mostly web results): it could be a years-old forum thread that's no
+  // use replying to, so it starts a little lower. Tested 2026-10-22: a "first time British
+  // Grand Prix" result with no visible date turned out to be from 2017.
+  unknownDate: -8,
   engagementMax: 10,
   jobOrSale: -30,
   selfPromo: -25,
@@ -278,6 +282,10 @@ export function preScore(post, profile, now = new Date()) {
   }
 
   // Recency.
+  if (!post.createdAt) {
+    score += PRESCORE.unknownDate;
+    reasons.push("date unknown");
+  }
   const hours = post.createdAt ? (now.getTime() - new Date(post.createdAt).getTime()) / 3600000 : NaN;
   if (Number.isFinite(hours) && hours >= 0) {
     const bucket = PRESCORE.recency.find(([maxHours]) => hours <= maxHours);

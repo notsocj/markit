@@ -526,6 +526,7 @@ Priority: high ≥ 75, medium 50–74, low < 50.
 
 - Help first: answer their actual question in 1–2 sentences before mentioning the app.
 - **Always disclose**: "I made this" / "full disclosure, I built…". Never pretend to be a random user.
+- Never invent experiences: not with the app, and not about the user's own life ("I went to my first GP last year"). Tips are written as tips; the user adds their own story when editing. Keep facts about the world general unless certain.
 - Mention 1 alternative or tip when natural, so it doesn't read like an ad.
 - Short: 2–4 sentences. Match the platform (casual on X/Threads, more detailed on Hacker News/Stack Exchange).
 - No hype words, no fake urgency, no emoji spam.
@@ -734,7 +735,7 @@ Two cheap, script-side steps so the agent (the expensive part) only judges the b
 ### New flow inside a run folder
 
 1. `search.js` writes `raw.json` (as before). Each source status now also records `used: { requests, posts, credits }` (counts only), so paid per-run caps can cover search + context together.
-2. The agent runs `raw.json → webQueries` and saves the kept results as **`web.json`** in the same folder: `[{ url, title, excerpt, site, createdAt? }]` (or `{ "posts": [...] }`). No ids (they're derived from the URL).
+2. The agent runs `raw.json → webQueries` and saves the kept results as **`web.json`** in the same folder: `[{ url, title, excerpt, site, createdAt?, query }]` (or `{ "posts": [...] }`). No ids (they're derived from the URL). `query` is the webQuery that found the result; candidates.js turns it into the result's `matchedKeyword` (the longest profile keyword the query contains, else the query without its `site:` part), so Keyword health covers web results too. When a result shows no date, the agent opens the page to check it (relevant-looking forum threads are often years old). Dates more than a day in the future are treated as unknown.
 3. **`node scripts/candidates.js <run-folder>`** merges raw.json + web.json, applies the prefilter, fetches thread context, and writes **`candidates.json`**. The agent scores ONLY candidates.json.
 4. The agent writes `scored.json` (copying candidate ids), then `report.js` as before.
 
@@ -754,7 +755,7 @@ Two cheap, script-side steps so the agent (the expensive part) only judges the b
 - +30 a profile keyword appears as an exact phrase; otherwise up to +15 for the share of a keyword's topic words present (`searchQuery()` words; needs ≥ 50%).
 - +8 contains "?"; +8 per intent phrase ("any app", "recommend", "recommendation", "looking for", "alternative to", "alternatives", "how do you", "is there a/an", "what do you use", "which app", "best app", "suggestions"), max +24.
 - +15 names a profile competitor.
-- Recency: +12 ≤ 24h, +8 ≤ 3 days, +4 ≤ 7 days.
+- Recency: +12 ≤ 24h, +8 ≤ 3 days, +4 ≤ 7 days; −8 when the date is unknown ("date unknown").
 - Engagement: `min(10, round(4 × log10(1 + engagementTotal)))`, so viral posts can't dominate.
 - −30 job/sale/giveaway wording ("hiring", "job opening", "for sale", "discount", "coupon", "promo code", "giveaway"…); −25 self-promotion ("I built", "I made", "we launched", "Show HN", "check out my", "introducing"…).
 
@@ -844,6 +845,7 @@ Reasons (codes → labels): `not_my_audience` Not my audience · `already_solved
 - One entry per card id; a new decision replaces the old one; `open` deletes it. Entries older than 180 days are dropped (same as seen.json).
 - `community`: "Reddit r/x" → `r/x`; Stack Exchange → `Stack Exchange <site>`; web results → their site name; otherwise the platform ("Hacker News").
 - Built from an allow-list of card fields: no keys, no full post text, no draft. Title cut to 120 characters.
+- **A broken feedback.json never stops a run:** candidates.js and report.js treat it as "no feedback" (no penalties, no agent verdicts saved, no Keyword health), print a note, and never overwrite it. The dashboard still shows cards (as To do) with a warning, and refuses saves with a clear message instead of a generic error.
 - **Why merged with status.json:** the dashboard's marks and the learning data are the same facts. Two files would mean two writes per click and a chance of disagreeing; one file can't drift. The dashboard reads its marks from feedback.json (user entries only). An existing status.json is imported the first time feedback.json doesn't exist, then left alone. Trade-off: a card decided more than 180 days ago shows as To do again if you browse that old run.
 
 ### Learn (`lib/learn.js`, `node scripts/learned.js --app <name>`)

@@ -72,7 +72,7 @@ If a candidate has `alsoPostedAt`, the same question was posted in several place
 
 ## 5. Web search results (web.json)
 
-Run `raw.json → webQueries` with your own web search tool. Keep a result **only if it's a discussion someone can reply to**: a forum thread, a Reddit/Quora question, a Q&A post. Drop articles, guides, news, listicles, store pages, and directories (e.g. AlternativeTo). Drop anything older than `raw.json → since` when a date is visible.
+Run `raw.json → webQueries` with your own web search tool. Keep a result **only if it's a discussion someone can reply to**: a forum thread, a Reddit/Quora question, a Q&A post. Drop articles, guides, news, listicles, store pages, and directories (e.g. AlternativeTo). Drop anything older than `raw.json → since` when a date is visible. When no date is visible, open the page to check before keeping it: relevant-looking forum threads are often years old (a "first time at the British GP" thread found on 2026-10-22 was from 2017). If you can't find a date, keep it without `createdAt`; candidates.js gives undated posts a small pre-score penalty.
 
 The search tool may ignore `site:` filters, so label each result by its **actual** domain.
 
@@ -80,6 +80,7 @@ Save the kept results as `web.json` in the run folder (next to `raw.json`), then
 - `url`, `title`, `excerpt` (the snippet or the post's opening text, ~1–3 sentences)
 - `site`: where it actually is, e.g. `"Reddit"`, `"Quora"`, `"Autosport Forums"`
 - `createdAt` (ISO date) if you know it; leave it out otherwise
+- `query`: the webQuery that found it, copied exactly from `raw.json → webQueries` (marKit uses it to tell which keyword the result came from, for Keyword health)
 - no `id` (candidates.js makes one from the URL; copy that id into scored.json)
 
 ## 6. Irrelevant posts

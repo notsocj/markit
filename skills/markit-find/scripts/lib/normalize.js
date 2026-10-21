@@ -38,8 +38,14 @@ const ID_PREFIX = {
 
 /** Turn runs of spaces, tabs, and newlines into single spaces. */
 export function collapseWhitespace(text) {
-  return String(text ?? "").replace(/\s+/g, " ").trim();
+  return String(text ?? "").replace(INVISIBLE, "").replace(/\s+/g, " ").trim();
 }
+
+// Invisible characters that can disguise text: zero-width space, left-to-right/right-to-left
+// marks and overrides ("safe\u202Egnp.exe" displays as "safeexe.png"), and the byte-order
+// mark. Posts and notes are untrusted, so they're removed wherever text is tidied.
+// (The zero-width JOINER is kept: emoji like 👨‍👩‍👧 need it.)
+const INVISIBLE = /[\u200B\u200C\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
 
 // The HTML entities that actually show up in Hacker News and Stack Exchange text.
 const NAMED_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#x27": "'", "#x2F": "/" };

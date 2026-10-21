@@ -28,7 +28,7 @@ import { validateScored } from "../../markit-find/scripts/lib/scored.js";
 import { sortPosts, sourceLabel } from "../../markit-find/scripts/lib/render-report.js";
 import { cleanContext, contextLine } from "../../markit-find/scripts/lib/context.js";
 import { prefilterLine } from "../../markit-find/scripts/lib/filters.js";
-import { readFeedback, recordDecision, statusMapFrom, validateDecision, SKIP_REASONS, REASON_LABELS } from "../../markit-find/scripts/lib/feedback.js";
+import { readFeedback, tryReadFeedback, recordDecision, statusMapFrom, validateDecision, SKIP_REASONS, REASON_LABELS, BROKEN_FEEDBACK } from "../../markit-find/scripts/lib/feedback.js";
 import { healthDetail } from "../../markit-find/scripts/lib/learn.js";
 
 // App names follow the same rule as profiles (lib/config.js validateAppName).
@@ -239,6 +239,11 @@ export function readStatus(feedbackFile, legacyStatusFile) {
   }
 }
 
+/** A warning for the page when feedback.json can't be read ("" when it's fine). */
+export function feedbackWarning(feedbackFile, legacyStatusFile) {
+  return tryReadFeedback(feedbackFile, { legacyStatusFile }).broken ? BROKEN_FEEDBACK : "";
+}
+
 /**
  * Find a card by post id in the reports folder (newest run first). The dashboard only sends
  * an id, so this is where the card's details for feedback.json come from. Returns
@@ -282,11 +287,13 @@ export function validateStatusUpdate(body) {
  * Save one card's decision to feedback.json. "open" removes it. The card must exist in the
  * reports folder (so nothing can fill feedback.json with made-up ids).
  *
- * @returns {object|null} the saved { status, reason, note, ... }, or null if the card is unknown
+ * @returns {object|null} the saved { status, reason, note, ... }, null if the card is unknown,
+ *   or { error } if feedback.json is broken (it's left untouched so nothing is lost)
  */
 export function writeStatus({ feedbackFile, legacyStatusFile, reportsDir }, { id, status, reason = "", note = "" }, now = new Date()) {
   const found = findCard(reportsDir, id);
   if (!found) return null;
+  if (tryReadFeedback(feedbackFile, { legacyStatusFile }).broken) return { error: BROKEN_FEEDBACK };
   const saved = recordDecision(feedbackFile, { card: found.card, app: found.app, status, reason, note, now, legacyStatusFile });
   return { status: saved.status, reason: saved.reason ?? "", reasonLabel: SKIP_REASONS[saved.reason] ?? "", note: saved.note ?? "", updatedAt: saved.decidedAt };
 }

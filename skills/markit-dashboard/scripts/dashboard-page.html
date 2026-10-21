@@ -867,8 +867,9 @@ async function loadRuns(token) {
 const cardsUrl = (run = state.run) => "/api/cards?app=" + encodeURIComponent(state.app) + "&run=" + encodeURIComponent(run);
 
 async function loadCards(token) {
-  const { cards, stats, run, prefilter } = await api(cardsUrl());
+  const { cards, stats, run, prefilter, warning } = await api(cardsUrl());
   if (token !== navToken) return false;
+  if (warning) toast(warning, null, 10000); // e.g. feedback.json is broken: marks can't be shown or saved
   state.cards = cards;
   state.prefilter = prefilter || "";
   state.stats = stats;
@@ -1205,7 +1206,7 @@ function move(delta) {
 // only while the toast is showing (so an old undo can never fire later by surprise).
 let toastTimer = null;
 let lastUndo = null;
-function toast(message, undo) {
+function toast(message, undo, ms) {
   $("#toast-msg").textContent = message;
   const btn = $("#toast-undo");
   lastUndo = undo || null;
@@ -1213,7 +1214,7 @@ function toast(message, undo) {
   btn.onclick = undo ? runUndo : null;
   $("#toast").classList.add("is-on");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(hideToast, undo ? 6000 : 2200);
+  toastTimer = setTimeout(hideToast, ms || (undo ? 6000 : 2200));
 }
 function hideToast() {
   $("#toast").classList.remove("is-on");

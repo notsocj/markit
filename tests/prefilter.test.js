@@ -12,7 +12,7 @@ import {
   dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, normalizeText, jaccard,
   engagementTotal, preScore, preScoreAll, keepTop, droppedSummary, prefilterLine, PRESCORE,
 } from "../skills/markit-find/scripts/lib/filters.js";
-import { readWebPosts, buildCandidates, paidContextBudget, formatSummary } from "../skills/markit-find/scripts/candidates.js";
+import { readWebPosts, keywordForQuery, buildCandidates, paidContextBudget, formatSummary } from "../skills/markit-find/scripts/candidates.js";
 import { webIdFor } from "../skills/markit-find/scripts/lib/scored.js";
 import { DEFAULT_SETTINGS } from "../skills/markit-find/scripts/lib/config.js";
 
@@ -107,11 +107,19 @@ test("preScore: partial keyword match scales with the share of topic words", () 
   const p = post("hn-1", { title: "F1 weekend thoughts", createdAt: "" });
   // "app for planning F1 race weekend" → topic words: f1, race, weekend; 2 of 3 present
   const { preScore: score } = preScore(p, { ...profile, competitors: [] }, NOW);
-  assert.equal(score, Math.round(PRESCORE.keywordPartialMax * (2 / 3)));
+  assert.equal(score, Math.round(PRESCORE.keywordPartialMax * (2 / 3)) + PRESCORE.unknownDate);
+});
+
+test("preScore: a post with no date starts a little lower (it may be a years-old thread)", () => {
+  const dated = preScore(post("hn-1", { title: "alternative to TripIt?", createdAt: ago(24 * 10) }), profile, NOW);
+  const undated = preScore(post("hn-1", { title: "alternative to TripIt?", createdAt: "" }), profile, NOW);
+  assert.equal(undated.preScore, dated.preScore + PRESCORE.unknownDate);
+  assert.ok(undated.preScoreReasons.includes("date unknown"));
 });
 
 test("preScore: penalties for job/sale posts and self-promotion, clamped at 0", () => {
-  const promo = post("hn-1", { title: "Show HN: I built an app for planning F1 race weekend", createdAt: "" });
+  // 10 days old: no recency points and no "date unknown" penalty, so only the keyword and promo count.
+  const promo = post("hn-1", { title: "Show HN: I built an app for planning F1 race weekend", createdAt: ago(24 * 10) });
   assert.equal(preScore(promo, profile, NOW).preScore, 30 - 25);
   const job = post("hn-2", { title: "Now hiring", createdAt: "" });
   assert.equal(preScore(job, profile, NOW).preScore, 0);
@@ -119,7 +127,7 @@ test("preScore: penalties for job/sale posts and self-promotion, clamped at 0", 
 
 test("preScore: engagement is capped so viral posts don't dominate", () => {
   const viral = post("hn-1", { title: "x", createdAt: "", engagement: { score: 1_000_000, comments: 50_000 } });
-  assert.equal(preScore(viral, profile, NOW).preScore, PRESCORE.engagementMax);
+  assert.equal(preScore(viral, profile, NOW).preScore, PRESCORE.engagementMax + PRESCORE.unknownDate);
 });
 
 test("keepTop keeps the best N and counts the rest", () => {
@@ -291,4 +299,29 @@ test("candidates.js CLI writes candidates.json next to raw.json", () => {
   const missing = spawnSync(process.execPath, [fileURLToPath(new URL("../skills/markit-find/scripts/candidates.js", import.meta.url)), home], { encoding: "utf8", env: { ...process.env, MARKIT_CONFIG_DIR: configDir } });
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /raw\.json not found/);
+});
+
+test("web results get their keyword from the query that found them", () => {
+  const keywords = ["F1 trip planner app", "trip planner app", "first time going to a Grand Prix tips"];
+  assert.equal(keywordForQuery("site:reddit.com F1 trip planner app", keywords), "F1 trip planner app", "the longest match wins");
+  assert.equal(keywordForQuery('site:reddit.com "TripIt" alternative', keywords), '"TripIt" alternative', "competitor queries keep the query");
+  assert.equal(keywordForQuery("", keywords), "");
+  const { posts } = readWebPosts([
+    { url: "https://f.example/1", title: "a", site: "F", query: "site:quora.com first time going to a Grand Prix tips" },
+    { url: "https://f.example/2", title: "b", site: "F", matchedKeyword: "F1 trip planner app", query: "ignored" },
+  ], { keywords, now: NOW });
+  assert.deepEqual(posts.map((p) => p.matchedKeyword), ["first time going to a Grand Prix tips", "F1 trip planner app"]);
+});
+
+test("web results dated in the future count as undated", () => {
+  const { posts } = readWebPosts([
+    { url: "https://f.example/1", title: "a", createdAt: "2099-01-01T00:00:00Z" },
+    { url: "https://f.example/2", title: "b", createdAt: ago(-12) }, // 12h ahead: time zones, fine
+  ], { now: NOW });
+  assert.deepEqual(posts.map((p) => p.createdAt), ["", ago(-12)]);
+});
+
+test("collapseWhitespace removes invisible direction overrides from post text", async () => {
+  const { collapseWhitespace } = await import("../skills/markit-find/scripts/lib/normalize.js");
+  assert.equal(collapseWhitespace("Any app\u202E?\u200B  for F1"), "Any app? for F1");
 });

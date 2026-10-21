@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  validateDecision, normalizeReason, cleanNote, communityOf, entryFrom, readFeedback, writeFeedback,
+  tryReadFeedback, validateDecision, normalizeReason, cleanNote, communityOf, entryFrom, readFeedback, writeFeedback,
   recordDecision, mergeAgentVerdicts, statusMapFrom, prune, KEEP_DAYS, NOTE_MAX, TITLE_MAX, AGENT_REASON,
 } from "../skills/markit-find/scripts/lib/feedback.js";
 import { prepareDecision, latestRunDir } from "../skills/markit-find/scripts/feedback.js";
@@ -187,4 +187,26 @@ test("feedback.js CLI: --app uses the latest run; bad input exits 1 with a clear
   assert.equal(none.status, 1);
   assert.match(none.stderr, /usage: node feedback\.js/);
   assert.ok(existsSync(feedbackFile));
+});
+
+test("invisible characters (direction overrides, zero-width) are removed from notes and titles", () => {
+  assert.equal(cleanNote("safe\u202Egnp.exe\u200B ok"), "safegnp.exe ok");
+  const e = entryFrom(card(1, { title: "Any\u2066 app\uFEFF?" }), { app: "a", status: "replied", decidedAt: NOW.toISOString() });
+  assert.equal(e.title, "Any app?");
+  assert.equal(cleanNote("family 👨‍👩‍👧 trip"), "family 👨‍👩‍👧 trip", "emoji joiners are kept");
+});
+
+test("tryReadFeedback: a broken file means 'no feedback', never a crash", () => {
+  const file = tempFile();
+  writeFileSync(file, "{broken");
+  assert.deepEqual(tryReadFeedback(file), { entries: [], broken: true });
+  assert.deepEqual(tryReadFeedback(join(mkdtempSync(join(tmpdir(), "markit-fb-")), "none.json")), { entries: [], broken: false });
+});
+
+test("card numbers must be plain digits", () => {
+  const { runDir } = cliFixture();
+  for (const bad of ["0x2", "1e0", " 2", "2 ", "+2", "0"]) {
+    assert.throws(() => prepareDecision({ runDir, card: bad, status: "replied" }), /--card must be a card number/, JSON.stringify(bad));
+  }
+  assert.equal(prepareDecision({ runDir, card: "2", status: "replied" }).card.number, 2);
 });

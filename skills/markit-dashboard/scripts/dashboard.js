@@ -187,7 +187,8 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, id
         // Keyword health: from the chosen run, or the newest run when showing all of them.
         const healthRun = run === "all" ? data.latestRun(reportsDir, app) : run;
         const keywordHealth = healthRun ? data.runKeywordHealth(reportsDir, app, healthRun) : null;
-        return sendJson(req, res, 200, { app, run, cards, prefilter, keywordHealth, stats: data.computeStats(cards, statusMap) });
+        const warning = data.feedbackWarning(feedbackFile, legacyStatusFile); // "" unless feedback.json is broken
+        return sendJson(req, res, 200, { app, run, cards, prefilter, keywordHealth, warning, stats: data.computeStats(cards, statusMap) });
       }
       return sendJson(req, res, 404, { error: "not found" });
     }
@@ -215,6 +216,7 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, id
       // 5. The id must be a card in the reports folder (its details go into feedback.json).
       const saved = data.writeStatus(files, check);
       if (!saved) return sendJson(req, res, 404, { error: "unknown card" });
+      if (saved.error) return sendJson(req, res, 500, { error: saved.error });
       return sendJson(req, res, 200, { id: check.id, ...saved });
     }
 

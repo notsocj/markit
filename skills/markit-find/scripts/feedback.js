@@ -46,7 +46,8 @@ export function prepareDecision({ runDir, card: cardArg, status, reason: reasonA
   const cards = readJsonFile(path.join(runDir, "cards.json"), null);
   if (!cards || !Array.isArray(cards.cards)) throw new Error(`marKit: no cards.json in ${runDir}. Run report.js for that run first.`);
 
-  const number = Number(cardArg);
+  // Digits only: Number() would also accept "0x2", "1e0", or " 2".
+  const number = /^\d+$/.test(String(cardArg ?? "")) ? Number(cardArg) : NaN;
   if (!Number.isInteger(number) || number < 1) throw new Error("marKit: --card must be a card number like 3 (as in report.md).");
   const card = cards.cards.find((c) => c.number === number);
   if (!card) throw new Error(`marKit: there's no card #${number} in this run (it has ${cards.cards.length}).`);

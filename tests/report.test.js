@@ -356,3 +356,16 @@ test("cards.json carries context, alsoPostedAt, preScore, and the prefilter summ
   assert.deepEqual(cards.cards[0].alsoPostedAt, ["https://y.com"]);
   assert.equal(cards.cards[0].preScore, 60);
 });
+
+test("a broken feedback.json never stops report.js, and is left untouched", () => {
+  const { configDir, runDir, run } = cli();
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, "feedback.json"), "{broken");
+  const scoredPath = join(runDir, "scored.json");
+  writeFileSync(scoredPath, JSON.stringify(scored()));
+  const r = run(scoredPath);
+  assert.equal(r.code, 0, r.err);
+  assert.ok(existsSync(join(runDir, "report.md")));
+  assert.match(r.out, /Note: feedback\.json in your marKit config folder isn't valid JSON/);
+  assert.equal(readFileSync(join(configDir, "feedback.json"), "utf8"), "{broken", "never overwritten");
+});

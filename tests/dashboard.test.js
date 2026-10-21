@@ -314,9 +314,11 @@ test("the server stops itself after the idle time", async () => {
 
 test("requests keep it alive", async () => {
   let reason = null;
-  const { port } = await startDashboard({ idleMs: 120, onStop: (r) => (reason = r) });
+  // 4 requests 150 ms apart (600 ms total) against a 500 ms idle limit: it only survives if
+  // each request resets the timer. Wide margins so a busy test machine can't make it flaky.
+  const { port } = await startDashboard({ idleMs: 500, onStop: (r) => (reason = r) });
   for (let i = 0; i < 4; i++) {
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((r) => setTimeout(r, 150));
     await request(port, { path: "/api/apps" });
   }
   assert.equal(reason, null);
@@ -409,4 +411,17 @@ test("dashboard cards carry the thread line, also-posted links, and the run's pr
   assert.deepEqual(c.alsoPostedAt, ["https://forum.example/t/1"], "only http(s) links pass");
   assert.ok(!JSON.stringify(c.context).includes("x@y"), "only author/excerpt/score are kept per comment");
   assert.equal((await request(port, { path: "/api/cards?app=gridpeek&run=all" })).json().prefilter, "", "no single summary for all runs");
+});
+
+test("a broken feedback.json: the page gets a warning, saves fail with a clear message, the file is kept", async () => {
+  const { port, feedbackFile } = await startDashboard();
+  writeFileSync(feedbackFile, "{broken");
+  const cards = (await request(port, { path: "/api/cards?app=gridpeek&run=latest" })).json();
+  assert.equal(cards.cards.length, 2);
+  assert.match(cards.warning, /isn't valid JSON/);
+  const r = await post(port, { id: "sc-1", status: "replied" });
+  assert.equal(r.status, 500);
+  assert.match(r.json().error, /feedback\.json .* isn't valid JSON/);
+  assert.ok(!r.text.includes(feedbackFile) && !r.text.includes(tmpdir()), "no file path in the error");
+  assert.equal(readFileSync(feedbackFile, "utf8"), "{broken");
 });

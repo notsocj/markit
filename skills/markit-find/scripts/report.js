@@ -33,7 +33,7 @@ import { cleanContext } from "./lib/context.js";
 import { renderReport, sourceLabel } from "./lib/render-report.js";
 import { loadSeenDates, addSeen } from "./lib/seen.js";
 import { setLastRun } from "./lib/usage.js";
-import { readFeedback, writeFeedback, mergeAgentVerdicts } from "./lib/feedback.js";
+import { tryReadFeedback, writeFeedback, mergeAgentVerdicts, BROKEN_FEEDBACK } from "./lib/feedback.js";
 import { keywordHealth, loadRunHistory } from "./lib/learn.js";
 
 /**
@@ -162,12 +162,16 @@ function main() {
     const kw = loadApp(raw.app, paths).keywords;
     if (Array.isArray(kw)) keywords = kw.filter((k) => typeof k === "string");
   } catch {}
+  // A broken feedback.json skips the learning parts (no agent verdicts saved, no Keyword
+  // health) but never stops the report, and is never overwritten.
+  const fb = tryReadFeedback(paths.feedbackFile, { legacyStatusFile: paths.statusFile, now });
+  if (fb.broken) keywords = [];
   const { markdown, numbered, fresh, skippedSeen, unscored, prefilter, feedback, keywordHealth } = buildReport({
     raw,
     scored: readJsonFile(scoredPath, null),
     seenDates: loadSeenDates(paths.seenFile),
     candidates: readJsonFile(path.join(runDir, "candidates.json"), null),
-    feedback: readFeedback(paths.feedbackFile, { legacyStatusFile: paths.statusFile, now }),
+    feedback: fb.entries,
     keywords,
     // The run folder's parent is <reportsDir>/<app>, which holds this app's other runs.
     runs: loadRunHistory(path.dirname(runDir)),
@@ -177,11 +181,12 @@ function main() {
   const reportPath = path.join(runDir, "report.md");
   writeTextFile(reportPath, markdown);
   writeJsonFile(path.join(runDir, "cards.json"), buildCards(raw, numbered, prefilter, keywordHealth));
-  writeFeedback(paths.feedbackFile, feedback, now);
+  if (!fb.broken) writeFeedback(paths.feedbackFile, feedback, now);
   addSeen(fresh.map((p) => p.id), paths.seenFile);
   setLastRun({ app: raw.app, ranAt: raw.ranAt, opportunities: numbered.length }, paths.usageFile);
 
   console.log(formatSummary({ app: raw.app, numbered, reportPath, skippedSeen, unscored, keywordHealth }));
+  if (fb.broken) console.log(`Note: ${BROKEN_FEEDBACK}`);
 }
 
 // Run main() only when executed directly, not when imported by tests.

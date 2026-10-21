@@ -8,6 +8,8 @@ How to draft honest, useful replies for high and medium posts. marKit only **dra
 
 1. **Help first.** Answer their actual question in 1–2 sentences before mentioning the app. If the app weren't mentioned, the reply should still be worth reading.
 2. **Always disclose.** "I made this", "full disclosure, I built…", "(I'm the dev)". Never pretend to be a random happy user. Never invent experiences ("I've used it for years").
+   - **Never invent anything about the user's own life either**: no "I went to my first GP last year", "when I was in Montreal…", "I always…". You don't know where they've been. Give tips as tips ("A few things that help first-timers: …"); the user can add their own story when they edit.
+   - Keep facts about the world general unless you're sure (say "public transport gets packed after the race", not a specific line or station you can't verify).
 3. **Mention one alternative or tip** when it's natural (the official app, a free option, a simple workaround). It shows good faith and stops the reply reading like an ad.
 4. **Short.** 2–4 sentences. Match the platform (see below).
 5. **No hype.** No "game-changer", "revolutionary", "ultimate", "best ever", "must-have", "🚀🔥", fake urgency ("limited time!"), or exclamation-mark stacks.

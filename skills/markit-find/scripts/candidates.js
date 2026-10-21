@@ -7,7 +7,11 @@
 // the agent saves its web search results there as web.json:
 //
 //   [ { "url": "https://…", "title": "…", "excerpt": "…", "site": "Autosport Forums",
-//       "createdAt": "2026-10-20T08:00:00Z" }, … ]          (or { "posts": [ … ] })
+//       "createdAt": "2026-10-20T08:00:00Z", "query": "site:reddit.com F1 trip planner app" },
+//     … ]                                                    (or { "posts": [ … ] })
+//
+// "query" is the webQuery that found the result: it's how a web result gets its keyword,
+// so Keyword health (lib/learn.js) can learn from web results too.
 //
 // What happens, in order (each step lives in lib/filters.js):
 //   1. Merge raw.json posts + web.json results (web results get a stable id from their URL).
@@ -43,7 +47,7 @@ import { loadUsage, recordUsage } from "./lib/usage.js";
 import { sinceDate, excerpt, stripHtml, collapseWhitespace, toIsoDate } from "./lib/normalize.js";
 import { webIdFor } from "./lib/scored.js";
 import { dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, preScoreAll, penalizeCommunities, keepTop, droppedSummary } from "./lib/filters.js";
-import { readFeedback } from "./lib/feedback.js";
+import { tryReadFeedback, BROKEN_FEEDBACK } from "./lib/feedback.js";
 import { communityPenalties, COMMUNITY_PENALTY } from "./lib/learn.js";
 import { paidBudget, quotaBudget, safeReason } from "./search.js";
 import { ADAPTERS } from "./adapters/index.js";
@@ -51,12 +55,28 @@ import { ADAPTERS } from "./adapters/index.js";
 export const MAX_WEB_RESULTS = 100;
 
 /**
+ * Which profile keyword a web query came from: the longest keyword the query contains
+ * ("site:reddit.com F1 trip planner app" → "F1 trip planner app"). Queries built from a
+ * competitor ("\"TripIt\" alternative") match no keyword and keep the query itself.
+ */
+export function keywordForQuery(query, keywords = []) {
+  const q = collapseWhitespace(String(query ?? "")).slice(0, 200);
+  if (!q) return "";
+  const lower = q.toLowerCase();
+  const hit = keywords.filter((k) => k && lower.includes(k.toLowerCase())).sort((a, b) => b.length - a.length)[0];
+  return hit ?? q.replace(/^site:\S+\s*/i, "").slice(0, 100);
+}
+
+/**
  * Turn the agent's web.json into Posts. Anything malformed is skipped and counted.
- * Web results are untrusted text: HTML is stripped and lengths are capped.
+ * Web results are untrusted text: HTML is stripped and lengths are capped. A date in the
+ * future (more than a day ahead, so time zones don't matter) is treated as unknown.
  *
+ * @param {*} data - parsed web.json
+ * @param {{ keywords?: string[], now?: Date }} [opts] - profile keywords, for each result's keyword
  * @returns {{ posts: object[], invalid: number }}
  */
-export function readWebPosts(data) {
+export function readWebPosts(data, { keywords = [], now = new Date() } = {}) {
   const list = Array.isArray(data) ? data : Array.isArray(data?.posts) ? data.posts : [];
   const posts = [];
   let invalid = 0;
@@ -85,8 +105,11 @@ export function readWebPosts(data) {
       author: collapseWhitespace(stripHtml(item.author ?? "")).slice(0, 60),
       createdAt: toIsoDate(item.createdAt),
       engagement: {},
-      matchedKeyword: typeof item.matchedKeyword === "string" ? item.matchedKeyword.slice(0, 100) : "",
+      matchedKeyword: typeof item.matchedKeyword === "string" && item.matchedKeyword.trim()
+        ? collapseWhitespace(item.matchedKeyword).slice(0, 100)
+        : keywordForQuery(item.query, keywords),
     };
+    if (post.createdAt && new Date(post.createdAt).getTime() > now.getTime() + 86400000) post.createdAt = "";
     posts.push(post);
   }
   return { posts, invalid };
@@ -122,7 +145,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
   const since = raw.since ? new Date(raw.since) : sinceDate(lookback, now);
 
   // 1. Merge API posts and web results (the same id twice → keep the first).
-  const { posts: webPosts, invalid: invalidWeb } = readWebPosts(web);
+  const { posts: webPosts, invalid: invalidWeb } = readWebPosts(web, { keywords: profile.keywords ?? [], now });
   const byId = new Map();
   for (const post of [...(raw.posts ?? []), ...webPosts]) if (post?.id && !byId.has(post.id)) byId.set(post.id, post);
   let posts = [...byId.values()];
@@ -252,6 +275,8 @@ async function main() {
   const { profile } = validateProfile(loadApp(raw.app, paths), raw.app);
   const webFile = path.join(runDir, "web.json");
   const now = new Date();
+  // A broken feedback.json only means "no lessons this time"; it never stops the run.
+  const feedback = tryReadFeedback(paths.feedbackFile, { legacyStatusFile: paths.statusFile, now });
   const { output, meters } = await buildCandidates({
     raw,
     web: existsSync(webFile) ? readJsonFile(webFile, []) : null,
@@ -260,7 +285,7 @@ async function main() {
     env: loadEnv(paths.envFile),
     seen: loadSeen(paths.seenFile),
     usage: loadUsage(paths.usageFile),
-    feedback: readFeedback(paths.feedbackFile, { legacyStatusFile: paths.statusFile, now }),
+    feedback: feedback.entries,
     now,
   });
   // One at a time: each call reads, updates, and rewrites usage.json.
@@ -269,6 +294,7 @@ async function main() {
   const file = path.join(runDir, "candidates.json");
   writeJsonFile(file, output);
   console.log(formatSummary(output, file));
+  if (feedback.broken) console.log(`Note: ${BROKEN_FEEDBACK}`);
 }
 
 // Run main() only when executed directly, not when imported by tests.
