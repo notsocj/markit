@@ -30,22 +30,38 @@ export const MAX_COMMENTS_SCANNED = 50;
 // ---------------------------------------------------------------------------
 // Heuristics. Simple on purpose, and imperfect:
 //   - They only see the comments we fetched (the top few dozen), not the whole thread.
-//   - "Suggests a tool" is guessed from wording and links, so a comment saying "I tried
-//     TripIt and hated it" counts as a suggestion, and "Notion!" alone doesn't.
+//   - "Suggests a tool" is guessed from wording and links, so a comment saying "I switched
+//     to TripIt and hated it" counts as a suggestion, "Notion!" alone doesn't, and any
+//     comment ending in "?" never does (even "Have you tried TripIt?").
 //   - "Solved" from the author's own words only works when the platform tells us who the
 //     author is (X results don't).
 // They nudge the agent's scoring (scoring.md); the agent still reads the comments.
 // ---------------------------------------------------------------------------
 
-// Wording that usually means "here's a tool you could use".
-const SUGGESTION = /(https?:\/\/|www\.|\b(i use|i've been using|ive been using|i have been using|we use|i recommend|i'd recommend|i would recommend|recommend|try|check out|switched to|i went with|go with|there's an app|there is an app|app called|tool called)\b)/i;
+// Wording that usually means "here's a tool you could use". Deliberately NOT included:
+// a bare "try" ("I will try that, thanks", "did you try restarting?") and a bare
+// "recommend" ("can anyone recommend one?"), which mostly aren't suggestions at all.
+const SUGGESTION = /(https?:\/\/|www\.|\b(i use|i've been using|ive been using|i have been using|we use|i recommend|i'd recommend|id recommend|i would recommend|check out|switched to|i went with|go with|there's an app|there is an app|app called|tool called)\b)/i;
+
+// "try" only counts when a product name or a link comes right after it: "try TripIt",
+// "Try out Notion", "try https://…". A product name is guessed as a Capitalized word, so
+// this regex is case-SENSITIVE on purpose ("try that" and "try restarting" don't match).
+// "[Tt]ry" lets "Try" start a sentence; "I" and a few sentence words are excluded.
+const TRY_PRODUCT = /\b[Tt]ry\s+(?:out\s+)?(?:https?:\/\/|www\.|(?!(?:I|It|This|That|The|A|An)\b)[A-Z][\w.-]*)/;
 
 // The original author saying their question is answered.
 const AUTHOR_SOLVED = /\b(solved|found it|figured it out|went with|ended up (using|with|going with)|that worked|this worked|perfect,? thanks?|thanks[^.!?]{0,30}(worked|perfect|exactly))\b/i;
 
-/** Does this comment look like it recommends a tool or app? */
+/**
+ * Does this comment look like it recommends a tool or app?
+ * Questions never count ("Can anyone recommend one too?", "Have you tried X?"): someone
+ * asking isn't someone already answering, so they shouldn't make a thread look crowded.
+ */
 export function looksLikeSuggestion(text) {
-  return SUGGESTION.test(String(text ?? ""));
+  // Curly apostrophes (’) from phones are turned into plain ones so "I’d recommend" matches.
+  const t = String(text ?? "").replace(/\u2019/g, "'").trim();
+  if (!t || /\?\s*$/.test(t)) return false;
+  return SUGGESTION.test(t) || TRY_PRODUCT.test(t);
 }
 
 /** Clean one username: plain text, no line breaks, at most 60 characters. */

@@ -54,6 +54,48 @@ test("appsAlreadySuggested, author-says-solved, and mentionsYourApp heuristics",
   assert.equal(buildContext({ comments: [{ author: "x", text: "solved it for me" }] }, { post: { author: "op" } }).solved, false);
 });
 
+test("looksLikeSuggestion ignores thanks, troubleshooting, and questions", () => {
+  for (const text of [
+    "I will try that, thanks",
+    "Did you try restarting?",
+    "Can anyone recommend one too?",
+    "Have you tried TripIt?",
+    "I'd recommend it too?",
+    "try it and see",
+    "Try This one weird trick",
+    "Any recommendations",
+    "",
+  ]) {
+    assert.equal(looksLikeSuggestion(text), false, `should be false: "${text}"`);
+  }
+});
+
+test("looksLikeSuggestion catches real tool suggestions", () => {
+  for (const text of [
+    "I use Notion for this",
+    "check out https://example.com/app",
+    "I switched to TripIt",
+    "Try TripIt, it's great",
+    "you could try Wanderlog",
+    "try out Notion",
+    "try https://someapp.example",
+    "I recommend Wanderlog",
+    "I’d recommend Wanderlog", // curly apostrophe, as typed on phones
+    "I would recommend Notion for this.",
+  ]) {
+    assert.equal(looksLikeSuggestion(text), true, `should be true: "${text}"`);
+  }
+});
+
+test("questions and thanks don't make a thread look crowded", () => {
+  const ctx = buildContext({ comments: [
+    { author: "a", text: "I will try that, thanks" },
+    { author: "b", text: "Did you try restarting?" },
+    { author: "c", text: "Can anyone recommend one too?" },
+  ] }, { post: { author: "op" } });
+  assert.equal(ctx.appsAlreadySuggested, 0);
+});
+
 test("cleanContext keeps known fields only, and contextLine summarizes in one line", () => {
   assert.equal(cleanContext(null), null);
   const c = cleanContext({ commentCount: 12.7, solved: "yes", locked: true, appsAlreadySuggested: 2, extra: "x", topComments: [{ author: "a", excerpt: "hi", score: 1, url: "bad" }] });

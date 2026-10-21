@@ -765,7 +765,7 @@ async context(post, { env, limit, meter, http, budget, appNames }) → {
 }
 ```
 
-All adapters build this with `buildContext()`, which keeps only username + excerpt + score per comment (no profile data), strips HTML, truncates, and runs the heuristics (documented limits: only the fetched comments, at most 50; wording-based). "Solved" = platform says so (accepted answer) or the post's author says so in a comment ("solved", "went with", "that worked"…). The author's own comments don't count as suggestions.
+All adapters build this with `buildContext()`, which keeps only username + excerpt + score per comment (no profile data), strips HTML, truncates, and runs the heuristics (documented limits: only the fetched comments, at most 50; wording-based). "Solved" = platform says so (accepted answer) or the post's author says so in a comment ("solved", "went with", "that worked"…). The author's own comments don't count as suggestions. A suggestion needs recommending wording ("I use", "I recommend", "switched to", "check out", a link…) or "try" followed by a Capitalized name or a link; a bare "try"/"recommend" doesn't count, and neither does any comment ending in "?".
 
 | Source | Endpoint (checked 2026-10-22) | Cost | Notes |
 |---|---|---|---|
