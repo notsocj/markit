@@ -112,6 +112,12 @@ test("every problem is listed at once, with position and id", () => {
   );
 });
 
+test("ids must be in the format the dashboard can save", () => {
+  const bad = [{ id: "web-my thread/1", source: "web", site: "Forum", url: "https://x.com/1", intent: "irrelevant" }];
+  assert.throws(() => validateScored(bad), /"id" may only contain letters, numbers/);
+  assert.equal(validateScored([{ id: "bsky-did:plc:abc-3kx_y.z", source: "bluesky", url: "https://x.com/2", intent: "irrelevant" }]).length, 1);
+});
+
 test("wrong top-level shape gives a clear message", () => {
   assert.throws(() => validateScored({ items: [] }), /must be \{ "posts": \[ \.\.\. \] \}/);
 });

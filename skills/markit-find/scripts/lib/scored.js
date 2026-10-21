@@ -98,6 +98,10 @@ export function validateScored(data, rawIds) {
       if (p.source === "web" && isHttpUrl(p.url)) id = webIdFor(p.url);
       else problem('missing "id" (copy it from raw.json)');
     }
+    // Same rule the dashboard uses to save Replied/Skipped, so every card can be marked.
+    if (id && !/^[a-z0-9][a-z0-9:._-]{0,199}$/i.test(id)) {
+      problem('"id" may only contain letters, numbers, and : . _ - (for web results, leave "id" out and marKit makes one)');
+    }
     if (id && ids.has(id)) problem(`duplicate id "${id}"`);
     if (id && rawIds && p.source !== "web" && !rawIds.has(id)) problem(`id "${id}" is not in raw.json (copy ids exactly; use source "web" for web results)`);
     if (id) ids.add(id);

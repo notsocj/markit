@@ -112,6 +112,12 @@ export function loadRun(reportsDir, app, run) {
   }
 }
 
+/** The newest run that can actually be read ("" if none). Stops at the first good one. */
+export function latestRun(reportsDir, app) {
+  for (const run of listRunNames(reportsDir, app)) if (loadRun(reportsDir, app, run)) return run;
+  return "";
+}
+
 /** Runs for an app (newest first) with small summaries for the run picker. */
 export function listRuns(reportsDir, app) {
   return listRunNames(reportsDir, app)

@@ -88,7 +88,8 @@ test("full screen matches the spec format", async () => {
   assert.ok(text.includes("marKit's own count"));
   assert.ok(lines.includes("Apps: gridpeek, keepr"));
   assert.ok(/^Last run: gridpeek · Oct 21, \d{1,2}:00 (AM|PM) · 12 opportunities$/m.test(text));
-  assert.ok(text.endsWith("  /markit-usage   this screen"));
+  assert.ok(text.includes("  /markit-dashboard   work through them in your browser"));
+  assert.ok(text.endsWith("  /markit-usage       this screen"));
 });
 
 test("the key raises Stack Exchange's shown limit", async () => {
@@ -130,7 +131,8 @@ test("CLI: not set up yet → friendly message and the command guide", () => {
   const r = spawnSync(process.execPath, [USAGE], { encoding: "utf8", env: { ...process.env, MARKIT_CONFIG_DIR: join(mkdtempSync(join(tmpdir(), "markit-u-")), "none") } });
   assert.equal(r.status, 0);
   assert.match(r.stdout, /^marKit isn't set up yet\. Run \/markit-setup to start\./);
-  assert.match(r.stdout, /\/markit-find {4}find opportunities and draft replies/);
+  assert.match(r.stdout, /\/markit-find +find opportunities and draft replies/);
+  assert.match(r.stdout, /\/markit-dashboard +work through them in your browser/);
 });
 
 test("CLI: unknown flags are reported clearly", () => {

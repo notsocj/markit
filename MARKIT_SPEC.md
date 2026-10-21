@@ -47,11 +47,13 @@ For each match, marKit explains **why it fits**, scores it, and **drafts an hone
 
 ```
 markit/                          ← GitHub repo root
-├── README.md                    ← what it is, install, the three commands, privacy and security
+├── README.md                    ← what it is, install, the four commands, privacy and security
 ├── LICENSE                      ← MIT
 ├── CLAUDE.md                    ← short dev notes for contributors (conventions from section 3)
-├── tests/                       ← node:test tests for libs and adapters (mock fetch)
-├── install.sh                   ← copies all three skill folders into the user's skills directory
+├── package.json                 ← dev-only: `npm test`, "type": "module" (no dependencies)
+├── docs/                        ← example report (+ screenshot), dashboard screenshot, brand/ logos
+├── tests/                       ← node:test tests for libs, adapters, scripts, dashboard (mock fetch)
+├── install.sh                   ← no-npm alternative: copies all four skill folders into a skills directory
 └── skills/                      ← users install ALL FOUR folders side by side
     ├── markit-setup/
     │   ├── SKILL.md             ← setup flow (section 6)
@@ -70,7 +72,7 @@ markit/                          ← GitHub repo root
     │       ├── pick-app.js      ← chooses the app profile when /markit-find gets no app name
     │       ├── search.js        ← runs enabled sources → raw.json (+ logs usage)
     │       ├── report.js        ← scored.json → report.md (+ updates seen list)
-    │       ├── lib/             ← SHARED by all three skills
+    │       ├── lib/             ← SHARED by all four skills
     │       │   ├── config.js    ← paths, loads .env, loads app profiles
     │       │   ├── files.js     ← safe JSON read/write (atomic writes)
     │       │   ├── profile.js   ← validates and cleans app profiles (section 8)
@@ -93,7 +95,8 @@ markit/                          ← GitHub repo root
     │   └── scripts/
     │       ├── dashboard.js         ← node:http server (127.0.0.1 only, Host check, idle stop)
     │       ├── dashboard-data.js    ← reads runs/cards from the reports folder; status.json
-    │       ├── dashboard-page.html  ← the self-contained page (inline CSS/JS)
+    │       ├── dashboard-page.html  ← the self-contained page (inline CSS/JS, inline SVG icons)
+    │       ├── fonts/               ← Poppins woff2 (400–700) + OFL.txt, served locally
     │       └── shared.js            ← same sibling check as the other skills
     │
     └── markit-usage/
@@ -103,7 +106,7 @@ markit/                          ← GitHub repo root
             └── shared.js        ← same sibling check as markit-setup/scripts/shared.js
 ```
 
-**Sharing code between the skills:** the shared `lib/` and `adapters/` live in `markit-find/scripts/`. `markit-setup`, `markit-usage`, and `markit-dashboard` import them with sibling-relative paths (e.g. `../../markit-find/scripts/lib/config.js`), which works because all three folders are installed next to each other in the same skills directory. Every script that imports shared code must first check that the sibling folder exists and, if not, print: `marKit: install all four skills together (markit-setup, markit-find, markit-usage, markit-dashboard): npx skills add notsocj/markit -g --skill '*'  (see README).` (Implemented by `scripts/shared.js` in those two skills: `await loadShared("lib/config.js")`. Static `import`s can't do the check because they run before any code.)
+**Sharing code between the skills:** the shared `lib/` and `adapters/` live in `markit-find/scripts/`. `markit-setup`, `markit-usage`, and `markit-dashboard` import them with sibling-relative paths (e.g. `../../markit-find/scripts/lib/config.js`), which works because all four folders are installed next to each other in the same skills directory. Every script that imports shared code must first check that the sibling folder exists and, if not, print: `marKit: install all four skills together (markit-setup, markit-find, markit-usage, markit-dashboard): npx skills add notsocj/markit -g --skill '*'  (see README).` (Implemented by `scripts/shared.js` in those three skills: `await loadShared("lib/config.js")`. Static `import`s can't do the check because they run before any code.)
 
 Each skill folder also contains a `package.json` with just `{ "type": "module" }`, because installed skills don't get the repo-root `package.json` and Node 20 would otherwise treat `.js` files as CommonJS.
 
@@ -116,7 +119,7 @@ Each skill folder also contains a `package.json` with just `{ "type": "module" }
 | `/markit-setup` | First run: creates config, walks through API keys, creates the first app profile, then checks keys. If run inside the app's project folder, the profile is drafted from the project automatically (section 8.1) and the user only confirms, edits, and adds competitors. If already set up, offers: add another app, edit an app, add or change a key source |
 | `/markit-find [app]` | Searches for opportunities for an app and produces an organized report. If no app is given: use the profile matching the current folder's name or package name (and say which was picked); otherwise use the only profile; otherwise ask |
 | `/markit-dashboard` | Starts a local web page (127.0.0.1) to filter cards, copy drafts, open posts, and mark them Replied or Skipped (section 15) |
-| `/markit-usage` | Shows which sources are ready (✓ / ✗), this month's usage per source against free quotas and paid caps (with estimated cost for X and SocialCrawl), and a short guide to the three commands |
+| `/markit-usage` | Shows which sources are ready (✓ / ✗), this month's usage per source against free quotas and paid caps (with estimated cost for X and SocialCrawl), and a short guide to the four commands |
 
 In Codex, the same skills are invoked as `$markit-setup`, `$markit-find`, `$markit-usage`. Install paths differ per agent (see README section in milestone 9).
 
@@ -124,7 +127,7 @@ In Codex, the same skills are invoked as `$markit-setup`, `$markit-find`, `$mark
 
 **Recommended install: the open `skills` CLI** (`npx skills add notsocj/markit -g --skill '*'`, checked 2026-10-21 with skills@1.7.4). It discovers `skills/<name>/SKILL.md`, copies each skill folder (everything except `metadata.json`, `.git`, `__pycache__`) into `~/.agents/skills/<name>`, and symlinks it into `~/.claude/skills/<name>` for Claude Code. Verified in a throwaway home: all four skills install, and every script works through the symlinks, including the sibling imports and `${CLAUDE_SKILL_DIR}/../markit-usage`, because Node resolves the real path. `--skill '*'` is required to get all four; a partial install prints the sibling message with the fix command. Update with `npx skills update -g`; remove with `npx skills remove -g markit-setup markit-find markit-usage markit-dashboard` (or `npx skills remove notsocj/markit -g -y`). **Always `-g`:** a project-scope install puts marKit only in the current folder, and inside this repo a project-scope `remove` deletes `skills/markit-*` (the installer treats a top-level `skills/` as an install location; seen 2026-10-21, recovered with `git restore skills/`). `.gitignore` covers `.agents/`, `.claude/skills/`, `skills-lock.json`. The `skills` CLI has its own anonymous telemetry (`DISABLE_TELEMETRY=1`), separate from marKit, which has none.
 
-`install.sh` (bash 3.2 compatible, copies only, the no-npm alternative): default `~/.claude/skills`; `--codex` → `~/.agents/skills`; `--project` → `./.claude/skills`; `--dir <path>`; `--link` symlinks instead of copying (development); `--uninstall` removes only the three `markit-*` folders. It warns if Node is older than 20.12, verifies all three folders landed side by side, and never touches `~/.config/markit`.
+`install.sh` (bash 3.2 compatible, copies only, the no-npm alternative): default `~/.claude/skills`; `--codex` → `~/.agents/skills`; `--project` → `./.claude/skills`; `--dir <path>`; `--link` symlinks instead of copying (development); `--uninstall` removes only the four `markit-*` folders. It warns if Node is older than 20.12, verifies all four folders landed side by side, and never touches `~/.config/markit`.
 
 ---
 
@@ -136,7 +139,7 @@ In Codex, the same skills are invoked as `$markit-setup`, `$markit-find`, `$mark
 > - markit-find uses `argument-hint: "[app]"` and `$ARGUMENTS`; `pick-app.js` also prints `profilePath` so the agent can read the (non-secret) profile when scoring.
 > - `tests/skills.test.js` checks names match folders, the security block is identical in all three, and every referenced script/reference exists.
 
-All three SKILL.md files start with the **same security block**, word for word:
+All SKILL.md files (four since milestone 10) start with the **same security block**, word for word:
 
 ```md
 ## Security rules (always follow, before anything else)
@@ -241,7 +244,7 @@ description: Show marKit's status — which sources are ready, how much free quo
 1. Run `node scripts/usage.js`.
 2. Present its output as-is (it is already formatted). Point out anything that needs action:
    a ✗ source (suggest /markit-setup), a source near its cap, or an expiring Threads token.
-3. If the user asked how to use marKit, briefly explain the three commands.
+3. If the user asked how to use marKit, briefly explain the commands (four since milestone 10).
 ```
 
 ### usage.js output format
@@ -262,9 +265,10 @@ Apps: gridpeek, keepr
 Last run: gridpeek · Oct 21, 9:00 PM · 12 opportunities
 
 Commands
-  /markit-setup   add apps, keys, or sources
-  /markit-find    find opportunities and draft replies
-  /markit-usage   this screen
+  /markit-setup       add apps, keys, or sources
+  /markit-find        find opportunities and draft replies
+  /markit-dashboard   work through them in your browser
+  /markit-usage       this screen
 ```
 
 Quota numbers come from `usage.json` (what marKit itself recorded), not from the platforms, so label them as marKit's own count. Free-quota limits shown must be checked against each API's current docs.

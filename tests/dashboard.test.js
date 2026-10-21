@@ -338,4 +338,10 @@ test("the page credits its icons and fonts, and has no top-left logo icon", asyn
   const sidebar = page.slice(page.indexOf('<aside class="side"'), page.indexOf("</aside>"));
   assert.ok(!sidebar.includes("logo-mark"), "sidebar shows the wordmark only");
   assert.ok(!page.includes('class="brand-mark"'), "no logo icon anywhere on the page (wordmark only)");
+  // All pickers use the custom dropdown (the native <select> popup ignores the page design).
+  assert.ok(!/<select[\s>]/.test(page), "no native <select> elements");
+  for (const id of ["dd-app", "dd-run", "dd-platform", "dd-sort"]) {
+    assert.ok(page.includes(`id="${id}"`), `custom dropdown ${id} exists`);
+  }
+  assert.match(page, /aria-haspopup="listbox"/);
 });

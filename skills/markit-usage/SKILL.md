@@ -22,8 +22,9 @@ disallowed-tools: Read(~/.config/markit/.env)
    - a source marked "near limit" or "near cap"
    - a Threads token that expires soon (renew it: see /markit-setup)
    - "not set up" sources the user might want (free: Bluesky, YouTube, Threads; paid: X, SocialCrawl for Reddit)
-3. If the user asked how to use marKit, briefly explain the three commands:
+3. If the user asked how to use marKit, briefly explain the four commands:
    - `/markit-setup`: set up keys and sources, add or edit app profiles
    - `/markit-find [app]`: find posts to reply to and get an organized report with honest draft replies
+   - `/markit-dashboard`: a local page to work through the results (copy drafts, open posts, mark Replied / Skipped)
    - `/markit-usage`: this status screen
-   (In Codex: `$markit-setup`, `$markit-find`, `$markit-usage`.)
+   (In Codex: `$markit-setup`, `$markit-find`, `$markit-dashboard`, `$markit-usage`.)

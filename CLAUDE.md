@@ -30,3 +30,10 @@ The full design is in `MARKIT_SPEC.md`.
 - Check each API's current official docs before writing or changing its adapter.
 - Project scanning (`lib/project.js`) enforces its never-read rules in code: secrets, `.env*`, `node_modules`, build output, dot-folders, and lock files are never listed. Add tests when changing those rules.
 - Tests mock `fetch` (pass `fetchImpl`); they never hit the real network. Use `MARKIT_CONFIG_DIR` or temp folders, never the real `~/.config/markit`.
+
+## Dashboard (`skills/markit-dashboard`)
+- `dashboard-page.html` is the whole UI: inline CSS + JS under a strict CSP (per-start nonce, no inline handlers, no `style=""` attributes; set styles through the DOM). Insert untrusted text with `textContent`, never `innerHTML`.
+- Icons are inline SVG `<symbol>`s at the top of the page (Solar, CC BY 4.0; platform logos from Simple Icons, CC0). To add one, copy its body from `https://api.iconify.design/solar.json?icons=<name>` into a new `<symbol id="i-<name>" viewBox="0 0 24 24">` (resolve Iconify aliases to their parent), and remove symbols you stop using. Never load icons from a CDN.
+- The font is Poppins (OFL), bundled in `scripts/fonts/` and served by exact name from `FONT_FILES` in `dashboard.js`. Don't bundle fonts whose license forbids redistribution (e.g. Satoshi); the logo wordmark is Satoshi converted to outlines in `docs/brand/`.
+- Pickers use the page's own dropdown component (`makeDropdown`), not native `<select>`.
+- Check UI changes in a browser at desktop, ~1000px, and phone widths, in dark and light mode.

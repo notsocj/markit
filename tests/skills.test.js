@@ -1,4 +1,4 @@
-// Tests for the three SKILL.md files and install.sh: the pieces an agent actually reads.
+// Tests for the four SKILL.md files and install.sh: the pieces an agent actually reads.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

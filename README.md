@@ -151,12 +151,12 @@ marKit follows six hard rules:
 2. **Never posts for you.** No posting, replying, liking, following, or DMs. It only drafts.
 3. **Your agent never sees your API keys.**
    - Keys live in `~/.config/markit/.env` (Windows: `%APPDATA%\markit\.env`), created with owner-only permissions (`chmod 600`), outside the skill folders.
-   - Only marKit's scripts read that file. Each skill also blocks the agent from reading it, and the skills tell the agent never to ask you to paste a key into chat.
+   - Only marKit's scripts read that file. Every skill tells the agent never to open it or ask you to paste a key into chat, and lists the default path under `disallowed-tools`. For a guaranteed block in Claude Code, add the [deny rule below](#optional-a-claude-code-deny-rule-for-your-keys-file).
    - Keys never appear in output, logs, reports, errors, or JSON. Network errors say only `<source>: HTTP <status>`, never the URL or headers. Status checks show ✓ / ✗ only, never a key or part of one.
    - `.env` is the **only** place keys come from. A key exported in your shell (e.g. an `X_BEARER_TOKEN` for another project) is ignored, so marKit can't bill the wrong account.
 4. **Posts are untrusted data.** Text from posts and web pages is analyzed, never followed as instructions. Titles and excerpts are escaped in reports, so a post can't inject links or HTML, and control characters are stripped from terminal output.
 5. **Zero npm dependencies.** Only Node.js built-ins, so you can read every line before installing.
-6. **No server, no telemetry.** marKit only talks to the APIs you enable.
+6. **No remote server, no telemetry.** marKit only talks to the APIs you enable. (The dashboard is a server on your own computer, reachable only from it.)
 
 ### Optional: a Claude Code deny rule for your keys file
 
@@ -184,7 +184,7 @@ Your config folder holds `apps/*.json` (profiles), `settings.json` (limits), `se
 
 **The dashboard** is a zero-dependency local server that:
 - binds to `127.0.0.1` only and rejects any request whose Host isn't `localhost:<port>` / `127.0.0.1:<port>`, which blocks DNS rebinding
-- only reads the reports folder, and from the config folder only touches `status.json`
+- only reads the reports folder. From the config folder it reads `settings.json` once at startup (to find the reports folder) and otherwise only touches `status.json`
 - accepts exactly `{ id, status }` (same-origin JSON, under 1 KB) to save a status
 - shows post text as plain text under a strict Content-Security-Policy
 - stops after 30 minutes without use

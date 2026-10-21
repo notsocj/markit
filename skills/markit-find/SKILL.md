@@ -32,7 +32,7 @@ If a script says marKit isn't set up, tell the user to run /markit-setup first a
 4. **Draft replies** for high and medium posts following `${CLAUDE_SKILL_DIR}/references/reply-guide.md`: help first, always disclose, short, no hype, only true claims.
 5. **Write `scored.json`** in the same folder as `raw.json`, exactly in the format in `scoring.md` section 7.
 6. **Run `node ${CLAUDE_SKILL_DIR}/scripts/report.js <path-to-scored.json>`.** If it lists problems, fix them all in `scored.json` and run it again.
-7. **Tell the user:** how many high / medium matches, the top 3 in one line each, and the report path. Mention anything that needs attention (a source with ✗ in the summary → suggest /markit-usage; few results → suggest more keywords or SocialCrawl for Reddit). Offer: "Want me to rewrite any draft? Just say the card number."
+7. **Tell the user:** how many high / medium matches, the top 3 in one line each, and the report path. Mention anything that needs attention (a source with ✗ in the summary → suggest /markit-usage; few results → suggest more keywords or SocialCrawl for Reddit). Offer: "Want me to rewrite any draft? Just say the card number." Also mention they can run /markit-dashboard to work through the cards in their browser (copy drafts, open posts, mark Replied or Skipped).
 
 ## Rewriting a draft
 When the user asks to rewrite draft #N: find card #N in `report.md`, update that post's `draftReply` (or whatever they asked) in `scored.json`, and run `report.js` again. Numbers stay the same. Never post it yourself.

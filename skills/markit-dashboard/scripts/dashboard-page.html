@@ -86,15 +86,13 @@
   /* ---------- Sidebar ---------- */
   .side { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 6px; min-height: 0; overflow-y: auto; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px 14px; color: var(--text); }
-  .brand-mark { width: 30px; height: 30px; }
   .brand-word { height: 34px; width: 82px; }
-  .app-switch { position: relative; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line-2); background: var(--panel); border-radius: 10px; padding: 8px 10px; margin-bottom: 14px; }
-  .app-switch:hover { border-color: var(--accent); }
+  .app-switch { margin-bottom: 14px; }
+  .app-trigger { display: flex; align-items: center; gap: 10px; width: 100%; border: 1px solid var(--line-2); background: var(--panel); border-radius: 10px; padding: 8px 10px; text-align: left; }
+  .app-trigger:hover { border-color: var(--accent); }
+  .app-name { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-trigger .dd-caret { color: var(--muted); }
   .app-avatar { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--accent-soft); color: var(--accent-2); text-transform: uppercase; flex: none; }
-  .app-switch select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font-weight: 600; flex: 1; min-width: 0; padding-right: 18px; cursor: pointer; }
-  .app-switch select:focus-visible { outline: none; }
-  .app-switch:focus-within { border-color: var(--accent); }
-  .app-switch .ic { position: absolute; right: 10px; pointer-events: none; color: var(--muted); }
   .nav-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); padding: 10px 10px 4px; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav-btn { display: flex; align-items: center; gap: 11px; width: 100%; border: 0; background: transparent; color: var(--muted); padding: 9px 10px; border-radius: 9px; font-weight: 500; text-align: left; }
@@ -131,18 +129,33 @@
   .filters { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip-select { position: relative; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--panel); border-radius: 999px; padding: 4px 10px 4px 9px; color: var(--muted); font-size: 12.5px; max-width: 100%; }
   .chip-select:hover, .chip-select:focus-within { border-color: var(--accent); color: var(--text); }
-  .chip-select select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; padding-right: 16px; font-weight: 500; color: var(--text); cursor: pointer; max-width: 150px; text-overflow: ellipsis; }
-  .chip-select select:focus-visible { outline: none; }
-  .chip-select .caret { position: absolute; right: 8px; width: 13px; height: 13px; pointer-events: none; }
+  .chip-select .dd-label { font-weight: 500; color: var(--text); max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 999px; padding: 2px; background: var(--panel); }
   .seg button { border: 0; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 500; padding: 3px 10px; border-radius: 999px; }
   .seg button:hover { color: var(--text); }
   .seg button.is-active { background: var(--accent-soft); color: var(--text); }
   .list-meta { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--muted); }
   .list-meta b { color: var(--text); font-weight: 600; }
-  .sort { display: inline-flex; align-items: center; gap: 6px; position: relative; }
-  .sort select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font-weight: 600; color: var(--text); padding-right: 16px; cursor: pointer; }
-  .sort .caret { position: absolute; right: 0; width: 13px; height: 13px; pointer-events: none; }
+  .sort-trigger { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--muted); padding: 2px 0; }
+  .sort-trigger .dd-label { font-weight: 600; color: var(--text); }
+  .sort-trigger:hover .dd-label, .sort-trigger[aria-expanded="true"] .dd-label { color: var(--accent-2); }
+
+  /* ---------- Dropdowns: custom menus instead of the browser's native popup ---------- */
+  .dd { position: relative; }
+  .dd-caret { width: 13px; height: 13px; transition: transform 0.15s ease; }
+  .dd-trigger[aria-expanded="true"] { border-color: var(--accent); color: var(--text); }
+  .dd-trigger[aria-expanded="true"] .dd-caret { transform: rotate(180deg); }
+  .dd-menu { position: fixed; z-index: 40; min-width: 180px; max-width: 320px; max-height: min(360px, 60vh); overflow-y: auto; background: var(--panel); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow); padding: 5px; display: grid; gap: 1px; animation: dd-in 0.12s ease-out; }
+  @keyframes dd-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .dd-opt { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; color: var(--text); text-align: left; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; white-space: nowrap; }
+  .dd-opt.is-focus { background: var(--hover); }
+  .dd-opt .opt-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .dd-opt .opt-sub { color: var(--faint); font-size: 12px; font-weight: 400; }
+  .dd-opt .dd-check { color: var(--accent-2); visibility: hidden; }
+  .dd-opt[aria-selected="true"] { font-weight: 600; }
+  .dd-opt[aria-selected="true"] .dd-check { visibility: visible; }
+  .dd-opt .app-avatar { width: 22px; height: 22px; font-size: 11px; border-radius: 6px; }
+  .dd-sep { height: 1px; background: var(--line); margin: 4px 6px; }
   .list { overflow-y: auto; flex: 1; min-height: 0; padding: 6px; }
 
   .item { position: relative; display: grid; gap: 7px; width: 100%; text-align: left; border: 1px solid transparent; background: transparent; border-radius: var(--radius); padding: 13px 14px 13px 16px; margin-bottom: 2px; color: var(--text); }
@@ -180,6 +193,7 @@
   /* ---------- Detail column ---------- */
   .detail-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--bg); }
   .d-scroll { flex: 1; overflow-y: auto; padding: 26px 32px 24px; }
+  .d-scroll:focus { outline: none; }
   .d-inner { max-width: 820px; margin: 0 auto; display: grid; gap: 18px; }
   .btn.d-back { display: none; }
   .d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
@@ -287,24 +301,23 @@
   .keys .k { display: flex; gap: 4px; justify-content: flex-end; }
 
   /* ---------- Responsive ---------- */
-  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } .dd-menu { animation: none; } .dd-caret { transition: none; } }
   @media (max-width: 1180px) {
     .app { grid-template-columns: 72px minmax(320px, 400px) 1fr; }
     .app.is-analytics { grid-template-columns: 72px 1fr; }
     .side { padding: 16px 10px; align-items: center; }
-    .side .brand { display: none; } .side .brand-word, .nav-label, .nav-btn .lbl, .run-card, .side-foot .lbl, .app-switch select, .app-switch .ic { display: none; }
-    .app-switch { padding: 6px; margin-bottom: 10px; justify-content: center; }
+    .side .brand { display: none; } .side .brand-word, .nav-label, .nav-btn .lbl, .run-card, .side-foot .lbl, .app-name, .app-trigger .dd-caret { display: none; }
+    .app-switch { margin-bottom: 10px; } .app-trigger { padding: 6px; justify-content: center; }
     .nav-btn { justify-content: center; padding: 10px; position: relative; }
     .nav-btn .count { position: absolute; top: 2px; right: -2px; min-width: 18px; padding: 0 5px; font-size: 10px; }
     .side-foot { flex-direction: column; padding: 8px 0 0; }
     .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  @media (max-width: 1180px) and (min-width: 821px) { .app-switch select { display: block; position: absolute; inset: 0; opacity: 0; } }
   @media (max-width: 820px) {
     .app, .app.is-analytics { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: 100dvh; }
     .side { flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--line); gap: 6px; }
     .side .brand { display: none; }
-    .app-switch { margin: 0; } .app-switch select { display: block; position: absolute; inset: 0; opacity: 0; }
+    .app-switch { margin: 0; }
     .nav { flex-direction: row; } .side-spacer { display: none; } .side-foot { flex-direction: row; padding: 0; }
     .list-col { border-right: 0; }
     .detail-col { position: fixed; inset: 0; z-index: 10; display: none; }
@@ -335,29 +348,20 @@
 <symbol id="i-chat-round-line-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 13.5997 2.37562 15.1116 3.04346 16.4525C3.22094 16.8088 3.28001 17.2161 3.17712 17.6006L2.58151 19.8267C2.32295 20.793 3.20701 21.677 4.17335 21.4185L6.39939 20.8229C6.78393 20.72 7.19121 20.7791 7.54753 20.9565C8.88837 21.6244 10.4003 22 12 22Z"/><path d="M8 10.5H16"/><path d="M8 14H13.5"/></g></symbol>
 <symbol id="i-check-circle-bold" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z" clip-rule="evenodd"/></symbol>
 <symbol id="i-check-circle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path stroke-linejoin="round" d="M8.5 12.5L10.5 14.5L15.5 9.5"/></g></symbol>
-<symbol id="i-clock-circle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path stroke-linejoin="round" d="M12 8V12L14.5 14.5"/></g></symbol>
 <symbol id="i-close-circle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M14.5 9.50002L9.5 14.5M9.49998 9.5L14.5 14.5"/></g></symbol>
 <symbol id="i-copy-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M6 11C6 8.17157 6 6.75736 6.87868 5.87868C7.75736 5 9.17157 5 12 5H15C17.8284 5 19.2426 5 20.1213 5.87868C21 6.75736 21 8.17157 21 11V16C21 18.8284 21 20.2426 20.1213 21.1213C19.2426 22 17.8284 22 15 22H12C9.17157 22 7.75736 22 6.87868 21.1213C6 20.2426 6 18.8284 6 16V11Z"/><path d="M6 19C4.34315 19 3 17.6569 3 16V10C3 6.22876 3 4.34315 4.17157 3.17157C5.34315 2 7.22876 2 11 2H15C16.6569 2 18 3.34315 18 5"/></g></symbol>
 <symbol id="i-danger-triangle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M5.31171 10.7615C8.23007 5.58716 9.68925 3 12 3C14.3107 3 15.7699 5.58716 18.6883 10.7615L19.0519 11.4063C21.4771 15.7061 22.6897 17.856 21.5937 19.428C20.4978 21 17.7864 21 12.3637 21H11.6363C6.21356 21 3.50217 21 2.40626 19.428C1.31034 17.856 2.52291 15.7061 4.94805 11.4063L5.31171 10.7615Z"/><path d="M12 8V13"/><path stroke-linejoin="round" d="M12 16H12.0001"/></g></symbol>
-<symbol id="i-eye-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M3.27489 15.2957C2.42496 14.1915 2 13.6394 2 12C2 10.3606 2.42496 9.80853 3.27489 8.70433C4.97196 6.49956 7.81811 4 12 4C16.1819 4 19.028 6.49956 20.7251 8.70433C21.575 9.80853 22 10.3606 22 12C22 13.6394 21.575 14.1915 20.7251 15.2957C19.028 17.5004 16.1819 20 12 20C7.81811 20 4.97196 17.5004 3.27489 15.2957Z"/><path d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z"/></g></symbol>
-<symbol id="i-filter-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M19 3H5C3.58579 3 2.87868 3 2.43934 3.4122C2 3.8244 2 4.48782 2 5.81466V6.50448C2 7.54232 2 8.06124 2.2596 8.49142C2.5192 8.9216 2.99347 9.18858 3.94202 9.72255L6.85504 11.3624C7.49146 11.7206 7.80967 11.8998 8.03751 12.0976C8.51199 12.5095 8.80408 12.9935 8.93644 13.5872C9 13.8722 9 14.2058 9 14.8729L9 17.5424C9 18.452 9 18.9067 9.25192 19.2613C9.50385 19.6158 9.95128 19.7907 10.8462 20.1406C12.7248 20.875 13.6641 21.2422 14.3321 20.8244C15 20.4066 15 19.4519 15 17.5424V14.8729C15 14.2058 15 13.8722 15.0636 13.5872C15.1959 12.9935 15.488 12.5095 15.9625 12.0976C16.1903 11.8998 16.5085 11.7206 17.145 11.3624L20.058 9.72255C21.0065 9.18858 21.4808 8.9216 21.7404 8.49142C22 8.06124 22 7.54232 22 6.50448V5.81466C22 4.48782 22 3.8244 21.5607 3.4122C21.1213 3 20.4142 3 19 3Z"/></symbol>
 <symbol id="i-global-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M22 12C22 13.3132 21.7413 14.6136 21.2388 15.8268C20.7362 17.0401 19.9997 18.1425 19.0711 19.0711C18.1425 19.9997 17.0401 20.7362 15.8268 21.2388C14.6136 21.7413 13.3132 22 12 22C10.6868 22 9.38642 21.7413 8.17317 21.2388C6.95991 20.7362 5.85752 19.9997 4.92893 19.0711C4.00035 18.1425 3.26375 17.0401 2.7612 15.8268C2.25866 14.6136 2 13.3132 2 12C2 10.6868 2.25866 9.38642 2.76121 8.17316C3.26375 6.95991 4.00035 5.85752 4.92893 4.92893C5.85752 4.00035 6.95991 3.26375 8.17317 2.7612C9.38642 2.25866 10.6868 2 12 2C13.3132 2 14.6136 2.25866 15.8268 2.76121C17.0401 3.26375 18.1425 4.00035 19.0711 4.92893C19.9997 5.85752 20.7362 6.95991 21.2388 8.17317C21.7413 9.38642 22 10.6868 22 12L22 12Z"/><path d="M16 12C16 13.3132 15.8965 14.6136 15.6955 15.8268C15.4945 17.0401 15.1999 18.1425 14.8284 19.0711C14.457 19.9997 14.016 20.7362 13.5307 21.2388C13.0454 21.7413 12.5253 22 12 22C11.4747 22 10.9546 21.7413 10.4693 21.2388C9.98396 20.7362 9.54301 19.9997 9.17157 19.0711C8.80014 18.1425 8.5055 17.0401 8.30448 15.8268C8.10346 14.6136 8 13.3132 8 12C8 10.6868 8.10346 9.38642 8.30448 8.17316C8.5055 6.95991 8.80014 5.85752 9.17157 4.92893C9.54301 4.00035 9.98396 3.26375 10.4693 2.7612C10.9546 2.25866 11.4747 2 12 2C12.5253 2 13.0454 2.25866 13.5307 2.76121C14.016 3.26375 14.457 4.00035 14.8284 4.92893C15.1999 5.85752 15.4945 6.95991 15.6955 8.17317C15.8965 9.38642 16 10.6868 16 12L16 12Z"/><path d="M2 12H22"/></g></symbol>
 <symbol id="i-graph-up-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z"/><path stroke-linejoin="round" d="M7 14L9.29289 11.7071C9.68342 11.3166 10.3166 11.3166 10.7071 11.7071L12.2929 13.2929C12.6834 13.6834 13.3166 13.6834 13.7071 13.2929L17 10M14.5 10H17V12.5"/></g></symbol>
-<symbol id="i-hashtag-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M10 3L5 21"/><path d="M19 3L14 21"/><path d="M22 9H4"/><path d="M20 16H2"/></g></symbol>
-<symbol id="i-heart-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2 9.1371C2 14 6.01943 16.5914 8.96173 18.9109C10 19.7294 11 20.5 12 20.5C13 20.5 14 19.7294 15.0383 18.9109C17.9806 16.5914 22 14 22 9.1371C22 4.27416 16.4998 0.825464 12 5.50063C7.50016 0.825464 2 4.27416 2 9.1371Z"/></symbol>
 <symbol id="i-history-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M12 8V12L14.5 14.5"/><path d="M4.33776 6.87052L5.60414 5.60414C9.10115 2.10713 14.7996 2.13576 18.3319 5.6681C21.8642 9.20044 21.8929 14.8988 18.3959 18.3959C14.8988 21.8929 9.20044 21.8642 5.6681 18.3319C3.57589 16.2397 2.71285 13.3876 3.08355 10.6831M4.32497 4.32497L4.33776 6.87052L6.88331 6.88331"/></g></symbol>
 <symbol id="i-inbox-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z"/><path d="M2 13H5.16026C6.06543 13 6.51802 13 6.91584 13.183C7.31367 13.3659 7.60821 13.7096 8.19729 14.3968L8.80271 15.1032C9.39179 15.7904 9.68633 16.1341 10.0842 16.317C10.482 16.5 10.9346 16.5 11.8397 16.5H12.1603C13.0654 16.5 13.518 16.5 13.9158 16.317C14.3137 16.1341 14.6082 15.7904 15.1973 15.1032L15.8027 14.3968C16.3918 13.7096 16.6863 13.3659 17.0842 13.183C17.482 13 17.9346 13 18.8397 13H22"/></g></symbol>
 <symbol id="i-info-circle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 17V11"/><path stroke-linejoin="round" d="M12 8H12.0001"/></g></symbol>
 <symbol id="i-keyboard-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 11C2 8.17157 2 6.75736 2.87868 5.87868C3.75736 5 5.17157 5 8 5H16C18.8284 5 20.2426 5 21.1213 5.87868C22 6.75736 22 8.17157 22 11V13C22 15.8284 22 17.2426 21.1213 18.1213C20.2426 19 18.8284 19 16 19H8C5.17157 19 3.75736 19 2.87868 18.1213C2 17.2426 2 15.8284 2 13V11Z"/><path d="M7 16H17"/><path stroke-linejoin="round" d="M6 9H6.0001"/><path stroke-linejoin="round" d="M9 9H9.0001"/><path stroke-linejoin="round" d="M12 9H12.0001"/><path stroke-linejoin="round" d="M15 9H15.0001"/><path stroke-linejoin="round" d="M18 9H18.0001"/><path stroke-linejoin="round" d="M18 12H18.0001"/><path stroke-linejoin="round" d="M15 12H15.0001"/><path stroke-linejoin="round" d="M12 12H12.0001"/><path stroke-linejoin="round" d="M9 12H9.0001"/><path stroke-linejoin="round" d="M6 12H6.0001"/></g></symbol>
 <symbol id="i-layers-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M4.97883 9.68508C2.99294 8.89073 2 8.49355 2 8C2 7.50645 2.99294 7.10927 4.97883 6.31492L7.7873 5.19153C9.77318 4.39718 10.7661 4 12 4C13.2339 4 14.2268 4.39718 16.2127 5.19153L19.0212 6.31492C21.0071 7.10927 22 7.50645 22 8C22 8.49355 21.0071 8.89073 19.0212 9.68508L16.2127 10.8085C14.2268 11.6028 13.2339 12 12 12C10.7661 12 9.77318 11.6028 7.7873 10.8085L4.97883 9.68508Z"/><path d="M5.76613 10L4.97883 10.3149C2.99294 11.1093 2 11.5065 2 12C2 12.4935 2.99294 12.8907 4.97883 13.6851L7.7873 14.8085C9.77318 15.6028 10.7661 16 12 16C13.2339 16 14.2268 15.6028 16.2127 14.8085L19.0212 13.6851C21.0071 12.8907 22 12.4935 22 12C22 11.5065 21.0071 11.1093 19.0212 10.3149L18.2339 10"/><path d="M5.76613 14L4.97883 14.3149C2.99294 15.1093 2 15.5065 2 16C2 16.4935 2.99294 16.8907 4.97883 17.6851L7.7873 18.8085C9.77318 19.6028 10.7661 20 12 20C13.2339 20 14.2268 19.6028 16.2127 18.8085L19.0212 17.6851C21.0071 16.8907 22 16.4935 22 16C22 15.5065 21.0071 15.1093 19.0212 14.3149L18.2339 14"/></g></symbol>
 <symbol id="i-lightbulb-bolt-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M14.5 19.5H9.5M14.5 19.5C14.5 18.7865 14.5 18.4297 14.5381 18.193C14.6609 17.4296 14.6824 17.3815 15.1692 16.7807C15.3201 16.5945 15.8805 16.0927 17.0012 15.0892C18.5349 13.7159 19.5 11.7206 19.5 9.5C19.5 5.35786 16.1421 2 12 2C7.85786 2 4.5 5.35786 4.5 9.5C4.5 11.7206 5.4651 13.7159 6.99876 15.0892C8.11945 16.0927 8.67987 16.5945 8.83082 16.7807C9.31762 17.3815 9.3391 17.4296 9.46192 18.193C9.5 18.4297 9.5 18.7865 9.5 19.5M14.5 19.5C14.5 20.4346 14.5 20.9019 14.299 21.25C14.1674 21.478 13.978 21.6674 13.75 21.799C13.4019 22 12.9346 22 12 22C11.0654 22 10.5981 22 10.25 21.799C10.022 21.6674 9.83261 21.478 9.70096 21.25C9.5 20.9019 9.5 20.4346 9.5 19.5"/><path stroke-linejoin="round" d="M12.7857 8.5L10.6429 11.5H13.6429L11.5 14.5"/></g></symbol>
-<symbol id="i-list-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M20 7L4 7"/><path d="M15 12L4 12"/><path d="M9 17H4"/></g></symbol>
 <symbol id="i-magnifer-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="11.5" cy="11.5" r="9.5"/><path d="M18.2173 18.2178L21.9999 22.0004"/></g></symbol>
-<symbol id="i-magnifier-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="11.5" cy="11.5" r="9.5"/><path d="M18.2173 18.2178L21.9999 22.0004"/></g></symbol>
-<symbol id="i-panel-right-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 11C2 7.22876 2 5.34315 3.17157 4.17157C4.34315 3 6.22876 3 10 3H14C17.7712 3 19.6569 3 20.8284 4.17157C22 5.34315 22 7.22876 22 11V13C22 16.7712 22 18.6569 20.8284 19.8284C19.6569 21 17.7712 21 14 21H10C6.22876 21 4.34315 21 3.17157 19.8284C2 18.6569 2 16.7712 2 13V11Z"/><path d="M15 21L15 3"/></g></symbol>
 <symbol id="i-pen-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M14.3601 4.07866L15.2869 3.15178C16.8226 1.61607 19.3125 1.61607 20.8482 3.15178C22.3839 4.68748 22.3839 7.17735 20.8482 8.71306L19.9213 9.63993M14.3601 4.07866C14.3601 4.07866 14.4759 6.04828 16.2138 7.78618C17.9517 9.52407 19.9213 9.63993 19.9213 9.63993M19.9213 9.63993L11.4001 18.1612C10.8229 18.7383 10.5344 19.0269 10.2162 19.2751C9.84082 19.5679 9.43469 19.8189 9.00498 20.0237C8.6407 20.1973 8.25352 20.3263 7.47918 20.5844L4.19792 21.6782L3.39584 21.9456C3.01478 22.0726 2.59466 21.9734 2.31063 21.6894C2.0266 21.4053 1.92743 20.9852 2.05445 20.6042L2.32181 19.8021L3.41556 16.5208C3.67368 15.7465 3.80273 15.3593 3.97634 14.995C4.18114 14.5653 4.43213 14.1592 4.7249 13.7838C4.97308 13.4656 5.26166 13.1771 5.83882 12.5999L14.3601 4.07866M4.19792 21.6782L2.32181 19.8021"/></symbol>
 <symbol id="i-refresh-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M3.67981 13L3.67981 11.3333C3.67981 6.73096 7.4402 3 12.0789 3C15.1178 3 17.7799 4.60136 19.2545 7M2 11.3333L3.67981 13L5.35962 11.3333"/><path d="M20.3139 11V12.6667C20.3139 17.269 16.5391 21 11.8827 21C8.83213 21 6.15995 19.3986 4.67969 17M22.0001 12.6667L20.3139 11L18.6277 12.6667"/></g></symbol>
-<symbol id="i-sidebar-minimalistic-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 11C2 7.22876 2 5.34315 3.17157 4.17157C4.34315 3 6.22876 3 10 3H14C17.7712 3 19.6569 3 20.8284 4.17157C22 5.34315 22 7.22876 22 11V13C22 16.7712 22 18.6569 20.8284 19.8284C19.6569 21 17.7712 21 14 21H10C6.22876 21 4.34315 21 3.17157 19.8284C2 18.6569 2 16.7712 2 13V11Z"/><path d="M15 21L15 3"/></g></symbol>
 <symbol id="i-sort-vertical-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M16 18L16 6M12 10.125L16 6L20 10.125"/><path d="M8 6L8 18M4 13.875L8 18L12 13.875"/></g></symbol>
 <symbol id="i-square-arrow-right-up-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path stroke-linejoin="round" d="M9 15L15 9M15 13.5V9H10.5"/><path d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z"/></g></symbol>
 <symbol id="i-star-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M9.15316 5.40838C10.4198 3.13613 11.0531 2 12 2C12.9469 2 13.5802 3.13612 14.8468 5.40837L15.1745 5.99623C15.5345 6.64193 15.7144 6.96479 15.9951 7.17781C16.2757 7.39083 16.6251 7.4699 17.3241 7.62805L17.9605 7.77203C20.4201 8.32856 21.65 8.60682 21.9426 9.54773C22.2352 10.4886 21.3968 11.4691 19.7199 13.4299L19.2861 13.9372C18.8096 14.4944 18.5713 14.773 18.4641 15.1177C18.357 15.4624 18.393 15.8341 18.465 16.5776L18.5306 17.2544C18.7841 19.8706 18.9109 21.1787 18.1449 21.7602C17.3788 22.3417 16.2273 21.8115 13.9243 20.7512L13.3285 20.4768C12.6741 20.1755 12.3469 20.0248 12 20.0248C11.6531 20.0248 11.3259 20.1755 10.6715 20.4768L10.0757 20.7512C7.77268 21.8115 6.62118 22.3417 5.85515 21.7602C5.08912 21.1787 5.21588 19.8706 5.4694 17.2544L5.53498 16.5776C5.60703 15.8341 5.64305 15.4624 5.53586 15.1177C5.42868 14.773 5.19043 14.4944 4.71392 13.9372L4.2801 13.4299C2.60325 11.4691 1.76482 10.4886 2.05742 9.54773C2.35002 8.60682 3.57986 8.32856 6.03954 7.77203L6.67589 7.62805C7.37485 7.4699 7.72433 7.39083 8.00494 7.17781C8.28555 6.96479 8.46553 6.64194 8.82547 5.99623L9.15316 5.40838Z"/></symbol>
@@ -383,11 +387,12 @@
       <svg class="brand-word" role="img" aria-label="marKit"><use href="#logo-word"/></svg>
     </div>
 
-    <label class="app-switch" title="Switch app">
-      <span class="app-avatar" id="app-avatar">?</span>
-      <select id="f-app" aria-label="App"></select>
-      <svg class="ic ic-sm" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg>
-    </label>
+    <div class="dd app-switch" id="dd-app">
+      <button type="button" class="dd-trigger app-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Switch app" title="Switch app">
+        <span class="app-avatar" id="app-avatar">?</span><span class="dd-label app-name"></span><svg class="ic ic-sm dd-caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg>
+      </button>
+      <div class="dd-menu" role="listbox" aria-label="Apps" hidden></div>
+    </div>
 
     <div class="nav-label">Inbox</div>
     <nav class="nav" id="nav-inbox">
@@ -430,15 +435,15 @@
         <kbd>/</kbd>
       </label>
       <div class="filters">
-        <label class="chip-select" title="Run"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-calendar-linear"/></svg><select id="f-run" aria-label="Run"></select><svg class="caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg></label>
-        <label class="chip-select" title="Platform"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-global-linear"/></svg><select id="f-platform" aria-label="Platform"></select><svg class="caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg></label>
+        <div class="dd" id="dd-run"><button type="button" class="dd-trigger chip-select" aria-haspopup="listbox" aria-expanded="false" aria-label="Run" title="Run"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-calendar-linear"/></svg><span class="dd-label"></span><svg class="ic ic-sm dd-caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg></button><div class="dd-menu" role="listbox" aria-label="Runs" hidden></div></div>
+        <div class="dd" id="dd-platform"><button type="button" class="dd-trigger chip-select" aria-haspopup="listbox" aria-expanded="false" aria-label="Platform" title="Platform"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-global-linear"/></svg><span class="dd-label"></span><svg class="ic ic-sm dd-caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg></button><div class="dd-menu" role="listbox" aria-label="Platforms" hidden></div></div>
         <div class="seg" id="f-priority" role="group" aria-label="Priority">
           <button type="button" data-p="all" class="is-active">All</button><button type="button" data-p="high">High</button><button type="button" data-p="medium">Med</button><button type="button" data-p="low">Low</button>
         </div>
       </div>
       <div class="list-meta">
         <span id="list-count"></span>
-        <label class="sort"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-sort-vertical-linear"/></svg><select id="f-sort" aria-label="Sort"><option value="best">Best match</option><option value="newest">Newest</option></select><svg class="caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg></label>
+        <div class="dd" id="dd-sort"><button type="button" class="dd-trigger sort-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Sort" title="Sort"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-sort-vertical-linear"/></svg><span class="dd-label"></span><svg class="ic ic-sm dd-caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg></button><div class="dd-menu" role="listbox" aria-label="Sort" hidden></div></div>
       </div>
     </header>
     <div class="list" id="list" role="listbox" aria-label="Opportunities"></div>
@@ -467,8 +472,9 @@
     <div class="keys">
       <span class="k"><kbd>J</kbd><kbd>↓</kbd></span><span>Next opportunity</span>
       <span class="k"><kbd>K</kbd><kbd>↑</kbd></span><span>Previous opportunity</span>
-      <span class="k"><kbd>R</kbd></span><span>Mark replied (again to undo)</span>
-      <span class="k"><kbd>S</kbd></span><span>Skip (again to undo)</span>
+      <span class="k"><kbd>R</kbd></span><span>Mark replied</span>
+      <span class="k"><kbd>S</kbd></span><span>Skip</span>
+      <span class="k"><kbd>U</kbd></span><span>Undo the last mark (while its notice shows)</span>
       <span class="k"><kbd>C</kbd></span><span>Copy draft reply</span>
       <span class="k"><kbd>O</kbd></span><span>Open the post</span>
       <span class="k"><kbd>/</kbd></span><span>Search</span>
@@ -513,7 +519,13 @@ const store = {
 };
 
 async function api(path, options) {
-  const res = await fetch(path, options);
+  let res;
+  try {
+    res = await fetch(path, options);
+  } catch {
+    // The request never reached the server: it stopped (idle timeout or Ctrl+C).
+    throw new Error("the dashboard has stopped. Start it again with /markit-dashboard");
+  }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || "HTTP " + res.status);
   return body;
@@ -618,11 +630,141 @@ const selectedCard = () => state.cards.find((c) => c.id === state.selectedId) ||
 // =============================================================================
 // Loading
 // =============================================================================
-function fillSelect(select, options, value) {
-  select.replaceChildren(...options.map(([v, label]) => el("option", { text: label, attrs: { value: v } })));
-  select.value = options.some(([v]) => v === value) ? value : options[0] ? options[0][0] : "";
-  return select.value;
+// =============================================================================
+// Dropdowns: small custom menus instead of the browser's native select popup
+// (on macOS the native one ignores the page's design). Options are
+// [value, label, detail?]; a "-" entry draws a divider. Labels use textContent.
+// Keyboard: arrows/Home/End move, Enter/Space choose, Esc closes, letters jump.
+// =============================================================================
+let openMenu = null;
+
+function makeDropdown(id, { onChange, align = "left", avatar = false } = {}) {
+  const root = document.getElementById(id);
+  const trigger = root.querySelector(".dd-trigger");
+  const menu = root.querySelector(".dd-menu");
+  const label = root.querySelector(".dd-label");
+  const pickable = () => [...menu.querySelectorAll(".dd-opt")];
+
+  const dd = {
+    options: [],
+    value: "",
+    focus: 0,
+    /** Replace the options; keeps `value` if it still exists, else picks the first. Returns the value. */
+    set(options, value) {
+      this.options = options;
+      const real = options.filter((o) => o !== "-");
+      this.value = real.some(([v]) => v === value) ? value : real[0] ? real[0][0] : "";
+      this.paint();
+      return this.value;
+    },
+    setValue(value) {
+      this.value = value;
+      this.paint();
+    },
+    paint() {
+      const current = this.options.find((o) => o !== "-" && o[0] === this.value);
+      label.textContent = current ? current[1] : "";
+      if (avatar) $("#app-avatar").textContent = (this.value || "?").slice(0, 1);
+    },
+    open() {
+      if (openMenu && openMenu !== dd) openMenu.close(false);
+      openMenu = dd;
+      let index = 0;
+      menu.replaceChildren(...this.options.map((o) => {
+        if (o === "-") return el("div", { cls: "dd-sep", attrs: { role: "separator" } });
+        const [v, text, detail] = o;
+        const i = index++;
+        const opt = el("button", { cls: "dd-opt", attrs: { type: "button", role: "option", tabindex: "-1", id: id + "-opt-" + i, "aria-selected": String(v === this.value), "data-i": String(i), "data-v": v } }, [
+          avatar ? el("span", { cls: "app-avatar", text: String(text).slice(0, 1) }) : null,
+          el("span", { cls: "opt-text", text }),
+          detail ? el("span", { cls: "opt-sub", text: detail }) : null,
+          icon("i-check-circle-bold", "ic ic-sm dd-check"),
+        ]);
+        opt.addEventListener("click", () => this.choose(i));
+        opt.addEventListener("mousemove", () => this.setFocus(i, false));
+        return opt;
+      }));
+      menu.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+      // Place it under the trigger. It's position: fixed, so the sidebar's scroll area
+      // can't clip it; it flips above the trigger if there's no room below.
+      const r = trigger.getBoundingClientRect();
+      menu.style.minWidth = Math.max(180, Math.round(r.width)) + "px";
+      const w = menu.offsetWidth;
+      const h = menu.offsetHeight;
+      const left = Math.max(8, Math.min(align === "right" ? r.right - w : r.left, window.innerWidth - w - 8));
+      let top = r.bottom + 6;
+      if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+      menu.style.left = Math.round(left) + "px";
+      menu.style.top = Math.round(top) + "px";
+      const selected = pickable().findIndex((n) => n.dataset.v === this.value);
+      this.setFocus(Math.max(0, selected), true);
+    },
+    close(refocus = true) {
+      if (menu.hidden) return;
+      menu.hidden = true;
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.removeAttribute("aria-activedescendant");
+      if (openMenu === dd) openMenu = null;
+      if (refocus) trigger.focus();
+    },
+    setFocus(i, scroll) {
+      this.focus = i;
+      for (const n of pickable()) n.classList.toggle("is-focus", Number(n.dataset.i) === i);
+      // Focus stays on the trigger; this tells screen readers which option is highlighted.
+      trigger.setAttribute("aria-activedescendant", id + "-opt-" + i);
+      if (scroll) pickable()[i]?.scrollIntoView({ block: "nearest" });
+    },
+    choose(i) {
+      const node = pickable()[i];
+      this.close(true);
+      if (!node || node.dataset.v === this.value) return;
+      this.value = node.dataset.v;
+      this.paint();
+      onChange?.(this.value);
+    },
+    /** Keys while the menu is open. Returns true if handled. */
+    handleKey(e) {
+      const items = pickable();
+      const n = items.length;
+      if (!n) return false;
+      if (e.key === "ArrowDown") this.setFocus((this.focus + 1) % n, true);
+      else if (e.key === "ArrowUp") this.setFocus((this.focus - 1 + n) % n, true);
+      else if (e.key === "Home") this.setFocus(0, true);
+      else if (e.key === "End") this.setFocus(n - 1, true);
+      else if (e.key === "Enter" || e.key === " ") this.choose(this.focus);
+      else if (e.key === "Escape") this.close(true);
+      else if (e.key === "Tab") { this.close(false); return false; }
+      else if (e.key.length === 1 && /\S/.test(e.key)) {
+        // Type-ahead: jump to the next option that starts with this letter.
+        const k = e.key.toLowerCase();
+        for (let step = 1; step <= n; step++) {
+          const i = (this.focus + step) % n;
+          if (items[i].querySelector(".opt-text").textContent.toLowerCase().startsWith(k)) { this.setFocus(i, true); break; }
+        }
+      } else return false;
+      e.preventDefault();
+      return true;
+    },
+  };
+
+  trigger.addEventListener("click", () => (menu.hidden ? dd.open() : dd.close(true)));
+  trigger.addEventListener("keydown", (e) => {
+    if (menu.hidden && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      e.stopPropagation(); // don't let the page's key handler also move the highlight
+      dd.open();
+    }
+  });
+  menu.id = id + "-menu";
+  trigger.setAttribute("aria-controls", menu.id);
+  return dd;
 }
+
+// Close an open menu on a click outside it, on scroll, or on resize.
+document.addEventListener("pointerdown", (e) => { if (openMenu && !e.target.closest(".dd")) openMenu.close(false); });
+document.addEventListener("scroll", (e) => { if (openMenu && !(e.target instanceof Element && e.target.closest(".dd-menu"))) openMenu.close(false); }, true);
+window.addEventListener("resize", () => openMenu?.close(false));
 
 async function loadApps() {
   const { apps } = await api("/api/apps");
@@ -635,50 +777,73 @@ async function loadApps() {
     );
     return false;
   }
-  state.app = fillSelect($("#f-app"), apps.map((a) => [a, a]), store.get("app") || apps[0]);
-  $("#app-avatar").textContent = state.app.slice(0, 1);
+  state.app = menus.app.set(apps.map((a) => [a, a]), store.get("app") || apps[0]);
   return true;
 }
 
-async function loadRuns() {
+// Every app/run switch gets a new token. A response that arrives for an older token is
+// ignored, so a slow earlier request can't overwrite what the user picked last.
+let navToken = 0;
+
+async function loadRuns(token) {
   const { runs } = await api("/api/runs?app=" + encodeURIComponent(state.app));
+  if (token !== navToken) return false;
   state.runs = runs;
-  const options = [["latest", "Latest run"], ["all", "All runs"], ...runs.map((r) => [r.run, fmtDate(r.ranAt, true) + " · " + r.total])];
-  state.run = fillSelect($("#f-run"), options, state.run);
+  const options = [["latest", "Latest run"], ["all", "All runs"], ...(runs.length ? ["-"] : []), ...runs.map((r) => [r.run, fmtDate(r.ranAt, true), r.total + " found"])];
+  state.run = menus.run.set(options, state.run);
   const latest = runs[0];
   $("#run-card").hidden = !latest;
   if (latest) {
     $("#run-when").textContent = fmtDate(latest.ranAt, true);
     $("#run-sub").textContent = latest.total + " opportunities · " + latest.high + " high · last " + (latest.lookbackDays || "?") + " days";
   }
+  return true;
 }
 
-async function loadCards() {
-  const q = "?app=" + encodeURIComponent(state.app) + "&run=" + encodeURIComponent(state.run);
-  const { cards, stats, run } = await api("/api/cards" + q);
+const cardsUrl = (run = state.run) => "/api/cards?app=" + encodeURIComponent(state.app) + "&run=" + encodeURIComponent(run);
+
+async function loadCards(token) {
+  const { cards, stats, run } = await api(cardsUrl());
+  if (token !== navToken) return false;
   state.cards = cards;
   state.stats = stats;
   state.resolvedRun = run;
   const platforms = [...new Set(cards.map((c) => c.platform))].sort();
-  state.platform = fillSelect($("#f-platform"), [["all", "All platforms"], ...platforms.map((p) => [p, p])], state.platform);
+  state.platform = menus.platform.set([["all", "All platforms"], ...(platforms.length ? ["-"] : []), ...platforms.map((p) => [p, p, String(cards.filter((c) => c.platform === p).length)])], state.platform);
+  return true;
 }
 
-async function loadAllForAnalytics() {
-  const { cards, stats } = await api("/api/cards?app=" + encodeURIComponent(state.app) + "&run=all");
+async function loadAllForAnalytics(token) {
+  const { cards, stats } = await api(cardsUrl("all"));
+  if (token !== navToken) return false;
   state.allCards = { cards, stats };
+  return true;
 }
 
+/** Load everything from scratch. Returns true if it worked. */
 async function reloadAll() {
+  const token = ++navToken;
+  clearUndo();
   try {
-    if (!(await loadApps())) return;
-    await loadRuns();
-    await loadCards();
+    if (!(await loadApps())) return false;
+    if (!(await loadRuns(token)) || !(await loadCards(token))) return false;
     state.allCards = null;
     $("#boot").hidden = true;
     await render();
+    return true;
   } catch (err) {
     $("#boot").hidden = false;
-    $("#boot-msg").textContent = "Couldn't load: " + err.message + ". Is the dashboard still running? Start it again with /markit-dashboard.";
+    $("#boot-msg").textContent = "Couldn't load: " + err.message + ".";
+    return false;
+  }
+}
+
+/** Run an async UI action; show a toast instead of failing silently. */
+async function guarded(action) {
+  try {
+    await action();
+  } catch (err) {
+    toast("Couldn't load: " + err.message);
   }
 }
 
@@ -691,7 +856,7 @@ async function render() {
   for (const b of document.querySelectorAll(".nav-btn")) b.classList.toggle("is-active", b.dataset.view === state.view);
   renderCounts();
   if (state.view === "analytics") {
-    if (!state.allCards) await loadAllForAnalytics();
+    if (!state.allCards && !(await loadAllForAnalytics(navToken))) return;
     renderAnalytics();
     return;
   }
@@ -700,7 +865,7 @@ async function render() {
   $("#view-icon").firstChild.setAttribute("href", "#" + v.icon);
   $("#view-desc").textContent = v.desc;
   for (const b of $("#f-priority").children) b.classList.toggle("is-active", b.dataset.p === state.priority);
-  $("#f-sort").value = state.sort;
+  menus.sort.setValue(state.sort);
   renderList();
   renderDetail();
 }
@@ -723,7 +888,7 @@ function renderList() {
       el("div", { cls: "empty" }, [
         icon(done ? "i-check-circle-linear" : "i-magnifer-linear"),
         el("h3", { text: done ? "All caught up" : "Nothing here" }),
-        el("p", { text: done ? "You've handled every opportunity in this run. Run /markit-find in your agent to look for new ones." : state.cards.length ? "No opportunities match these filters." : "This run has no opportunities." }),
+        el("p", { text: done ? "You've handled every opportunity in " + (state.run === "all" ? "every run" : "this run") + ". Run /markit-find in your agent to look for new ones." : state.cards.length ? "No opportunities match these filters." : "This run has no opportunities." }),
       ])
     );
     return;
@@ -821,7 +986,7 @@ function renderDetail() {
   }
 
   host.replaceChildren(
-    el("div", { cls: "d-scroll" }, [el("div", { cls: "d-inner" }, [meta, el("h2", { cls: "d-title" }, [el("span", { cls: "d-num", text: "#" + c.number }), c.title || (c.excerpt || "").slice(0, 120) || "(untitled)"]), panel, ...blocks])]),
+    el("div", { cls: "d-scroll", attrs: { tabindex: "-1" } }, [el("div", { cls: "d-inner" }, [meta, el("h2", { cls: "d-title" }, [el("span", { cls: "d-num", text: "#" + c.number }), c.title || (c.excerpt || "").slice(0, 120) || "(untitled)"]), panel, ...blocks])]),
     el("div", { cls: "d-actions" }, actions)
   );
 }
@@ -915,17 +1080,35 @@ function move(delta) {
   select(list[Math.min(list.length - 1, Math.max(0, i + delta))].id, false);
 }
 
+// The toast at the bottom. When it offers Undo, that undo also runs on the U key, and
+// only while the toast is showing (so an old undo can never fire later by surprise).
 let toastTimer = null;
+let lastUndo = null;
 function toast(message, undo) {
   $("#toast-msg").textContent = message;
   const btn = $("#toast-undo");
+  lastUndo = undo || null;
   btn.hidden = !undo;
-  btn.onclick = undo ? () => { hideToast(); undo(); } : null;
+  btn.onclick = undo ? runUndo : null;
   $("#toast").classList.add("is-on");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(hideToast, undo ? 5000 : 2200);
+  toastTimer = setTimeout(hideToast, undo ? 6000 : 2200);
 }
-function hideToast() { $("#toast").classList.remove("is-on"); }
+function hideToast() {
+  $("#toast").classList.remove("is-on");
+  const btn = $("#toast-undo");
+  btn.hidden = true; // also removes it from the Tab order
+  btn.onclick = null;
+  lastUndo = null;
+}
+function runUndo() {
+  const undo = lastUndo;
+  hideToast();
+  undo?.();
+}
+function clearUndo() {
+  if (lastUndo) hideToast();
+}
 
 async function copyText(text, message) {
   try {
@@ -936,48 +1119,73 @@ async function copyText(text, message) {
     area.value = text;
     document.body.appendChild(area);
     area.select();
-    document.execCommand("copy");
+    const ok = document.execCommand("copy");
     area.remove();
+    if (!ok) { toast("Couldn't copy. Select the text and copy it yourself."); return; }
   }
   toast(message);
 }
 
-async function saveStatus(card, status) {
-  await api("/api/status", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: card.id, status }) });
+async function saveStatus(id, status) {
+  await api("/api/status", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, status }) });
 }
 
-// Replied / Skipped toggle. Pressing it again returns the card to "To do".
+/** Refresh counts (and replies-this-week) from the server, unless the user has moved on. */
+async function refreshStats(token) {
+  const fresh = await api(cardsUrl()).catch(() => null);
+  if (fresh && token === navToken) state.stats = fresh.stats;
+}
+
+const saving = new Set(); // ids with a save in flight: repeat presses are ignored meanwhile
+
+// Replied / Skipped toggle. Pressing it again on the same card returns it to "To do".
 async function setStatus(card, status) {
+  if (saving.has(card.id)) return;
+  const token = navToken;
   const before = card.status;
   const next = before === status ? "open" : status;
-  const list = visibleCards();
-  const index = list.findIndex((c) => c.id === card.id);
+  saving.add(card.id);
   try {
-    await saveStatus(card, next);
+    await saveStatus(card.id, next);
   } catch (err) {
     toast("Couldn't save: " + err.message);
     return;
+  } finally {
+    saving.delete(card.id);
   }
+  if (token !== navToken) return; // the user switched app/run while it saved
+  const index = visibleCards().findIndex((c) => c.id === card.id); // its place before it moves
   card.status = next;
-  // Refresh counts (and replies-this-week) from the server, keep the card list in place.
-  const fresh = await api("/api/cards?app=" + encodeURIComponent(state.app) + "&run=" + encodeURIComponent(state.run)).catch(() => null);
-  if (fresh) state.stats = fresh.stats;
   state.allCards = null;
-  // If the card left the current view, select the next one in its place.
+  await refreshStats(token);
+  if (token !== navToken) return;
+  // If the card left the view and is still the selected one, select the card now in its place.
   const after = visibleCards();
-  if (!after.some((c) => c.id === card.id)) state.selectedId = (after[index] || after[after.length - 1] || {}).id ?? null;
+  if (state.selectedId === card.id && !after.some((c) => c.id === card.id)) {
+    state.selectedId = (after[index] || after[after.length - 1] || {}).id ?? null;
+  }
   renderCounts();
   renderList();
   renderDetail();
-  const label = next === "open" ? "Moved #" + card.number + " back to To do" : "Marked #" + card.number + " as " + next;
-  toast(label, async () => {
-    await saveStatus(card, before).catch(() => {});
-    card.status = before;
-    const again = await api("/api/cards?app=" + encodeURIComponent(state.app) + "&run=" + encodeURIComponent(state.run)).catch(() => null);
-    if (again) state.stats = again.stats;
+
+  const undo = async () => {
+    try {
+      await saveStatus(card.id, before);
+    } catch (err) {
+      toast("Couldn't undo: " + err.message);
+      return;
+    }
+    if (token !== navToken) return;
+    const live = state.cards.find((c) => c.id === card.id); // the card as shown now
+    if (live) live.status = before;
+    state.allCards = null;
+    await refreshStats(token);
+    if (token !== navToken) return;
     state.selectedId = card.id;
     renderCounts(); renderList(); renderDetail();
-  });
+    toast("Undone");
+  };
+  toast(next === "open" ? "Moved #" + card.number + " back to To do" : "Marked #" + card.number + " as " + next, undo);
 }
 
 // =============================================================================
@@ -991,35 +1199,64 @@ for (const b of document.querySelectorAll(".nav-btn")) {
     await render();
   });
 }
-$("#f-app").addEventListener("change", async (e) => {
-  state.app = e.target.value; store.set("app", state.app); $("#app-avatar").textContent = state.app.slice(0, 1);
-  state.run = "latest"; state.platform = "all"; state.selectedId = null; state.allCards = null;
-  await loadRuns(); await loadCards(); await render();
-});
-$("#f-run").addEventListener("change", async (e) => { state.run = e.target.value; state.selectedId = null; await loadCards(); await render(); });
-$("#f-platform").addEventListener("change", (e) => { state.platform = e.target.value; render(); });
-$("#f-sort").addEventListener("change", (e) => { state.sort = e.target.value; store.set("sort", state.sort); render(); });
+const menus = {
+  app: makeDropdown("dd-app", {
+    avatar: true,
+    onChange: (v) => guarded(async () => {
+      const token = ++navToken;
+      clearUndo();
+      state.app = v; store.set("app", v);
+      state.run = "latest"; state.platform = "all"; state.selectedId = null; state.allCards = null;
+      if ((await loadRuns(token)) && (await loadCards(token))) await render();
+    }),
+  }),
+  run: makeDropdown("dd-run", {
+    onChange: (v) => guarded(async () => {
+      const token = ++navToken;
+      clearUndo();
+      state.run = v; state.selectedId = null; state.allCards = null;
+      if (await loadCards(token)) await render();
+    }),
+  }),
+  platform: makeDropdown("dd-platform", { onChange: (v) => { state.platform = v; render(); } }),
+  sort: makeDropdown("dd-sort", { align: "right", onChange: (v) => { state.sort = v; store.set("sort", v); render(); } }),
+};
+menus.sort.set([["best", "Best match"], ["newest", "Newest"]], state.sort);
 for (const b of $("#f-priority").children) b.addEventListener("click", () => { state.priority = b.dataset.p; render(); });
 $("#q").addEventListener("input", (e) => { state.query = e.target.value; renderList(); renderDetail(); });
-$("#refresh").addEventListener("click", async () => { await reloadAll(); toast("Reloaded"); });
-$("#kbd-btn").addEventListener("click", () => { $("#keys").hidden = false; });
-$("#keys-close").addEventListener("click", () => { $("#keys").hidden = true; });
-$("#keys").addEventListener("click", (e) => { if (e.target === $("#keys")) $("#keys").hidden = true; });
+$("#refresh").addEventListener("click", async () => { if (await reloadAll()) toast("Reloaded"); });
+
+// Keyboard shortcuts dialog: focus moves into it, and back to the button when it closes.
+const keysOpen = () => !$("#keys").hidden;
+function openKeys() { $("#keys").hidden = false; $("#keys-close").focus(); }
+function closeKeys() { $("#keys").hidden = true; $("#kbd-btn").focus(); }
+$("#kbd-btn").addEventListener("click", openKeys);
+$("#keys-close").addEventListener("click", closeKeys);
+$("#keys").addEventListener("click", (e) => { if (e.target === $("#keys")) closeKeys(); });
 
 document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (openMenu && openMenu.handleKey(e)) return; // an open dropdown gets the keys first
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
   if (e.key === "Escape") {
-    if (!$("#keys").hidden) $("#keys").hidden = true;
+    if (keysOpen()) closeKeys();
     else if (typing) document.activeElement.blur();
     else $("#app").classList.remove("show-detail");
     return;
   }
   if (typing) return;
-  if (e.key === "?") { $("#keys").hidden = !$("#keys").hidden; return; }
+  if (e.key === "?") { keysOpen() ? closeKeys() : openKeys(); return; }
+  if (keysOpen()) {
+    if (e.key === "Tab") { e.preventDefault(); $("#keys-close").focus(); } // keep focus in the dialog
+    return; // nothing behind the dialog reacts while it's open
+  }
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key; // so Caps Lock doesn't matter
+  if (key === "u") { runUndo(); return; }
   if (state.view === "analytics") return;
+  // Arrow keys scroll the detail pane when it has focus (click into it); otherwise they move.
+  if ((key === "ArrowDown" || key === "ArrowUp") && document.activeElement?.closest?.("#detail")) return;
   const c = selectedCard();
-  switch (e.key) {
+  switch (key) {
     case "j": case "ArrowDown": e.preventDefault(); move(1); break;
     case "k": case "ArrowUp": e.preventDefault(); move(-1); break;
     case "/": e.preventDefault(); $("#q").focus(); break;

@@ -174,7 +174,7 @@ export function createDashboard({ reportsDir, statusFile, idleMs = IDLE_MS, onSt
         let run = q("run") || "latest";
         if (!data.APP_NAME.test(app)) return sendJson(req, res, 400, { error: "invalid app" });
         if (run !== "latest" && run !== "all" && !data.RUN_NAME.test(run)) return sendJson(req, res, 400, { error: "invalid run" });
-        if (run === "latest") run = data.listRuns(reportsDir, app)[0]?.run ?? "";
+        if (run === "latest") run = data.latestRun(reportsDir, app);
         const statusMap = data.readStatus(statusFile);
         const cards = run ? data.loadCards(reportsDir, app, run, statusMap) : [];
         return sendJson(req, res, 200, { app, run, cards, stats: data.computeStats(cards, statusMap) });
@@ -225,7 +225,7 @@ export function createDashboard({ reportsDir, statusFile, idleMs = IDLE_MS, onSt
         const onError = (err) => {
           server.off("listening", onListening);
           // Port 0 means "any free port" (tests); otherwise try the next one up.
-          if (err.code === "EADDRINUSE" && firstPort !== 0 && ++attempt < tries) return tryPort(p + 1);
+          if (err.code === "EADDRINUSE" && firstPort !== 0 && ++attempt < tries && p < 65535) return tryPort(p + 1);
           reject(new Error(err.code === "EADDRINUSE" ? `marKit: ports ${firstPort}–${firstPort + tries - 1} are all busy. Try --port <number>.` : `marKit: couldn't start the dashboard (${err.code ?? "error"}).`));
         };
         const onListening = () => {

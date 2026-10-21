@@ -13,8 +13,3 @@ import x from "./x.js";
 import socialcrawl from "./socialcrawl.js";
 
 export const ADAPTERS = [hackernews, stackexchange, bluesky, youtube, threads, x, socialcrawl];
-
-/** Find an adapter by name, or undefined. */
-export function getAdapter(name) {
-  return ADAPTERS.find((adapter) => adapter.name === name);
-}

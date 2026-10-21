@@ -1,6 +1,6 @@
 // Tests for the sibling-folder check in markit-setup/scripts/shared.js and
 // markit-usage/scripts/shared.js: if markit-find isn't installed next to them, scripts
-// must print the "install all three skills together" message instead of crashing.
+// must print the "install all four skills together" message instead of crashing.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

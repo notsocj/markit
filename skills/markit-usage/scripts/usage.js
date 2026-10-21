@@ -139,9 +139,10 @@ function shortDateTime(iso) {
 
 export const COMMANDS = [
   "Commands",
-  "  /markit-setup   add apps, keys, or sources",
-  "  /markit-find    find opportunities and draft replies",
-  "  /markit-usage   this screen",
+  "  /markit-setup       add apps, keys, or sources",
+  "  /markit-find        find opportunities and draft replies",
+  "  /markit-dashboard   work through them in your browser",
+  "  /markit-usage       this screen",
 ].join("\n");
 
 /**
