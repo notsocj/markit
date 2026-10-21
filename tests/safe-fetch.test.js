@@ -82,10 +82,19 @@ test("a real timeout fires when the server is too slow", async () => {
   // This fake fetch never answers on its own; it only stops when the abort signal fires.
   const hang = (url, init) =>
     new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
-  await assert.rejects(
-    safeFetch("x", URL_WITH_KEY, { fetchImpl: hang, timeoutMs: 20, retries: 0 }),
-    { message: "x: timeout" }
-  );
+  // AbortSignal.timeout()'s timer deliberately doesn't keep Node's event loop alive. With
+  // nothing else pending (no real socket, unlike a real request), Node 20/22 conclude this
+  // test can never finish and cancel it, plus every test after it. A plain timer keeps the
+  // loop running until the abort fires; it's cleared as soon as the test is done.
+  const keepAlive = setTimeout(() => {}, 5000);
+  try {
+    await assert.rejects(
+      safeFetch("x", URL_WITH_KEY, { fetchImpl: hang, timeoutMs: 20, retries: 0 }),
+      { message: "x: timeout" }
+    );
+  } finally {
+    clearTimeout(keepAlive);
+  }
 });
 
 test("429 and 5xx are retried, then succeed", async () => {

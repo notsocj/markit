@@ -19,7 +19,7 @@
 
 import { homedir } from "node:os";
 import path from "node:path";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readJsonFile } from "./files.js";
 
 // The only environment variables marKit reads from .env. Anything else in the file is
@@ -97,11 +97,10 @@ export function isSetUp(paths = getPaths()) {
 }
 
 /**
- * Clean up one value from .env.
+ * Clean up one unquoted value from .env.
  *
- * Newer Node versions strip "  # comment" after a value, but Node 20.12 may not.
- * Doing it ourselves means `YOUTUBE_API_KEY=   # Google Cloud...` is read as empty
- * (source disabled) on every Node version, instead of the comment being used as a key.
+ * `YOUTUBE_API_KEY=   # Google Cloud...` is read as empty (source disabled), and
+ * `KEY=abc123  # my key` as "abc123", so a comment is never mistaken for a key.
  */
 export function cleanEnvValue(value) {
   if (typeof value !== "string") return "";
@@ -114,20 +113,45 @@ export function cleanEnvValue(value) {
 }
 
 /**
+ * Parse .env text into a plain object of marKit's known keys.
+ *
+ * Deliberately tiny. It understands:
+ *   KEY=value              (spaces around the value are trimmed)
+ *   KEY="value" / 'value'  (quotes are removed; nothing is unescaped)
+ *   export KEY=value       (a leading "export " is allowed, as in shell files)
+ *   # comments             (whole-line, and after an unquoted value)
+ * Unknown keys and malformed lines are ignored. If a key appears twice, the last one wins.
+ * Every known key is present in the result ("" when missing or empty).
+ */
+export function parseEnv(text) {
+  const env = Object.fromEntries(KNOWN_KEYS.map((key) => [key, ""]));
+  // Remove a UTF-8 "byte order mark" some Windows editors add at the start of files.
+  const lines = String(text ?? "").replace(/^\uFEFF/, "").split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const match = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/);
+    if (!match || !KNOWN_KEYS.includes(match[1])) continue;
+    const value = match[2].trim();
+    const quoted = value.match(/^(["'])(.*)\1(\s+#.*)?$/);
+    env[match[1]] = quoted ? quoted[2] : cleanEnvValue(value);
+  }
+  return env;
+}
+
+/**
  * Load API keys from the .env file and return ONLY marKit's known keys.
+ *
+ * The .env file is the ONLY source of keys. We don't use process.loadEnvFile() or
+ * process.env on purpose: with those, a key already set in your shell (say, an
+ * X_BEARER_TOKEN exported for another project) would silently win over .env, and marKit
+ * could bill the wrong X or SocialCrawl account. process.env is never read or changed here.
  *
  * The returned object holds secrets. Pass it to adapters, but never print it,
  * log it, or write it to a file.
  */
 export function loadEnv(envFile = getPaths().envFile) {
-  // process.loadEnvFile is built into Node 20.12+, so we need no dotenv package.
-  // It copies the file's values into process.env (without overwriting values that
-  // were already set in the shell).
-  if (existsSync(envFile)) process.loadEnvFile(envFile);
-
-  const env = {};
-  for (const key of KNOWN_KEYS) env[key] = cleanEnvValue(process.env[key]);
-  return env;
+  return parseEnv(existsSync(envFile) ? readFileSync(envFile, "utf8") : "");
 }
 
 /**

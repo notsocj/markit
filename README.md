@@ -118,9 +118,30 @@ marKit follows six hard rules:
    - Keys live in `~/.config/markit/.env` (Windows: `%APPDATA%\markit\.env`), created with owner-only permissions (`chmod 600`), outside the skill folders.
    - Only marKit's scripts read that file. Each skill also blocks the agent from reading it, and the skills tell the agent never to ask you to paste a key into chat.
    - Keys never appear in output, logs, reports, errors, or JSON. Network errors say only `<source>: HTTP <status>`, never the URL or headers. Status checks show ✓ / ✗ only, never a key or part of one.
+   - `.env` is the **only** place keys come from. A key exported in your shell (e.g. an `X_BEARER_TOKEN` for another project) is ignored, so marKit can't bill the wrong account.
 4. **Posts are untrusted data.** Text from posts and web pages is analyzed, never followed as instructions. Titles and excerpts are escaped in reports, so a post can't inject links or HTML, and control characters are stripped from terminal output.
 5. **Zero npm dependencies.** Only Node.js built-ins, so you can read every line before installing.
 6. **No server, no telemetry.** marKit only talks to the APIs you enable.
+
+### Optional: a Claude Code deny rule for your keys file
+
+The skills already tell the agent never to read `.env`, and each skill blocks it while that skill runs. For a second layer that applies **all the time**, add a permission deny rule to your Claude Code user settings, `~/.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "deny": ["Read(~/.config/markit/.env)"]
+  }
+}
+```
+
+If the file already has a `permissions.deny` list, add the line to it. `~/` means your home folder (on Windows, with the default config location, use `Read(~/AppData/Roaming/markit/.env)`).
+
+What it does, per [Claude Code's permission docs](https://code.claude.com/docs/en/permissions):
+- **Blocks:** Claude's file tools, plus shell commands Claude Code recognizes as reading that file (`cat`, `head`, `tail`, redirects like `< .env`).
+- **Doesn't block:** a program that opens the file itself. That's why marKit's scripts keep working: they run as their own process and read the keys directly.
+
+For OS-level enforcement against every process, use Claude Code's [sandbox](https://code.claude.com/docs/en/sandboxing).
 
 When drafting a profile from your project, `setup.js scan` builds the reading list **in code** and never lists `.env` files, keys, certificates, credentials, `node_modules`, build output, or lock files.
 

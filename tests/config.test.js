@@ -13,6 +13,7 @@ import {
   cleanEnvValue,
   loadSettings,
   loadEnv,
+  parseEnv,
   validateAppName,
   listApps,
   loadApp,
@@ -98,18 +99,57 @@ test("loadSettings merges nested caps instead of replacing them", () => {
 
 test("loadEnv returns only known keys, cleaned", () => {
   const paths = tempPaths();
-  // Use a key name that is unlikely to already exist in the test runner's environment.
-  delete process.env.SOCIALCRAWL_API_KEY;
   writeFileSync(paths.envFile, "SOCIALCRAWL_API_KEY=sc_test_123  # note\nSOMETHING_ELSE=nope\n");
   const env = loadEnv(paths.envFile);
   assert.equal(env.SOCIALCRAWL_API_KEY, "sc_test_123");
   assert.equal(env.SOMETHING_ELSE, undefined);
-  delete process.env.SOCIALCRAWL_API_KEY;
+  assert.equal(env.YOUTUBE_API_KEY, "", "every known key is present, empty when missing");
+});
+
+test("shell value does not override .env", () => {
+  const paths = tempPaths();
+  const before = { X: process.env.X_BEARER_TOKEN, SC: process.env.SOCIALCRAWL_API_KEY };
+  // Simulate keys exported in the user's shell for some OTHER account.
+  process.env.X_BEARER_TOKEN = "shell-token-other-account";
+  process.env.SOCIALCRAWL_API_KEY = "sc_shell_other_account";
+  try {
+    writeFileSync(paths.envFile, "X_BEARER_TOKEN=token-from-dotenv\nSOCIALCRAWL_API_KEY=\n");
+    const env = loadEnv(paths.envFile);
+    assert.equal(env.X_BEARER_TOKEN, "token-from-dotenv", ".env wins over the shell");
+    assert.equal(env.SOCIALCRAWL_API_KEY, "", "an empty .env value stays empty (source off), the shell value is ignored");
+    assert.equal(process.env.X_BEARER_TOKEN, "shell-token-other-account", "process.env is never changed");
+  } finally {
+    // Put the test runner's environment back exactly as it was.
+    for (const [key, value] of [["X_BEARER_TOKEN", before.X], ["SOCIALCRAWL_API_KEY", before.SC]]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 test("loadEnv works when there is no .env file yet", () => {
   const env = loadEnv(join(tmpdir(), "definitely-missing-markit.env"));
-  assert.equal(typeof env.YOUTUBE_API_KEY, "string");
+  assert.equal(env.YOUTUBE_API_KEY, "", "no file means no keys, whatever the shell has");
+});
+
+test("parseEnv handles quotes, export, comments, CRLF, BOM, and repeats", () => {
+  const text = "\uFEFF# marKit keys\r\n" +
+    "export YOUTUBE_API_KEY=AIza123\r\n" +
+    'X_BEARER_TOKEN="quoted value"   # comment\n' +
+    "SOCIALCRAWL_API_KEY='single'\n" +
+    "STACKEXCHANGE_KEY=   # only a comment\n" +
+    "BLUESKY_HANDLE = me.bsky.social\n" +
+    "THREADS_ACCESS_TOKEN=first\nTHREADS_ACCESS_TOKEN=second\n" +
+    "not a valid line\n=novalue\nPATH=/evil\n";
+  assert.deepEqual(parseEnv(text), {
+    STACKEXCHANGE_KEY: "",
+    YOUTUBE_API_KEY: "AIza123",
+    BLUESKY_HANDLE: "me.bsky.social",
+    BLUESKY_APP_PASSWORD: "",
+    THREADS_ACCESS_TOKEN: "second",
+    X_BEARER_TOKEN: "quoted value",
+    SOCIALCRAWL_API_KEY: "single",
+  });
 });
 
 test("validateAppName accepts simple names and rejects unsafe ones", () => {

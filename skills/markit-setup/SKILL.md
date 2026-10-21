@@ -31,6 +31,11 @@ Step 0: run `node ${CLAUDE_SKILL_DIR}/scripts/setup.js status`. It prints JSON w
 3. For each chosen source that needs a key: show its steps from `${CLAUDE_SKILL_DIR}/references/setup-guide.md`, tell the user the exact `.env` path (`envFile` from step 0) and the variable name, and ask them to paste the key there **in their own editor**. Wait for them to confirm. Never ask to see the key.
 4. Create the first app profile (see **Creating an app profile**).
 5. Run `node ${CLAUDE_SKILL_DIR}/../markit-usage/scripts/usage.js --check-only` and show the table as-is. For a ✗ invalid source, suggest re-checking that key in `.env`.
+5b. **Optional extra protection (Claude Code only):** suggest a permission deny rule so Claude Code itself refuses to read the keys file, all the time (not just while a marKit skill runs). Show them this for `~/.claude/settings.json`:
+   ```json
+   { "permissions": { "deny": ["Read(~/.config/markit/.env)"] } }
+   ```
+   (Windows default location: `Read(~/AppData/Roaming/markit/.env)`.) Explain: it blocks Claude's file tools and shell reads like `cat` of that file; marKit's scripts still work because they read the file as their own process. Let them add it themselves. Only edit `~/.claude/settings.json` if they ask you to, and then merge the rule into any existing `permissions.deny` list without removing anything. Skip this step in Codex.
 6. Finish with: "Run /markit-find <app> to find your first opportunities." (In Codex: `$markit-find <app>`.)
 
 ## Already set up

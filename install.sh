@@ -73,7 +73,7 @@ for name in $SKILLS; do
   fi
 done
 
-# marKit needs Node.js 20.12+ (for process.loadEnvFile). Warn, but still install.
+# marKit needs Node.js 20.12+ (the oldest version it's tested on). Warn, but still install.
 if command -v node >/dev/null 2>&1; then
   if ! node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>20||(a===20&&b>=12)?0:1)'; then
     echo "Warning: marKit needs Node.js 20.12 or newer (you have $(node --version)). Please update Node." >&2
