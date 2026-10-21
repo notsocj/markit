@@ -4,7 +4,7 @@ Every key goes into marKit's `.env` file (`/markit-setup` tells you the exact pa
 
 **Never paste keys into your AI agent's chat.** When a step below says to run a command that contains a key (Threads), run it in **your own terminal window**, not through the agent.
 
-Checked against each platform's docs on 2026-10-21. Platforms change their menus often; if a step looks different, follow the closest match.
+Checked against each platform's docs on 2026-10-21 (Threads token steps re-checked on a real setup 2026-10-22). Platforms change their menus often; if a step looks different, follow the closest match.
 
 | Source | Cost | Key | What it finds |
 |---|---|---|---|
@@ -72,16 +72,17 @@ No billing account is needed for the free quota.
 
 Limits: 2,200 searches per rolling 24 hours (searches with no results don't count). Tokens last **60 days** and must be refreshed; `/markit-usage` warns you before yours expires.
 
-1. Go to https://developers.facebook.com/apps and **Create app**. Choose the use case **Access the Threads API**.
+1. Go to https://developers.facebook.com/apps and **Create app**. Don't put "Meta", "Threads", "Facebook" or "Instagram" in the app name. Choose the use case **Access the Threads API**, and "I don't want to connect a business portfolio yet" if asked.
+   - If verification says your phone "must be added through Accounts Center first" even though it's there, re-add the number in Accounts Center → Personal details → Contact info, or verify with a card instead.
 2. Customize the use case and add the **threads_keyword_search** permission (next to `threads_basic`).
 3. **App roles → Roles → Add People → Threads Tester**, and add your own Threads account.
 4. Accept the invite in Threads: **Settings → Account → Website permissions** (or https://www.threads.com/settings/account).
-5. Get a token with `threads_basic` and `threads_keyword_search`. The quickest way while testing is the **Graph API Explorer** (switch it to Threads and generate a Threads access token). If that option isn't there, use the OAuth steps in Meta's Threads "Get started" docs.
-6. Exchange it for a **long-lived** (60-day) token. In **your own terminal** (not through your agent), replace the two placeholders and run:
+5. Get a **long-lived** (60-day) token: open **Use cases → Access the Threads API → Customize → Settings**, scroll to **User Token Generator**, and click **Generate Access Token** next to your account. Approve the permissions and copy the token. It's already long-lived, so no exchange step is needed. (Tokens can only be generated for **public** Threads accounts.)
+6. *(Only if you got a short-lived token some other way, e.g. the Graph API Explorer.)* Exchange it for a 60-day one in **your own terminal** (not through your agent). Use the **Threads app secret** from that same Settings page, not the Facebook app secret under App settings → Basic, which gives "Invalid client secret":
    ```
    curl "https://graph.threads.com/access_token?grant_type=th_exchange_token&client_secret=YOUR_THREADS_APP_SECRET&access_token=YOUR_SHORT_TOKEN"
    ```
-   Copy the `access_token` value from the reply. (The Threads app secret is under the app's Settings; Threads apps have their own ID and secret.)
+   Copy the `access_token` value from the reply.
 7. `.env`: `THREADS_ACCESS_TOKEN=<long-lived token>`
 8. For public search: submit **threads_keyword_search** for **App Review** in the app dashboard, then publish the app once approved.
 
