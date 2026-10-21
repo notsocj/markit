@@ -34,12 +34,13 @@ const post = (id, hoursAgo = 1, title = "Any app for this?", excerpt = "Looking 
  * A fake adapter. `results` maps keyword → posts. `fail(keyword)` may return an error to throw.
  * It records every call so tests can check limits and budgets.
  */
-function fakeAdapter(name, { paid = false, costUnit, enabled = true, results = {}, fail } = {}) {
+function fakeAdapter(name, { paid = false, costUnit, enabled = true, results = {}, fail, minResults } = {}) {
   const adapter = {
     name,
     label: name,
     paid,
     costUnit,
+    minResults,
     requiredEnv: [],
     calls: [],
     isEnabled: () => enabled,
@@ -168,21 +169,21 @@ const usageWith = (source, counts) => ({ months: { "2026-10": { [source]: { requ
 
 test("paid (posts): stops calling once the per-run cap is reached", async () => {
   const fifteen = (p) => Array.from({ length: 15 }, (_, i) => post(`x-${p}${i}`, i + 1));
-  const x = fakeAdapter("x", { paid: true, costUnit: "posts", results: { "kw one": fifteen("a"), "kw two": fifteen("b"), "kw three": fifteen("c") } });
+  const x = fakeAdapter("x", { paid: true, costUnit: "posts", minResults: 10, results: { "kw one": fifteen("a"), "kw two": fifteen("b"), "kw three": fifteen("c") } });
   const { raw, meters } = await runSearch({
     profile: profile({ sources: ["x"], keywords: ["kw one", "kw two", "kw three"] }),
     settings: settings({ x: { maxPostsPerRun: 20, maxPostsPerMonth: 900 } }),
     adapters: [x],
     now: NOW,
   });
-  assert.deepEqual(x.calls.map((c) => c.limit), [20, 5], "second call only asks for what's left; third is never made");
-  assert.deepEqual(x.calls.map((c) => c.budget), [{ posts: 20 }, { posts: 5 }]);
+  assert.deepEqual(x.calls.map((c) => c.limit), [10, 10], "the 20 posts are shared (never below X's 10); the third call is never made");
+  assert.deepEqual(x.calls.map((c) => c.budget), [{ posts: 20 }, { posts: 10 }]);
   assert.equal(meters[0].meter.posts, 20);
   assert.equal(raw.sources[0].reason, "stopped at per-run cap (20 posts)");
 });
 
 test("paid (posts): the monthly cap limits the run, and a spent cap skips the source", async () => {
-  const x = fakeAdapter("x", { paid: true, costUnit: "posts", results: { "kw one": Array.from({ length: 30 }, (_, i) => post(`x-${i}`)) } });
+  const x = fakeAdapter("x", { paid: true, costUnit: "posts", minResults: 10, results: { "kw one": Array.from({ length: 30 }, (_, i) => post(`x-${i}`)) } });
   const caps = settings({ x: { maxPostsPerRun: 30, maxPostsPerMonth: 900 } });
 
   await runSearch({ profile: profile({ sources: ["x"] }), settings: caps, adapters: [x], usage: usageWith("x", { posts: 890 }), now: NOW });
@@ -192,6 +193,27 @@ test("paid (posts): the monthly cap limits the run, and a spent cap skips the so
   const { raw } = await runSearch({ profile: profile({ sources: ["x"] }), settings: caps, adapters: [x], usage: usageWith("x", { posts: 900 }), now: NOW });
   assert.equal(x.calls.length, 0);
   assert.deepEqual([raw.sources[0].status, raw.sources[0].reason], ["skipped", "monthly cap reached (900 / 900 posts)"]);
+});
+
+test("paid (posts): one keyword can't use the whole run's budget", async () => {
+  // Found on a real run: 30 posts per run, 8 keywords, and the first keyword took 25.
+  const many = (k) => Array.from({ length: 40 }, (_, i) => post(`x-${k}${i}`, i + 1));
+  const keywords = Array.from({ length: 8 }, (_, i) => `kw${i} topic`);
+  const x = fakeAdapter("x", { paid: true, costUnit: "posts", minResults: 10, results: Object.fromEntries(keywords.map((k) => [k, many(k)])) });
+  const { meters } = await runSearch({
+    profile: profile({ sources: ["x"], keywords }),
+    settings: settings({ x: { maxPostsPerRun: 30, maxPostsPerMonth: 900 } }),
+    adapters: [x],
+    now: NOW,
+  });
+  assert.deepEqual(x.calls.map((c) => [c.keyword, c.limit]), [["kw0 topic", 10], ["kw1 topic", 10], ["kw2 topic", 10]]);
+  assert.equal(meters[0].meter.posts, 30, "still exactly the per-run cap");
+
+  // A bigger cap spreads over every keyword (fair share above the minimum).
+  x.calls.length = 0;
+  await runSearch({ profile: profile({ sources: ["x"], keywords }), settings: settings({ x: { maxPostsPerRun: 200, maxPostsPerMonth: 900 } }), adapters: [x], now: NOW });
+  assert.equal(x.calls.length, 8);
+  assert.ok(x.calls.every((c) => c.limit === 25), "capped by maxPostsPerSource (25), all 8 keywords searched");
 });
 
 test("paid (credits): stops at the credit cap", async () => {

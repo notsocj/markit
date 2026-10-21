@@ -57,6 +57,7 @@ export default {
   paid: true,
   costUnit: "posts",
   costPerUnit: 0.005, // USD per post read (pricing page, checked 2026-10-21); an estimate
+  minResults: MIN_RESULTS, // search.js won't give one keyword a share smaller than this
   checkUsesQuota: false,
 
   isEnabled(env = {}) {

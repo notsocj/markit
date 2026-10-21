@@ -107,7 +107,7 @@ async function runSource(adapter, { keywords, since, perKeywordLimit, maxPosts, 
   const errors = [];
   let capped = false;
 
-  for (const keyword of keywords) {
+  for (const [i, keyword] of keywords.entries()) {
     let limit = perKeywordLimit;
     let left;
     if (budget) {
@@ -116,7 +116,14 @@ async function runSource(adapter, { keywords, since, perKeywordLimit, maxPosts, 
         capped = true;
         break; // cap reached: no more calls to this paid source
       }
-      if (budget.unit === "posts") limit = Math.min(limit, left);
+      if (budget.unit === "posts") {
+        // Share what's left across the keywords still to search, so the first keyword can't
+        // use the whole per-run cap (found on a real run: X's first keyword took 25 of 30
+        // posts and the other 7 keywords were never searched). Never below the adapter's
+        // minimum per request (X: 10), so with 30 posts and 8 keywords, 3 keywords get 10.
+        const fairShare = Math.floor(left / (keywords.length - i));
+        limit = Math.min(limit, left, Math.max(fairShare, adapter.minResults ?? 1));
+      }
     }
     try {
       const posts = await adapter.search(keyword, {
