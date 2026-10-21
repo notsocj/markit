@@ -140,7 +140,7 @@ Reports are saved to `~/markit-reports/<app>/<date-time>/report.md`, and posts y
 | Stack Exchange | free | optional | 300 requests/day without a key, 10,000 with a free one |
 | Bluesky | free | none | public search; an app password is only a fallback |
 | YouTube | free | Google API key | 100 searches/day (YouTube's limit since June 2026); finds videos |
-| Threads | free | Meta token | **only searches your own posts until Meta approves your app in App Review**, so it's off by default |
+| Threads | free | Meta token | **only searches your own posts until Meta approves your app in App Review** (plan for 1–4 weeks), so it's off by default |
 | X | **paid** | Bearer token | ~$0.005 per post returned |
 | SocialCrawl | **paid** | API key | the reliable way to search **Reddit**; 100 free credits on signup |
 | Web search | free | none | your agent searches forums and Q&A sites |

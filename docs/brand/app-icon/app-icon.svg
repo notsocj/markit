@@ -1,0 +1,21 @@
+<!-- marKit app icon, rounded square on a transparent canvas (1024x1024, macOS icon grid: 824px body, 100px margin). Use this for macOS, GitHub/social avatars, and anywhere the icon is shown as-is. Built from logo-mark.svg. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="marKit">
+<defs>
+  <clipPath id="squircle"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+  <filter id="drop" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.28"/></filter>
+</defs>
+<g filter="url(#drop)"><g clip-path="url(#squircle)"><g transform="translate(100 100) scale(0.8046875)">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#A895FF"/><stop offset="0.55" stop-color="#6E4DF7"/><stop offset="1" stop-color="#4523D9"/></linearGradient>
+  <radialGradient id="glow" cx="300" cy="220" r="620" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0.28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="tick" x1="10" y1="10" x2="22" y2="18" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#8A72FF"/><stop offset="1" stop-color="#4E2FE6"/></linearGradient>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="1.1" stdDeviation="1.2" flood-color="#2A0F9E" flood-opacity="0.35"/></filter>
+</defs>
+<rect width="1024" height="1024" fill="url(#bg)"/>
+<rect width="1024" height="1024" fill="url(#glow)"/>
+<g transform="translate(192 212) scale(20)">
+  <path filter="url(#shadow)" fill="#fff" d="M8 3h16a5 5 0 0 1 5 5v11a5 5 0 0 1-5 5h-8.3l-5.5 4.5c-.8.7-2.1.1-2.1-1V24H8a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5z"/>
+  <path fill="none" stroke="url(#tick)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M10.6 13.6l3.7 3.7 7.3-7.3"/>
+</g>
+</g></g></g>
+</svg>
