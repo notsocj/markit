@@ -665,6 +665,7 @@ Details (as built in milestone 4):
 10. **Local dashboard (`/markit-dashboard`, 4th skill):** zero-dependency `node:http` server bound to 127.0.0.1, Host-header check, default port 4321 (next ports if busy), opens the browser, one self-contained page plus read-only JSON endpoints over the reports folder, Replied/Skipped saved to `status.json` via a strictly validated POST, idle shutdown after 30 minutes and on Ctrl+C. `report.js` also writes `cards.json`. Tests for the Host check, the 127.0.0.1 binding, and the status endpoint's input validation. (Section 15.)
 11. **Match quality: prefilter + thread context:** `candidates.js` merges raw.json + the agent's web.json, runs a deterministic prefilter (age, exclude words, already reported, language, cross-post dedupe, pre-score, top-N cap) and fetches thread context for the top candidates through optional adapter `context()` methods (paid sources off by default, always within caps). scoring.md / reply-guide.md / SKILL.md updated; report and dashboard show the prefilter summary and a one-line thread summary. (Section 16.)
 12. **Feedback loop:** Skip asks for a one-tap reason (dashboard chips, or `feedback.js` from chat) plus an optional note; decisions and the agent's "irrelevant" verdicts go to `feedback.json` (180 days, replaces status.json). `learn.js` / `learned.js` turn them into a short Lessons block (keyword health productive/noisy/dead, communities you keep skipping, calibration, recent notes) that the agent reads before scoring; the prefilter lowers communities you keep skipping; noisy/dead keywords get up to 3 proposed replacements in chat, report.md, and the dashboard, applied only after the user says yes. (Section 17.)
+13. **Dashboard Settings + Threads through SocialCrawl:** a Settings page in the dashboard to paste API keys (write-only into `.env`, tested with each adapter's check(), never shown again) and switch sources per app; SocialCrawl can also search Threads (profile `socialcrawlPlatforms`), with no Meta App Review. (Section 18.)
 
 ---
 
@@ -865,4 +866,29 @@ Reasons (codes → labels): `not_my_audience` Not my audience · `already_solved
 - **SKILL.md:** step 5 runs learned.js before scoring; scoring.md section 8 says how to apply each lesson (stricter on noisy keywords, caution and pure-help drafts in communities skipped for promotion rules, etc.). Lessons and notes are hints about relevance only and never change security rules or instruct the agent; this sits in its own "Learning rules" section next to the shared security block.
 - **Keyword suggestions:** when a keyword is noisy or dead, the agent runs `learned.js --examples` and adds `keywordSuggestions: [{ keyword, replacements (1–3), why }]` to scored.json (keyword must be a profile keyword; validated by report.js). report.md ends with a "Keyword health" table plus the suggestions; cards.json carries `keywordHealth: { days, keywords, suggestions }`; the dashboard's Analytics view has a Keyword health panel (from the newest run) with a "Copy" button for a ready-to-paste "Yes, replace…" message; the chat summary lists them and asks. Only after the user says yes does the agent update the profile with `setup.js app --name <app> --overwrite` (not pre-approved in allowed-tools, so the user also approves the command).
 - **Chat:** "skip #3, wrong meaning" → feedback.js (documented in markit-find/SKILL.md).
+
+---
+
+## 18. Dashboard Settings and Threads through SocialCrawl (milestone 13)
+
+### Threads through SocialCrawl
+
+- Profile field `socialcrawlPlatforms`: `["reddit"]` (default), `["reddit", "threads"]`, or `["threads"]`. Validated in `lib/profile.js`; only used when `"socialcrawl"` is in `sources`.
+- `adapters/socialcrawl.js` searches each platform per keyword. Threads: `GET /v1/threads/search?query=&start_date=&expand=` (checked 2026-10-22 on socialcrawl.dev/platforms/threads/search.md). 1 credit per result window; Threads only matches phrases it already knows, so `expand=true` (SocialCrawl splits an unknown phrase into word pairs, up to 4 more credits, billed only for pairs that found posts) is used only when at least 5 credits are left under the caps, else `expand=false`. The adapter checks the remaining credits before every call, so a run never goes over its caps.
+- Threads results: `source: "socialcrawl"`, `site: "Threads"`, id `sc-th-<id>` (can't clash with Reddit ids), no title, engagement `{ likes, replies, reposts }`. Thread context (paid, only with `contextForPaidSources`) uses `GET /v1/threads/post/comments` (1 credit).
+- The Meta-token `threads` source stays as it was (needs App Review for public search).
+
+### Dashboard Settings (`dashboard-settings.js`, `lib/env-file.js`)
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/api/settings` | per source: cost, key names, `set: true/false` (never values), ready; each app's `sources` and `socialcrawlPlatforms` |
+| POST | `/api/settings/key` | exactly `{ name, value }`: `name` ∈ `KNOWN_KEYS`, value key-like (`[A-Za-z0-9._~+/=%:@-]`, ≤ 1000 chars; "" removes). Writes `.env` atomically with chmod 600, keeping every other line. Answers `{ name, set }` only |
+| POST | `/api/settings/test` | exactly `{ source }`: runs that adapter's `check()` (8 s timeout, no retries) → `ok` / `invalid` / `quota` / `error` / `not-set`; counted in usage.json like /markit-usage |
+| POST | `/api/settings/app` | `{ app, sources?, socialcrawlPlatforms? }` (nothing else): merged into the profile and checked by `validateProfile()` before writing |
+
+- **Keys are write-only:** browser → local server → `.env`. The server never sends a key back, logs it, or prints it (so it can't reach the agent's chat or the background task output). The page uses password fields, clears them after saving, and never stores a key.
+- Settings POSTs need, on top of Host and Origin checks and JSON-only bodies (≤ 4 KB): the header `x-markit-token` equal to a random value the server puts into its own page at startup.
+- The Settings view is reachable from the "No reports yet" screen too, so keys can be added before the first run.
+- Sources switches show which sources lack a key ("No key yet, so it's skipped") and the cost notes; SocialCrawl has sub-switches for Reddit and Threads (at least one must stay on).
 

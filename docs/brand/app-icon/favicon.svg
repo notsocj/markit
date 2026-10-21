@@ -1,0 +1,4 @@
+<!-- marKit favicon (browser tabs, bookmarks). The app icon simplified for tiny sizes: the tile fills the
+     whole canvas, the highlight is straight, and every edge sits on an even number, so at 16px and 32px
+     each shape lands exactly on whole pixels and stays crisp instead of blurring. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="f-bg" x1="5" y1="0" x2="27" y2="32" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3D6BFF"/><stop offset="1" stop-color="#1432C4"/></linearGradient></defs><rect width="32" height="32" rx="7" fill="url(#f-bg)"/><rect x="8" y="6" width="16" height="4" rx="2" fill="#fff" fill-opacity=".65"/><rect x="6" y="12" width="20" height="8" rx="1" fill="#FFDE45"/><rect x="8" y="14" width="12" height="4" rx="2" fill="#0F2496"/><rect x="8" y="22" width="10" height="4" rx="2" fill="#fff" fill-opacity=".65"/></svg>

@@ -14,6 +14,11 @@
 //                          + prefilter line + keyword health (for the Keywords panel)
 //   POST /api/status       { id, status, reason?, note? }: status in replied, skipped, open;
 //                          reason (skipped only) from a fixed list; note ≤ 140 chars, plain text
+//   GET  /api/settings     Settings page: which keys are SET (true/false, never values), and
+//                          each app's sources (dashboard-settings.js)
+//   POST /api/settings/key   { name, value }: write one key into .env (write-only)
+//   POST /api/settings/test  { source }: test that source's key with one small API call
+//   POST /api/settings/app   { app, sources?, socialcrawlPlatforms? }: change an app's sources
 //
 // SECURITY (this is a web server, so it gets extra care):
 //   - Binds to 127.0.0.1 only: other computers on your network can't reach it.
@@ -24,9 +29,15 @@
 //     websites from submitting to it), Content-Type application/json, a body under 1 KB,
 //     only the fields { id, status, reason?, note? }, values from fixed lists, and an id
 //     that belongs to a card in the reports folder. The note is stripped of HTML.
-//   - Read-only everywhere else. Serves data from the REPORTS folder only. From the config
-//     folder it only ever touches feedback.json (and reads the old status.json once, to
-//     import it). It never serves .env, profiles, or usage.
+//   - The /api/settings POSTs also need the per-start page token (header x-markit-token),
+//     which only this page has: it's put into the page when the server starts.
+//   - API keys are WRITE-ONLY: a key goes browser → this server → .env, and is never sent
+//     back, logged, or printed (so it can't appear in an agent's chat or the task output).
+//     The Settings page only learns "set" / "not set" and test results.
+//   - Read-only everywhere else. Serves data from the REPORTS folder. From the config folder
+//     it touches feedback.json (Replied/Skipped), and through Settings: .env (write-only),
+//     app profiles (only "sources" and "socialcrawlPlatforms", validated like /markit-setup),
+//     and usage.json (counting key tests). It never serves .env or usage.
 //   - Strict Content-Security-Policy: only this page's own inline script/style (with a
 //     random nonce per start) may run; no external requests, no framing.
 //   - The page shows post text with textContent (never as HTML), because post text is
@@ -47,11 +58,14 @@ import { loadShared } from "./shared.js";
 // dashboard-data.js imports shared code too, so it's loaded only after this check.
 const config = await loadShared("lib/config.js");
 const data = await import("./dashboard-data.js");
+const settingsLib = await import("./dashboard-settings.js");
 
 export const DEFAULT_PORT = 4321;
 export const PORT_TRIES = 10; // 4321, 4322, ... 4330
 export const IDLE_MS = 30 * 60 * 1000; // 30 minutes
 export const MAX_BODY_BYTES = 1024;
+// Settings requests can carry an API key (a Threads token is a few hundred characters).
+export const MAX_SETTINGS_BODY_BYTES = 4096;
 const BIND_ADDRESS = "127.0.0.1";
 
 // The page is read once at startup; __NONCE__ is filled in per server start.
@@ -102,18 +116,26 @@ function readBody(req, limit) {
  * @param {string} opts.reportsDir - where search.js/report.js write runs
  * @param {string} opts.feedbackFile - ~/.config/markit/feedback.json (Replied/Skipped + reasons)
  * @param {string} [opts.legacyStatusFile] - the old status.json, imported if feedback.json is new
+ * @param {string} [opts.envFile] - .env, for the Settings page (no Settings without it)
+ * @param {string} [opts.appsDir] - apps/, for the Settings page's sources switches
+ * @param {string} [opts.usageFile] - usage.json, to count key tests like /markit-usage does
+ * @param {object[]} [opts.adapters] - for key tests (tests pass fakes)
  * @param {number} [opts.idleMs] - shut down after this long without requests
  * @param {(reason: string) => void} [opts.onStop] - called once after shutdown
  */
-export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, idleMs = IDLE_MS, onStop = () => {} }) {
+export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, envFile, appsDir, usageFile, adapters, idleMs = IDLE_MS, onStop = () => {} }) {
   const files = { feedbackFile, legacyStatusFile, reportsDir };
+  const settingsOn = Boolean(envFile && appsDir);
   let port = null;
   let idleTimer = null;
   let stopped = false;
 
   // A fresh random nonce each start: only scripts/styles carrying it may run on the page.
   const nonce = randomBytes(16).toString("base64");
-  const page = PAGE_TEMPLATE.replaceAll("__NONCE__", nonce);
+  // A second random value the page sends back on Settings requests (x-markit-token), so
+  // only this page, loaded from this server, can change keys or sources.
+  const pageToken = randomBytes(24).toString("hex");
+  const page = PAGE_TEMPLATE.replaceAll("__NONCE__", nonce).replaceAll("__TOKEN__", pageToken);
 
   const baseHeaders = {
     "x-content-type-options": "nosniff",
@@ -149,6 +171,26 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, id
     idleTimer = setTimeout(() => stop("idle"), idleMs);
   }
 
+  /**
+   * Shared checks for a JSON POST: same-origin page, JSON content type, size limit, valid
+   * JSON, and (when given) the page token. Returns the parsed body, or undefined after
+   * sending the error response.
+   */
+  async function readJsonPost(req, res, limit, { token } = {}) {
+    if (!isAllowedOrigin(req.headers.origin, port)) return void sendJson(req, res, 403, { error: "forbidden origin" });
+    if (token && req.headers["x-markit-token"] !== token) return void sendJson(req, res, 403, { error: "missing or wrong page token (reload the page)" });
+    if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+      return void sendJson(req, res, 415, { error: "content-type must be application/json" });
+    }
+    if (Number(req.headers["content-length"] ?? 0) > limit) return void sendJson(req, res, 413, { error: "body too large" });
+    try {
+      return JSON.parse(await readBody(req, limit));
+    } catch (err) {
+      if (err.code === "TOO_LARGE") return void sendJson(req, res, 413, { error: "body too large" });
+      return void sendJson(req, res, 400, { error: "body must be valid JSON" });
+    }
+  }
+
   async function handle(req, res) {
     resetIdleTimer();
 
@@ -170,6 +212,11 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, id
 
       if (url.pathname === "/api/apps") return sendJson(req, res, 200, { apps: data.listApps(reportsDir) });
 
+      if (url.pathname === "/api/settings") {
+        if (!settingsOn) return sendJson(req, res, 404, { error: "not found" });
+        return sendJson(req, res, 200, settingsLib.getSettings({ envFile, appsDir }));
+      }
+
       if (url.pathname === "/api/runs") {
         if (!data.APP_NAME.test(q("app"))) return sendJson(req, res, 400, { error: "invalid app" });
         return sendJson(req, res, 200, { runs: data.listRuns(reportsDir, q("app")) });
@@ -189,6 +236,34 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, id
         const keywordHealth = healthRun ? data.runKeywordHealth(reportsDir, app, healthRun) : null;
         const warning = data.feedbackWarning(feedbackFile, legacyStatusFile); // "" unless feedback.json is broken
         return sendJson(req, res, 200, { app, run, cards, prefilter, keywordHealth, warning, stats: data.computeStats(cards, statusMap) });
+      }
+      return sendJson(req, res, 404, { error: "not found" });
+    }
+
+    if (req.method === "POST" && url.pathname.startsWith("/api/settings/") && settingsOn) {
+      const body = await readJsonPost(req, res, MAX_SETTINGS_BODY_BYTES, { token: pageToken });
+      if (body === undefined) return; // an error was already sent
+
+      if (url.pathname === "/api/settings/key") {
+        const check = settingsLib.validateKeyUpdate(body);
+        if (!check.ok) return sendJson(req, res, 400, { error: check.error });
+        return sendJson(req, res, 200, settingsLib.saveKey({ envFile }, check)); // { name, set } only
+      }
+      if (url.pathname === "/api/settings/test") {
+        const names = Object.keys(body ?? {});
+        const sources = settingsLib.SOURCE_INFO.map((i) => i.source);
+        if (names.length !== 1 || names[0] !== "source" || !sources.includes(body.source)) return sendJson(req, res, 400, { error: "body must be exactly { source } with a known source" });
+        return sendJson(req, res, 200, { source: body.source, result: await settingsLib.testSource({ envFile, usageFile }, body.source, { adapters }) });
+      }
+      if (url.pathname === "/api/settings/app") {
+        const check = settingsLib.validateAppUpdate(body);
+        if (!check.ok) return sendJson(req, res, 400, { error: check.error });
+        try {
+          return sendJson(req, res, 200, settingsLib.saveAppSources({ appsDir }, check));
+        } catch (err) {
+          // validateProfile's messages list what's wrong with the profile (no secrets in it).
+          return sendJson(req, res, 400, { error: err.message?.startsWith("marKit:") ? err.message.replace(/^marKit: /, "") : "couldn't save the profile" });
+        }
       }
       return sendJson(req, res, 404, { error: "not found" });
     }
@@ -220,7 +295,7 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, id
       return sendJson(req, res, 200, { id: check.id, ...saved });
     }
 
-    const known = ["/", "/api/apps", "/api/runs", "/api/cards", "/api/status"].includes(url.pathname);
+    const known = ["/", "/api/apps", "/api/runs", "/api/cards", "/api/status", ...(settingsOn ? ["/api/settings"] : [])].includes(url.pathname);
     return sendJson(req, res, known ? 405 : 404, { error: known ? "method not allowed" : "not found" });
   }
 
@@ -298,6 +373,9 @@ async function main() {
     reportsDir,
     feedbackFile: paths.feedbackFile,
     legacyStatusFile: paths.statusFile,
+    envFile: paths.envFile,
+    appsDir: paths.appsDir,
+    usageFile: paths.usageFile,
     onStop: (reason) => {
       console.log(reason === "idle" ? "marKit dashboard stopped after 30 minutes without use." : "marKit dashboard stopped.");
       process.exit(0);

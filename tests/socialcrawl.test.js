@@ -86,3 +86,62 @@ test("shape: paid in credits", () => {
   assert.equal(socialcrawl.costUnit, "credits");
   assert.equal(socialcrawl.isEnabled({}), false);
 });
+
+// --- Threads through SocialCrawl (profile "socialcrawlPlatforms") --------------------------
+// Shapes from socialcrawl.dev/platforms/threads/search.md (checked 2026-10-22).
+
+const threadsItem = {
+  id: "3712345678901234567",
+  url: "https://www.threads.com/@racefan/post/DZpPDXbCeTt",
+  author: { username: "racefan" },
+  content: { text: "First Grand Prix next month, how do you keep tickets and hotel stuff in one place?" },
+  published_at: "2026-10-20T10:00:00Z",
+  engagement: { likes: 7, comments: 3, shares: 1 },
+};
+
+test("Threads is off by default: only Reddit is searched", async () => {
+  const fetchImpl = fakeFetch([json(envelope([]))]);
+  await socialcrawl.search("first Grand Prix", { since, env, budget: { credits: 10 }, http: { fetchImpl }, profile: {} });
+  assert.deepEqual(fetchImpl.calls.map((c) => c.url.pathname), ["/v1/reddit/search"]);
+});
+
+test("Threads on: searches both, Threads posts get their own ids and site, credits counted", async () => {
+  const fetchImpl = fakeFetch((u) => (u.pathname.endsWith("/threads/search") ? json(envelope([threadsItem], { credits_used: 2 })) : json(envelope([item]))));
+  const meter = {};
+  const posts = await socialcrawl.search("first Grand Prix trip advice", { since, env, meter, budget: { credits: 10 }, http: { fetchImpl }, profile: { socialcrawlPlatforms: ["reddit", "threads"] } });
+  assert.deepEqual(fetchImpl.calls.map((c) => c.url.pathname), ["/v1/reddit/search", "/v1/threads/search"]);
+  const t = fetchImpl.calls[1].url.searchParams;
+  assert.equal(t.get("query"), "first Grand Prix trip", "shortened like the other APIs (searchQuery)");
+  assert.equal(t.get("start_date"), "2026-10-14");
+  assert.equal(t.get("expand"), "true", "enough credits left to let SocialCrawl relax unknown phrases");
+  assert.deepEqual(meter, { requests: 2, credits: 3 });
+  const th = posts.find((p) => p.site === "Threads");
+  assert.equal(th.id, "sc-th-3712345678901234567");
+  assert.equal(th.title, "");
+  assert.deepEqual(th.engagement, { likes: 7, replies: 3, reposts: 1 });
+  assert.equal(posts.filter((p) => p.site !== "Threads").length, 1);
+});
+
+test("Threads never overspends: exact phrase only when < 5 credits left, skipped at 0", async () => {
+  const fetchImpl = fakeFetch([json(envelope([])), json(envelope([], { credits_used: 1 }))]);
+  await socialcrawl.search("a b", { since, env, budget: { credits: 3 }, http: { fetchImpl }, profile: { socialcrawlPlatforms: ["reddit", "threads"] } });
+  assert.equal(fetchImpl.calls[1].url.searchParams.get("expand"), "false", "2 credits left after Reddit: no relaxing");
+
+  const oneLeft = fakeFetch([json(envelope([]))]);
+  await socialcrawl.search("a b", { since, env, budget: { credits: 1 }, http: { fetchImpl: oneLeft }, profile: { socialcrawlPlatforms: ["reddit", "threads"] } });
+  assert.deepEqual(oneLeft.calls.map((c) => c.url.pathname), ["/v1/reddit/search"], "Reddit used the last credit, so no Threads call");
+
+  const threadsOnly = fakeFetch([json(envelope([]))]);
+  await socialcrawl.search("a b", { since, env, budget: { credits: 1 }, http: { fetchImpl: threadsOnly }, profile: { socialcrawlPlatforms: ["threads"] } });
+  assert.deepEqual(threadsOnly.calls.map((c) => c.url.pathname), ["/v1/threads/search"]);
+  assert.equal(threadsOnly.calls[0].url.searchParams.get("expand"), "false");
+});
+
+test("Threads context uses the Threads comments endpoint (1 credit)", async () => {
+  const fetchImpl = fakeFetch([json({ success: true, credits_used: 1, data: { items: [{ comment: { author: { username: "fan2" }, content: { text: "I use Apple Wallet" }, engagement: { likes: 2 } } }] } })]);
+  const meter = {};
+  const ctx = await socialcrawl.context({ id: "sc-th-1", site: "Threads", url: threadsItem.url, engagement: { replies: 3 } }, { env, budget: { credits: 1 }, meter, http: { fetchImpl } });
+  assert.equal(fetchImpl.calls[0].url.pathname, "/v1/threads/post/comments");
+  assert.deepEqual(ctx.topComments, [{ author: "fan2", excerpt: "I use Apple Wallet", score: 2 }]);
+  assert.deepEqual(meter, { requests: 1, credits: 1 });
+});

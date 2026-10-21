@@ -94,3 +94,12 @@ test("languages defaults to English and validates codes", () => {
   assert.throws(() => validateProfile({ ...good(), languages: ["english!"] }, "gridpeek"), /Invalid language code/);
   assert.throws(() => validateProfile({ ...good(), languages: [] }, "gridpeek"), /"languages" must be a list/);
 });
+
+test("socialcrawlPlatforms: defaults to Reddit, accepts Threads, rejects anything else", async () => {
+  const { validateProfile } = await import("../skills/markit-find/scripts/lib/profile.js");
+  const base = { name: "gridpeek", url: "https://x.example", oneLiner: "o", audience: "a", keywords: ["a b c", "d e f", "g h i"] };
+  assert.deepEqual(validateProfile(base).profile.socialcrawlPlatforms, ["reddit"]);
+  assert.deepEqual(validateProfile({ ...base, socialcrawlPlatforms: ["Reddit", "threads"] }).profile.socialcrawlPlatforms, ["reddit", "threads"]);
+  assert.throws(() => validateProfile({ ...base, socialcrawlPlatforms: ["tiktok"] }), /Unknown SocialCrawl platform/);
+  assert.throws(() => validateProfile({ ...base, socialcrawlPlatforms: [] }), /socialcrawlPlatforms/);
+});

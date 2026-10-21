@@ -46,7 +46,7 @@ Everything runs on your machine. There's no marKit server, no account, and no te
 
 ### The dashboard
 
-`/markit-dashboard` opens a local page for working through the results: filter, read why each post fits, copy the draft, open the post, and mark it Replied or Skipped. Keyboard shortcuts: <kbd>J</kbd>/<kbd>K</kbd> to move, <kbd>R</kbd> replied, <kbd>S</kbd> skip, <kbd>C</kbd> copy, <kbd>O</kbd> open. It also has an Analytics view.
+`/markit-dashboard` opens a local page for working through the results: filter, read why each post fits, copy the draft, open the post, and mark it Replied or Skipped. Its **Settings** page is the easiest way to add API keys (pasted keys go straight into your `.env`, are tested, and are never shown again; your agent never sees them) and to switch sources on or off per app. Keyboard shortcuts: <kbd>J</kbd>/<kbd>K</kbd> to move, <kbd>R</kbd> replied, <kbd>S</kbd> skip, <kbd>C</kbd> copy, <kbd>O</kbd> open. It also has an Analytics view.
 
 ### It learns from what you reply to and skip
 
@@ -142,7 +142,7 @@ Reports are saved to `~/markit-reports/<app>/<date-time>/report.md`, and posts y
 | YouTube | free | Google API key | 100 searches/day (YouTube's limit since June 2026); finds videos |
 | Threads | free | Meta token | **only searches your own posts until Meta approves your app in App Review** (plan for 1–4 weeks), so it's off by default |
 | X | **paid** | Bearer token | ~$0.005 per post returned |
-| SocialCrawl | **paid** | API key | the reliable way to search **Reddit**; 100 free credits on signup |
+| SocialCrawl | **paid** | API key | the reliable way to search **Reddit**, and optionally **Threads** with no Meta App Review (switch it on in dashboard → Settings); 100 free credits on signup |
 | Web search | free | none | your agent searches forums and Q&A sites |
 
 Step-by-step key instructions: [`skills/markit-setup/references/setup-guide.md`](skills/markit-setup/references/setup-guide.md).
@@ -203,7 +203,8 @@ Your config folder holds `apps/*.json` (profiles), `settings.json` (limits), `se
 
 **The dashboard** is a zero-dependency local server that:
 - binds to `127.0.0.1` only and rejects any request whose Host isn't `localhost:<port>` / `127.0.0.1:<port>`, which blocks DNS rebinding
-- only reads the reports folder. From the config folder it reads `settings.json` once at startup (to find the reports folder) and otherwise only touches `feedback.json`
+- reads the reports folder. From the config folder it touches `feedback.json` (your decisions) and, through Settings: `.env` (**write-only**: a key goes in, but the server never sends one back, logs it, or prints it), app profiles (only their `sources` and `socialcrawlPlatforms`, validated like `/markit-setup`), and `usage.json` (counting key tests)
+- Settings requests also need a random token the server puts into its own page at startup, so no other page or program can change your keys or sources
 - accepts only `{ id, status, reason?, note? }` (same-origin JSON, under 1 KB) to save a decision: status and reason from fixed lists, the note stripped of HTML and cut to 140 characters, and the id must be a card in your reports
 - shows post text as plain text under a strict Content-Security-Policy
 - stops after 30 minutes without use

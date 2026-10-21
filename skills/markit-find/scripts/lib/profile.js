@@ -33,12 +33,19 @@ export const DEFAULT_SOURCES = ["hackernews", "stackexchange", "bluesky", "youtu
 
 export const DEFAULT_REPLY_TONE = "casual, friendly, short";
 
+// What the SocialCrawl source searches (adapters/socialcrawl.js). Reddit by default; add
+// "threads" to also search public Threads posts through SocialCrawl, which needs no Meta
+// App Review (unlike the "threads" source). Each platform costs credits per keyword.
+export const SOCIALCRAWL_PLATFORMS = ["reddit", "threads"];
+export const DEFAULT_SOCIALCRAWL_PLATFORMS = ["reddit"];
+
 // softwarerecs.stackexchange.com exists exactly for "recommend me software" questions.
 export const DEFAULT_STACKEXCHANGE_SITES = ["softwarerecs"];
 
 const KNOWN_FIELDS = new Set([
   "name", "url", "oneLiner", "description", "audience", "features", "keywords", "competitors",
   "exclude", "sources", "replyTone", "lookbackDays", "stackexchangeSites", "languages",
+  "socialcrawlPlatforms",
 ]);
 
 /**
@@ -176,6 +183,17 @@ export function validateProfile(input, name = input?.name) {
     if (badLangs.length) errors.push(`Invalid language code(s): ${badLangs.join(", ")}. Use codes like "en", "es", "pt-br".`);
   }
 
+  // --- socialcrawlPlatforms (optional, default ["reddit"]): which platforms the paid
+  //     SocialCrawl source searches. Only used when "socialcrawl" is in sources. ---
+  let socialcrawlPlatforms = input.socialcrawlPlatforms === undefined ? [...DEFAULT_SOCIALCRAWL_PLATFORMS] : cleanList(input.socialcrawlPlatforms);
+  if (socialcrawlPlatforms === null || socialcrawlPlatforms.length === 0) {
+    errors.push(`"socialcrawlPlatforms" must be a list with one or both of: ${SOCIALCRAWL_PLATFORMS.join(", ")}.`);
+  } else {
+    socialcrawlPlatforms = socialcrawlPlatforms.map((p) => p.toLowerCase());
+    const badPlatforms = socialcrawlPlatforms.filter((p) => !SOCIALCRAWL_PLATFORMS.includes(p));
+    if (badPlatforms.length) errors.push(`Unknown SocialCrawl platform(s): ${badPlatforms.join(", ")}. Use: ${SOCIALCRAWL_PLATFORMS.join(", ")}.`);
+  }
+
   // --- lookbackDays (optional: settings.json's value is used if it's missing) ---
   if (input.lookbackDays !== undefined && !(Number.isInteger(input.lookbackDays) && input.lookbackDays >= 1 && input.lookbackDays <= 30)) {
     errors.push(`"lookbackDays" must be a whole number from 1 to 30.`);
@@ -204,6 +222,7 @@ export function validateProfile(input, name = input?.name) {
     sources,
     stackexchangeSites,
     languages,
+    socialcrawlPlatforms,
     replyTone: isText(input.replyTone) ? input.replyTone.trim() : DEFAULT_REPLY_TONE,
   };
   if (input.lookbackDays !== undefined) profile.lookbackDays = input.lookbackDays;

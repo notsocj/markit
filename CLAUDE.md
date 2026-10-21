@@ -39,4 +39,5 @@ The full design is in `MARKIT_SPEC.md`.
 - The font is Poppins (OFL), bundled in `scripts/fonts/` and served by exact name from `FONT_FILES` in `dashboard.js`. Don't bundle fonts whose license forbids redistribution (e.g. Satoshi); the logo wordmark is Satoshi converted to outlines in `docs/brand/`.
 - Pickers use the page's own dropdown component (`makeDropdown`), not native `<select>`.
 - The page reads `dashboard-page.html` once at startup: restart the server to see page changes.
+- Settings (`dashboard-settings.js`, `lib/env-file.js`): API keys are WRITE-ONLY. The server writes a key into `.env` (atomic, chmod 600) and only ever answers set/not set or a test result; never send a key back, log it, or print it. Settings POSTs need the per-start page token (`x-markit-token`) on top of the Origin/Host checks. Profile changes from Settings are limited to `sources` and `socialcrawlPlatforms` and go through `validateProfile()`.
 - Check UI changes in a browser at desktop, ~1000px, and phone widths, in dark and light mode.

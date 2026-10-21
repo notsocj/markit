@@ -1,6 +1,9 @@
 # Getting API keys for marKit
 
-Every key goes into marKit's `.env` file (`/markit-setup` tells you the exact path; usually `~/.config/markit/.env`, or `%APPDATA%\markit\.env` on Windows). Open it in **your own editor**, paste the value right after the `=` sign on the matching line, and save. Leave a line empty to turn that source off.
+Every key goes into marKit's `.env` file (`/markit-setup` tells you the exact path; usually `~/.config/markit/.env`, or `%APPDATA%\markit\.env` on Windows). Two ways to add one:
+
+- **Dashboard → Settings (easiest):** run `/markit-dashboard`, open **Settings**, paste the key, and press Save. It's written straight into `.env` on your computer (owner-only permissions), tested right away, and never shown again: the page only says "Set". Your AI agent never sees it.
+- **Your own editor:** open `.env`, paste the value right after the `=` sign on the matching line, and save. Leave a line empty to turn that source off.
 
 **Check your keys any time with `/markit-usage`:** it shows ✓ / ✗ per source (never the key) plus notes such as a Threads token that's about to expire or is missing a permission.
 
@@ -130,7 +133,7 @@ X charges about **$0.005 per post** returned by search (pricing checked 2026-10-
 
 X only searches the last 7 days.
 
-## SocialCrawl: API key (paid credits; covers Reddit)
+## SocialCrawl: API key (paid credits; covers Reddit, and Threads if you want)
 
 The reliable way to find Reddit threads. **1 credit per keyword** per run (cached results are free), so about 5–8 credits per run. New accounts get **100 free credits**, no card needed; packs start at £15 for 2,500 credits, and credits don't expire.
 
@@ -139,6 +142,8 @@ marKit stops at your caps: `socialcrawl.maxCreditsPerRun` (default 50) and `soci
 1. Sign up at https://www.socialcrawl.dev
 2. Copy your API key from the dashboard (it starts with `sc_`). If the dashboard lets you set a per-key budget, set one.
 3. `.env`: `SOCIALCRAWL_API_KEY=sc_...`
-4. Add `"socialcrawl"` to the app's `sources` (ask `/markit-setup` to edit the app, or tell your agent "add SocialCrawl to my sources").
+4. Add `"socialcrawl"` to the app's `sources` (dashboard → Settings → Sources, ask `/markit-setup` to edit the app, or tell your agent "add SocialCrawl to my sources").
+
+**Threads through SocialCrawl (optional):** SocialCrawl can also search public Threads posts, with **no Meta app, token, or App Review**. Switch it on in dashboard → Settings → Sources → SocialCrawl → "Search Threads", or set `"socialcrawlPlatforms": ["reddit", "threads"]` in the profile. Cost (checked 2026-10-22): 1 credit per keyword for an exact-phrase search; Threads only matches phrases it already knows, so marKit lets SocialCrawl split an unknown phrase into word pairs (up to 5 credits per keyword) **only when at least 5 credits are left** under your caps. Reading a Threads post's replies (thread context, only if `contextForPaidSources` is on) costs 1 credit.
 
 `/markit-usage` shows your remaining credit balance.

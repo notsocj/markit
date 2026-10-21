@@ -1,15 +1,22 @@
-<!-- marKit app icon, full-bleed square (1024x1024). Use this where the platform rounds the corners itself (iOS, Android adaptive icons, PWA "maskable"). Built from logo-mark.svg. -->
+<!-- marKit app icon, full-bleed square (1024x1024): a post with one line marked by a highlighter.
+     Use this where the platform rounds the corners itself (iOS, Android adaptive icons, PWA "maskable").
+     The artwork stays inside the Android adaptive-icon safe circle (66/108 of the canvas), so masks never clip it. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="marKit">
 <defs>
-  <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#A895FF"/><stop offset="0.55" stop-color="#6E4DF7"/><stop offset="1" stop-color="#4523D9"/></linearGradient>
-  <radialGradient id="glow" cx="300" cy="220" r="620" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0.28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-  <linearGradient id="tick" x1="10" y1="10" x2="22" y2="18" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#8A72FF"/><stop offset="1" stop-color="#4E2FE6"/></linearGradient>
-  <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="1.1" stdDeviation="1.2" flood-color="#2A0F9E" flood-opacity="0.35"/></filter>
+  <linearGradient id="mk-bg" x1="160" y1="0" x2="864" y2="1024" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3D6BFF"/><stop offset="1" stop-color="#1432C4"/></linearGradient>
+  <radialGradient id="mk-sheen" cx="512" cy="-80" r="720" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="mk-ink" x1="0" y1="436" x2="0" y2="588" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFE65C"/><stop offset="1" stop-color="#FFD634"/></linearGradient>
 </defs>
-<rect width="1024" height="1024" fill="url(#bg)"/>
-<rect width="1024" height="1024" fill="url(#glow)"/>
-<g transform="translate(192 212) scale(20)">
-  <path filter="url(#shadow)" fill="#fff" d="M8 3h16a5 5 0 0 1 5 5v11a5 5 0 0 1-5 5h-8.3l-5.5 4.5c-.8.7-2.1.1-2.1-1V24H8a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5z"/>
-  <path fill="none" stroke="url(#tick)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M10.6 13.6l3.7 3.7 7.3-7.3"/>
+<rect width="1024" height="1024" fill="url(#mk-bg)"/>
+<rect width="1024" height="1024" fill="url(#mk-sheen)"/>
+<g transform="translate(512 512) scale(1) translate(-491 -512)">
+  <!-- first line of the post -->
+  <rect x="232" y="304" width="560" height="80" rx="40" fill="#fff" fill-opacity=".5"/>
+  <!-- the highlighter stroke: chisel-cut ends, tilted a hair upward like a real swipe -->
+  <path d="M214 442 L760 434 L738 584 L190 590 Z" fill="url(#mk-ink)" stroke="url(#mk-ink)" stroke-width="18" stroke-linejoin="round"/>
+  <!-- the marked line, in dark ink under the highlight -->
+  <rect x="232" y="472" width="452" height="80" rx="40" fill="#0F2496"/>
+  <!-- last line of the post -->
+  <rect x="232" y="640" width="340" height="80" rx="40" fill="#fff" fill-opacity=".5"/>
 </g>
 </svg>
