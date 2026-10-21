@@ -12,6 +12,7 @@ The full design is in `MARKIT_SPEC.md`.
 - Each skill folder has its own `package.json` with `"type": "module"`, because installed skills don't
   get the repo-root `package.json`.
 - `tests/`: `node:test` tests. Run `npm test` (or `node --test`).
+- Never run `npx skills add/remove` with project scope (no `-g`) inside this repo: the installer treats `skills/` as an install location, and a project-scope remove deletes marKit's source (`git restore skills/` recovers it). Use `./install.sh --link` for development.
 
 ## Hard rules
 1. No browser automation. Official APIs, the user's own keys, and the agent's web search only.

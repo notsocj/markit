@@ -23,7 +23,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export const SIBLING_MESSAGE =
-  "marKit: install all four skills together (markit-setup, markit-find, markit-usage, markit-dashboard). See README.";
+  "marKit: install all four skills together (markit-setup, markit-find, markit-usage, markit-dashboard): npx skills add notsocj/markit -g --skill '*'  (see README).";
 
 // ../../markit-find/scripts/ relative to THIS file (not to wherever the user ran node from).
 const SHARED_ROOT = new URL("../../markit-find/scripts/", import.meta.url);

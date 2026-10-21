@@ -8,3 +8,10 @@ markit-reports/
 *.tmp
 .DS_Store
 node_modules/
+
+# Leftovers from running `npx skills add/remove` with PROJECT scope inside this repo.
+# Never do that here: the installer treats this repo's skills/ folder (marKit's source)
+# as an install location, and a project-scope remove deletes it. Use -g (global).
+.agents/
+.claude/skills/
+skills-lock.json

@@ -41,13 +41,34 @@ Everything runs on your machine. There's no marKit server, no account, and no te
 
 ## Install
 
+**Recommended:** with the open [`skills`](https://skills.sh) installer (works for Claude Code, Codex, and 70+ other agents):
+
+```bash
+npx skills add https://github.com/notsocj/markit --skill '*' -g
+```
+
+It asks which agents to install to; choose **Symlink (Recommended)**. Or, in one go for Claude Code:
+
+```bash
+npx skills add notsocj/markit -g --skill '*' -a claude-code -y
+```
+
+- **`--skill '*'` matters.** marKit is four skills (`markit-setup`, `markit-find`, `markit-usage`, `markit-dashboard`) that share code, so install all four together. If one is missing, marKit tells you the command to fix it.
+- **Keep `-g`.** It installs for your user, so marKit works in every project. Without it, the installer asks for a scope, and "Project" installs marKit only into the folder you ran it from. Then `/markit-*` won't appear in your other projects.
+- **Update:** `npx skills update -g`.
+- **Remove:** `npx skills remove -g markit-setup markit-find markit-usage markit-dashboard`. Your config and keys in `~/.config/markit` stay.
+- The installer puts the files in `~/.agents/skills/` and symlinks them for Claude Code. marKit works the same either way.
+- The `skills` installer (not marKit) sends anonymous usage data. Set `DISABLE_TELEMETRY=1` to turn that off.
+
+Start a new agent session afterwards so it sees the skills.
+
+**Alternative: from a clone,** with no npm tools at all:
+
 ```bash
 git clone https://github.com/notsocj/markit.git
 cd markit
 ./install.sh
 ```
-
-That installs the skills for **Claude Code** (`~/.claude/skills`). Other options:
 
 | Command | Installs to |
 |---|---|
@@ -56,9 +77,10 @@ That installs the skills for **Claude Code** (`~/.claude/skills`). Other options
 | `./install.sh --claude --codex` | both |
 | `./install.sh --project` | Claude Code, current project only (`./.claude/skills`) |
 | `./install.sh --dir <path>` | any skills folder |
+| `./install.sh --link` | symlinks to the clone (for developing marKit) |
 | `./install.sh --uninstall` | removes the skills (your config and keys stay) |
 
-marKit is **four skills that are always installed together** (`markit-setup`, `markit-find`, `markit-usage`, `markit-dashboard`); they share code. `install.sh` only copies files. Start a new agent session afterwards so it sees the skills.
+`install.sh` only copies files.
 
 ## Quick start
 
@@ -168,6 +190,7 @@ npm test          # node:test, no dependencies; tests never touch the network or
 - Contributor notes and conventions: [`CLAUDE.md`](CLAUDE.md). Full design: [`MARKIT_SPEC.md`](MARKIT_SPEC.md).
 - Shared code lives in `skills/markit-find/scripts/lib/` and `adapters/` (one file per source).
 - Set `MARKIT_CONFIG_DIR` to use a different config folder (the tests do this).
+- **Never run `npx skills add` or `npx skills remove` without `-g` inside this repo.** The installer treats the repo's `skills/` folder (marKit's source code) as an install location, so a project-scope remove deletes `skills/markit-*`. If that happens, restore it with `git restore skills/`. For development, use `./install.sh --link`.
 
 **Maintainers:** enable GitHub **secret scanning** and **push protection** for this repository (Settings → Code security), so a key can never be pushed by accident.
 

@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const repo = fileURLToPath(new URL("..", import.meta.url));
-const EXPECTED = "marKit: install all four skills together (markit-setup, markit-find, markit-usage, markit-dashboard). See README.";
+const EXPECTED = "marKit: install all four skills together (markit-setup, markit-find, markit-usage, markit-dashboard): npx skills add notsocj/markit -g --skill '*'  (see README).";
 
 for (const skill of ["markit-setup", "markit-usage", "markit-dashboard"]) {
   test(`${skill}: finds markit-find when all four skills are installed`, async () => {
