@@ -2,6 +2,7 @@
 //
 // The report must be easy to scan in any editor or GitHub preview:
 //   header → counts → source table → High cards → Medium cards → Low list (collapsed)
+//   → Keyword health (when marKit has learned something about the keywords)
 // Cards are numbered across the whole report, so the user can say "rewrite draft #3".
 //
 // SAFETY: titles, excerpts, site names, and authors come from strangers' posts. Markdown
@@ -13,6 +14,7 @@ import { SOURCE_LABELS } from "./profile.js";
 import { relativeTime } from "./normalize.js";
 import { contextLine } from "./context.js";
 import { prefilterLine } from "./filters.js";
+import { healthDetail } from "./learn.js";
 
 /** Escape untrusted text so markdown shows it literally, on a single line. */
 export function escapeMd(text) {
@@ -154,6 +156,28 @@ function sourceRows(rawSources, reported) {
 }
 
 /**
+ * The "Keyword health" section: one row per profile keyword (from your Replied / Skipped
+ * decisions and the agent's irrelevant verdicts, last 30 days), then any replacements the
+ * agent proposed. Proposals only: the profile changes only after the user says yes.
+ */
+export function keywordHealthSection({ days = 30, keywords = [], suggestions = [] }) {
+  const lines = ["## Keyword health", "", `_From your decisions and the agent's verdicts over the last ${days} days._`, ""];
+  lines.push("| Keyword | Health | Details |", "|---|---|---|");
+  for (const k of keywords) lines.push(`| ${escapeMd(k.keyword)} | ${escapeMd(k.flag)} | ${escapeMd(healthDetail(k))} |`);
+  lines.push("");
+  if (suggestions.length) {
+    lines.push("**Suggested replacements** (nothing changes until you say yes):", "");
+    for (const s of suggestions) {
+      const why = s.why ? ` · ${escapeMd(s.why)}` : "";
+      lines.push(`- "${escapeMd(s.keyword)}" → ${s.replacements.map((r) => `"${escapeMd(r)}"`).join(", ")}${why}`);
+    }
+    lines.push("");
+  }
+  lines.push("---", "");
+  return lines.join("\n");
+}
+
+/**
  * Build the report.
  *
  * @param {object} args
@@ -162,9 +186,10 @@ function sourceRows(rawSources, reported) {
  * @param {Date} [args.now] - for "2h ago"
  * @param {string} [args.timeZone] - for the header date (defaults to this computer's)
  * @param {object} [args.prefilter] - candidates.json's prefilter summary (counts only)
+ * @param {object} [args.keywordHealth] - { keywords, suggestions } from report.js, or null
  * @returns {{ markdown: string, numbered: { number: number, post: object }[] }}
  */
-export function renderReport({ raw, posts, now = new Date(), timeZone, prefilter }) {
+export function renderReport({ raw, posts, now = new Date(), timeZone, prefilter, keywordHealth = null }) {
   const reported = sortPosts(posts.filter((p) => p.intent !== "irrelevant"));
   const numbered = reported.map((post, i) => ({ number: i + 1, post }));
   const high = numbered.filter((n) => n.post.priority === "high");
@@ -204,6 +229,8 @@ export function renderReport({ raw, posts, now = new Date(), timeZone, prefilter
     for (const { number, post } of low) out.push(lowLine(post, number));
     out.push("", "</details>", "");
   }
+
+  if (keywordHealth) out.push(keywordHealthSection(keywordHealth));
 
   out.push("_marKit only drafts. Read each thread and its community rules before replying, and always disclose that you made the app._", "");
   return { markdown: out.join("\n"), numbered };

@@ -30,6 +30,7 @@ The full design is in `MARKIT_SPEC.md`.
 - Check each API's current official docs before writing or changing its adapter.
 - Project scanning (`lib/project.js`) enforces its never-read rules in code: secrets, `.env*`, `node_modules`, build output, dot-folders, and lock files are never listed. Add tests when changing those rules.
 - Thread context (adapter `context()`) must go through `lib/context.js` `buildContext()`, which keeps only username + excerpt + score per comment. Paid sources only fetch context when `contextForPaidSources` is on, and always within `paidBudget` caps; record every call in usage.json.
+- Feedback (Replied/Skipped + reasons) lives only in `feedback.json`, written through `lib/feedback.js` (`recordDecision`, `mergeAgentVerdicts`). Don't add a second store. Entries are built from an allow-list of card fields; notes are plain text ≤ 140 chars. Learning (`lib/learn.js`) is counting only, and lessons never change the profile: keyword changes need the user's yes.
 - Tests mock `fetch` (pass `fetchImpl`); they never hit the real network. Use `MARKIT_CONFIG_DIR` or temp folders, never the real `~/.config/markit`.
 
 ## Dashboard (`skills/markit-dashboard`)
@@ -37,4 +38,5 @@ The full design is in `MARKIT_SPEC.md`.
 - Icons are inline SVG `<symbol>`s at the top of the page (Solar, CC BY 4.0; platform logos from Simple Icons, CC0). To add one, copy its body from `https://api.iconify.design/solar.json?icons=<name>` into a new `<symbol id="i-<name>" viewBox="0 0 24 24">` (resolve Iconify aliases to their parent), and remove symbols you stop using. Never load icons from a CDN.
 - The font is Poppins (OFL), bundled in `scripts/fonts/` and served by exact name from `FONT_FILES` in `dashboard.js`. Don't bundle fonts whose license forbids redistribution (e.g. Satoshi); the logo wordmark is Satoshi converted to outlines in `docs/brand/`.
 - Pickers use the page's own dropdown component (`makeDropdown`), not native `<select>`.
+- The page reads `dashboard-page.html` once at startup: restart the server to see page changes.
 - Check UI changes in a browser at desktop, ~1000px, and phone widths, in dark and light mode.

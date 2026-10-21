@@ -304,6 +304,39 @@
   .modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 30; padding: 16px; }
   .modal { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; box-shadow: var(--shadow); width: 100%; max-width: 420px; padding: 20px; display: grid; gap: 14px; }
   .modal h2 { margin: 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+
+  /* ---------- Skip dialog: one-tap reasons (marKit learns from them) ---------- */
+  .modal.skip-modal { max-width: 520px; }
+  .skip-sub { margin: -8px 0 0; font-size: 12.5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500; }
+  .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .chip kbd { font-size: 10px; padding: 1px 4px; }
+  .skip-note { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-2); border-radius: 10px; padding: 0 10px; background: var(--bg); }
+  .skip-note:focus-within { border-color: var(--accent); }
+  .skip-note input { flex: 1; border: 0; background: transparent; outline: none; padding: 9px 0; min-width: 0; }
+  .skip-note input::placeholder { color: var(--faint); }
+  .skip-note .count { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .skip-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .d-skipped { background: var(--low-soft); border: 1px solid transparent; } .d-skipped .ic { color: var(--low); }
+
+  /* ---------- Keyword health (Analytics) ---------- */
+  .kw-list { display: grid; gap: 12px; }
+  .kw-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; font-size: 13px; }
+  .kw-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kw-detail { grid-column: 1 / -1; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .flag { font-size: 11.5px; font-weight: 600; border-radius: 6px; padding: 1px 8px; }
+  .flag-productive { background: var(--ok-soft); color: var(--ok); }
+  .flag-noisy { background: var(--medium-soft); color: var(--medium); }
+  .flag-dead { background: var(--high-soft); color: var(--high); }
+  .flag-ok, .flag-new { background: var(--low-soft); color: var(--low); }
+  .kw-sugg { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 10px; font-size: 13px; }
+  .kw-sugg h3 { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .kw-sugg-item { display: grid; gap: 4px; overflow-wrap: anywhere; }
+  .kw-sugg-item .muted { font-size: 12px; }
+  .kw-sugg-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--faint); }
+  .kw-sugg-foot span { min-width: 0; }
+  .kw-sugg-foot .link-btn { flex: none; white-space: nowrap; }
   .keys { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; font-size: 13.5px; align-items: center; }
   .keys .k { display: flex; gap: 4px; justify-content: flex-end; }
 
@@ -333,7 +366,7 @@
     .btn.d-back { display: inline-flex; margin-left: -8px; }
     .d-scroll { padding: 18px 16px; } .d-actions { padding: 12px 16px; } .d-sep { display: none; }
     .toast { white-space: nowrap; max-width: calc(100vw - 24px); }
-    .d-actions kbd, .btn kbd { display: none; }
+    .d-actions kbd, .btn kbd, .chip kbd { display: none; }
     .analytics { padding: 18px 16px 32px; }
     .an-grid, .kpis { grid-template-columns: 1fr; }
   }
@@ -481,12 +514,25 @@
       <span class="k"><kbd>J</kbd><kbd>↓</kbd></span><span>Next opportunity</span>
       <span class="k"><kbd>K</kbd><kbd>↑</kbd></span><span>Previous opportunity</span>
       <span class="k"><kbd>R</kbd></span><span>Mark replied</span>
-      <span class="k"><kbd>S</kbd></span><span>Skip</span>
+      <span class="k"><kbd>S</kbd></span><span>Skip (then <kbd>1</kbd>–<kbd>6</kbd> for a reason, <kbd>↵</kbd> for none)</span>
       <span class="k"><kbd>U</kbd></span><span>Undo the last mark (while its notice shows)</span>
       <span class="k"><kbd>C</kbd></span><span>Copy draft reply</span>
       <span class="k"><kbd>O</kbd></span><span>Open the post</span>
       <span class="k"><kbd>/</kbd></span><span>Search</span>
       <span class="k"><kbd>?</kbd></span><span>Show these shortcuts</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="skip" hidden>
+  <div class="modal skip-modal" role="dialog" aria-modal="true" aria-labelledby="skip-title">
+    <h2 id="skip-title"><span>Skip <span id="skip-num"></span>: why?</span> <button class="icon-btn" id="skip-close" type="button" aria-label="Cancel"><svg class="ic" aria-hidden="true"><use href="#i-close-circle-linear"/></svg></button></h2>
+    <p class="skip-sub muted">Optional. marKit learns from your reasons to find better posts.</p>
+    <div class="chips" id="skip-chips" role="group" aria-label="Reason"></div>
+    <label class="skip-note"><input id="skip-note" type="text" maxlength="140" placeholder="Add a short note (optional)" autocomplete="off" aria-label="Note"><span class="count" id="skip-count">0/140</span></label>
+    <div class="skip-actions">
+      <button class="btn btn-ghost" id="skip-cancel" type="button">Cancel <kbd>Esc</kbd></button>
+      <button class="btn" id="skip-plain" type="button">Skip without reason <kbd>↵</kbd></button>
     </div>
   </div>
 </div>
@@ -564,6 +610,16 @@ const INTENTS = {
   direct_mention: "Mentions your app",
 };
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+// Skip reasons, in the order of the chips (1–6). The server accepts only these codes.
+const SKIP_REASONS = [
+  ["not_my_audience", "Not my audience"],
+  ["already_solved", "Already solved"],
+  ["wrong_meaning", "Wrong meaning"],
+  ["too_promotional", "Too promotional to reply"],
+  ["bans_promotion", "Community bans promotion"],
+  ["other", "Other"],
+];
+const HEALTH_LABELS = { productive: "Productive", noisy: "Noisy", dead: "Dead", ok: "OK", new: "New" };
 
 // Which platform logo to show for a card.
 function platformOf(card) {
@@ -823,9 +879,9 @@ async function loadCards(token) {
 }
 
 async function loadAllForAnalytics(token) {
-  const { cards, stats } = await api(cardsUrl("all"));
+  const { cards, stats, keywordHealth } = await api(cardsUrl("all"));
   if (token !== navToken) return false;
-  state.allCards = { cards, stats };
+  state.allCards = { cards, stats, keywordHealth };
   return true;
 }
 
@@ -911,7 +967,7 @@ function renderList() {
     const tags = [el("span", { cls: "pill score " + c.priority, attrs: { title: "Fit score" } }, [icon("i-graph-up-linear", "ic ic-sm"), String(c.score)])];
     if (c.matchedKeyword) tags.push(el("span", { cls: "pill", attrs: { title: "Found by keyword" } }, [icon("i-tag-linear", "ic ic-sm"), c.matchedKeyword]));
     if (c.status === "replied") tags.push(el("span", { cls: "pill badge-ok" }, [icon("i-check-circle-linear", "ic ic-sm"), "Replied"]));
-    if (c.status === "skipped") tags.push(el("span", { cls: "pill badge-skip" }, [icon("i-close-circle-linear", "ic ic-sm"), "Skipped"]));
+    if (c.status === "skipped") tags.push(el("span", { cls: "pill badge-skip" }, [icon("i-close-circle-linear", "ic ic-sm"), c.reasonLabel ? "Skipped · " + c.reasonLabel : "Skipped"]));
     const item = el("button", { cls: "item" + (c.id === state.selectedId ? " is-active" : "") + (done ? " is-done" : ""), attrs: { type: "button", role: "option", "aria-selected": String(c.id === state.selectedId), "data-id": c.id } }, [
       c.status === "open" ? el("span", { cls: "unread", attrs: { "aria-hidden": "true" } }) : null,
       el("div", { cls: "item-top" }, [platBadge(c), el("span", { cls: "item-site", text: c.label }), el("span", { text: "·" }), el("span", { text: age(c.createdAt) }), el("span", { cls: "item-eng" }, engagementNodes(c))]),
@@ -971,6 +1027,10 @@ function renderDetail() {
       ...c.alsoPostedAt.filter(isWebLink).map((u) => el("a", { text: u.replace(/^https?:\/\//, "").slice(0, 70), attrs: { href: u, target: "_blank", rel: "noopener noreferrer" } })),
     ]));
   }
+  if (c.status !== "open" && (c.reasonLabel || c.note)) {
+    const head = c.status === "skipped" ? "Skipped" + (c.reasonLabel ? ": " + c.reasonLabel : "") : "Replied";
+    blocks.push(el("div", { cls: "d-note d-skipped" }, [icon(c.status === "skipped" ? "i-archive-linear" : "i-check-circle-linear"), el("div", {}, [el("b", { text: head }), c.note ? "“" + c.note + "”" : null])]));
+  }
   if (c.excerpt) blocks.push(el("section", { cls: "d-block" }, [el("div", { cls: "d-label" }, [icon("i-chat-round-line-linear", "ic ic-sm"), "The post"]), el("blockquote", { cls: "d-post", text: c.excerpt })]));
   if (c.why) blocks.push(el("section", { cls: "d-block" }, [el("div", { cls: "d-label" }, [icon("i-lightbulb-bolt-linear", "ic ic-sm"), "Why it fits"]), el("p", { cls: "d-why", text: c.why })]));
   if (c.caution) blocks.push(el("div", { cls: "d-note d-caution" }, [icon("i-danger-triangle-linear"), el("div", {}, [el("b", { text: "Caution" }), c.caution])]));
@@ -1002,7 +1062,7 @@ function renderDetail() {
   const replied = el("button", { cls: "btn btn-ghost" + (c.status === "replied" ? " is-on" : ""), attrs: { type: "button" } }, [icon("i-check-circle-linear"), c.status === "replied" ? "Replied" : "Mark replied", el("kbd", { text: "R" })]);
   replied.addEventListener("click", () => setStatus(c, "replied"));
   const skip = el("button", { cls: "btn btn-ghost" + (c.status === "skipped" ? " is-on-skip" : ""), attrs: { type: "button" } }, [icon("i-close-circle-linear"), c.status === "skipped" ? "Skipped" : "Skip", el("kbd", { text: "S" })]);
-  skip.addEventListener("click", () => setStatus(c, "skipped"));
+  skip.addEventListener("click", () => requestSkip(c));
   const actions = [replied, skip, el("span", { cls: "grow" })];
   if (c.draftReply) {
     const copyBtn = el("button", { cls: "btn", attrs: { type: "button" } }, [icon("i-copy-linear"), "Copy draft", el("kbd", { text: "C" })]);
@@ -1082,8 +1142,41 @@ function renderAnalytics() {
       el("div", { cls: "card" }, [el("h2", {}, [icon("i-bolt-linear", "ic ic-sm"), "Priority"]), stack, legend, el("h2", {}, [icon("i-check-circle-linear", "ic ic-sm"), "Progress"]), statusStack, statusLegend]),
       el("div", { cls: "card" }, [el("h2", {}, [icon("i-tag-linear", "ic ic-sm"), "Top keywords"]), byKeyword.length ? hbars(byKeyword, total) : el("p", { cls: "muted", text: "No data yet." })]),
       el("div", { cls: "card" }, [el("h2", {}, [icon("i-target-linear", "ic ic-sm"), "What people are asking"]), byIntent.length ? hbars(byIntent, total) : el("p", { cls: "muted", text: "No data yet." })]),
+      keywordPanel(state.allCards?.keywordHealth),
     ]),
   ]));
+}
+
+// Keyword health from the newest run's cards.json (written by report.js from your
+// Replied/Skipped decisions), plus any keyword replacements the agent proposed. The panel
+// only suggests: the profile changes when you tell your agent "yes" in chat.
+function keywordPanel(kh) {
+  const head = el("h2", {}, [icon("i-tag-linear", "ic ic-sm"), "Keyword health"]);
+  if (!kh || !kh.keywords.length) {
+    return el("div", { cls: "card" }, [head, el("p", { cls: "muted", text: "Mark cards Replied or Skipped (with a reason). After your next run, marKit rates each keyword here." })]);
+  }
+  const rows = el("div", { cls: "kw-list" }, kh.keywords.map((k) => el("div", { cls: "kw-row" }, [
+    el("span", { cls: "kw-name", text: k.keyword, attrs: { title: k.keyword } }),
+    el("span", { cls: "flag flag-" + k.flag, text: HEALTH_LABELS[k.flag] || k.flag }),
+    el("span", { cls: "kw-detail", text: k.detail }),
+  ])));
+  const parts = [head, rows];
+  if (kh.suggestions.length) {
+    parts.push(el("div", { cls: "kw-sugg" }, [
+      el("h3", { text: "Suggested replacements" }),
+      ...kh.suggestions.map((sg) => {
+        const ask = "Yes, replace the keyword \"" + sg.keyword + "\" with " + sg.replacements.map((r) => "\"" + r + "\"").join(" and ") + " in my " + state.app + " profile";
+        const copy = el("button", { cls: "link-btn", attrs: { type: "button" } }, [icon("i-copy-linear", "ic ic-sm"), "Copy"]);
+        copy.addEventListener("click", () => copyText(ask, "Copied. Paste it in your agent's chat to update the profile."));
+        return el("div", { cls: "kw-sugg-item" }, [
+          el("div", {}, [el("b", { text: sg.keyword }), " → " + sg.replacements.join(", ")]),
+          sg.why ? el("span", { cls: "muted", text: sg.why }) : null,
+          el("div", { cls: "kw-sugg-foot" }, [el("span", { text: "Nothing changes until you say yes to your agent." }), copy]),
+        ]);
+      }),
+    ]));
+  }
+  return el("div", { cls: "card" }, parts);
 }
 
 // =============================================================================
@@ -1154,8 +1247,12 @@ async function copyText(text, message) {
   toast(message);
 }
 
-async function saveStatus(id, status) {
-  await api("/api/status", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, status }) });
+// Sends only { id, status, reason?, note? }. The server re-checks everything.
+async function saveStatus(id, status, { reason = "", note = "" } = {}) {
+  const body = { id, status };
+  if (status === "skipped" && reason) body.reason = reason;
+  if (status !== "open" && note) body.note = note;
+  return api("/api/status", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 }
 
 /** Refresh counts (and replies-this-week) from the server, unless the user has moved on. */
@@ -1167,14 +1264,17 @@ async function refreshStats(token) {
 const saving = new Set(); // ids with a save in flight: repeat presses are ignored meanwhile
 
 // Replied / Skipped toggle. Pressing it again on the same card returns it to "To do".
-async function setStatus(card, status) {
+// `extra` carries the skip reason and note from the skip dialog.
+async function setStatus(card, status, extra = {}) {
   if (saving.has(card.id)) return;
   const token = navToken;
   const before = card.status;
+  const beforeExtra = { reason: card.reason || "", note: card.note || "" };
   const next = before === status ? "open" : status;
+  let saved;
   saving.add(card.id);
   try {
-    await saveStatus(card.id, next);
+    saved = await saveStatus(card.id, next, extra);
   } catch (err) {
     toast("Couldn't save: " + err.message);
     return;
@@ -1184,6 +1284,7 @@ async function setStatus(card, status) {
   if (token !== navToken) return; // the user switched app/run while it saved
   const index = visibleCards().findIndex((c) => c.id === card.id); // its place before it moves
   card.status = next;
+  card.reason = saved.reason || ""; card.reasonLabel = saved.reasonLabel || ""; card.note = saved.note || "";
   state.allCards = null;
   await refreshStats(token);
   if (token !== navToken) return;
@@ -1197,15 +1298,19 @@ async function setStatus(card, status) {
   renderDetail();
 
   const undo = async () => {
+    let restored;
     try {
-      await saveStatus(card.id, before);
+      restored = await saveStatus(card.id, before, beforeExtra);
     } catch (err) {
       toast("Couldn't undo: " + err.message);
       return;
     }
     if (token !== navToken) return;
     const live = state.cards.find((c) => c.id === card.id); // the card as shown now
-    if (live) live.status = before;
+    if (live) {
+      live.status = before;
+      live.reason = restored.reason || ""; live.reasonLabel = restored.reasonLabel || ""; live.note = restored.note || "";
+    }
     state.allCards = null;
     await refreshStats(token);
     if (token !== navToken) return;
@@ -1213,7 +1318,68 @@ async function setStatus(card, status) {
     renderCounts(); renderList(); renderDetail();
     toast("Undone");
   };
-  toast(next === "open" ? "Moved #" + card.number + " back to To do" : "Marked #" + card.number + " as " + next, undo);
+  const why = card.reasonLabel ? " (" + card.reasonLabel + ")" : "";
+  toast(next === "open" ? "Moved #" + card.number + " back to To do" : "Marked #" + card.number + " as " + next + why, undo);
+}
+
+// ---------- Skip dialog ----------
+// Skip asks "why?" with one-tap reason chips (and an optional note). A card that's already
+// skipped goes straight back to To do instead.
+let skipFor = null; // the card the dialog is open for
+const skipOpen = () => !$("#skip").hidden;
+const skipChips = SKIP_REASONS.map(([code, label], i) => {
+  const chip = el("button", { cls: "chip", attrs: { type: "button", "data-reason": code } }, [el("kbd", { text: String(i + 1) }), label]);
+  chip.addEventListener("click", () => confirmSkip(code));
+  return chip;
+});
+$("#skip-chips").replaceChildren(...skipChips);
+const updateSkipCount = () => { $("#skip-count").textContent = $("#skip-note").value.length + "/140"; };
+
+function requestSkip(card) {
+  if (card.status === "skipped") return setStatus(card, "skipped"); // toggle back to To do
+  skipFor = card;
+  $("#skip-num").textContent = "#" + card.number;
+  $("#skip-note").value = "";
+  updateSkipCount();
+  $("#skip").hidden = false;
+  skipChips[0].focus();
+}
+function closeSkip() {
+  $("#skip").hidden = true;
+  skipFor = null;
+}
+function confirmSkip(reason) {
+  const card = skipFor;
+  if (!card) return;
+  const note = $("#skip-note").value.trim().slice(0, 140);
+  closeSkip();
+  setStatus(card, "skipped", { reason, note });
+}
+$("#skip-note").addEventListener("input", updateSkipCount);
+$("#skip-note").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); confirmSkip(""); } });
+$("#skip-plain").addEventListener("click", () => confirmSkip(""));
+$("#skip-cancel").addEventListener("click", closeSkip);
+$("#skip-close").addEventListener("click", closeSkip);
+$("#skip").addEventListener("click", (e) => { if (e.target === $("#skip")) closeSkip(); });
+
+/** Keys while the skip dialog is open. Returns true if it handled the key. */
+function skipKeys(e) {
+  if (!skipOpen()) return false;
+  if (e.key === "Escape") { e.preventDefault(); closeSkip(); return true; }
+  if (e.key === "Tab") {
+    // Keep focus inside the dialog.
+    const items = [...$("#skip").querySelectorAll("button, input")];
+    const i = items.indexOf(document.activeElement);
+    e.preventDefault();
+    items[(i + (e.shiftKey ? -1 : 1) + items.length) % items.length].focus();
+    return true;
+  }
+  if (document.activeElement === $("#skip-note")) return true; // typing a note
+  const n = Number(e.key);
+  if (Number.isInteger(n) && n >= 1 && n <= SKIP_REASONS.length) { e.preventDefault(); confirmSkip(SKIP_REASONS[n - 1][0]); return true; }
+  // Enter on a focused button clicks it; Enter elsewhere skips without a reason.
+  if (e.key === "Enter" && !document.activeElement?.closest?.("button")) { e.preventDefault(); confirmSkip(""); }
+  return true; // nothing behind the dialog reacts while it's open
 }
 
 // =============================================================================
@@ -1264,6 +1430,7 @@ $("#keys").addEventListener("click", (e) => { if (e.target === $("#keys")) close
 
 document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (skipKeys(e)) return; // the skip dialog gets the keys first
   if (openMenu && openMenu.handleKey(e)) return; // an open dropdown gets the keys first
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
   if (e.key === "Escape") {
@@ -1289,7 +1456,7 @@ document.addEventListener("keydown", (e) => {
     case "k": case "ArrowUp": e.preventDefault(); move(-1); break;
     case "/": e.preventDefault(); $("#q").focus(); break;
     case "r": if (c) setStatus(c, "replied"); break;
-    case "s": if (c) setStatus(c, "skipped"); break;
+    case "s": if (c) { e.preventDefault(); requestSkip(c); } break;
     case "c": if (c?.draftReply) copyText(c.draftReply, "Draft copied"); break;
     case "o": if (c && isWebLink(c.url)) window.open(c.url, "_blank", "noopener,noreferrer"); break;
   }

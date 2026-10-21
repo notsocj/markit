@@ -6,13 +6,14 @@
 //   - candidates.js runs the full PREFILTER on raw.json + web.json, so the agent (the
 //     expensive part) only judges the best ~40 posts. Each step is its own function:
 //       dropTooOld → dropExcluded → dropSeen → dropLanguages → dedupeCrossPosts
-//       → preScoreAll → keepTop
+//       → preScoreAll → penalizeCommunities → keepTop
 //     Every "drop" step returns { kept, dropped } so the run can report how many posts
 //     each rule removed (counts only, never post content).
 //
 // None of this uses AI: it's plain, predictable rules a learner can read and adjust.
 
 import { searchQuery } from "./normalize.js";
+import { communityOf, SKIP_REASONS } from "./feedback.js";
 
 /** Escape a word so it can be used safely inside a regular expression. */
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -309,6 +310,32 @@ export function preScore(post, profile, now = new Date()) {
 /** Pre-score every post (returns new objects with preScore + preScoreReasons added). */
 export function preScoreAll(posts, profile, now = new Date()) {
   return posts.map((post) => ({ ...post, ...preScore(post, profile, now) }));
+}
+
+/**
+ * Lower the pre-score of posts from communities you keep skipping (from your feedback, see
+ * lib/learn.js communityPenalties). They are NEVER dropped here: a community you skip for
+ * "bans promotion" can still have the one thread worth answering, so the agent decides.
+ *
+ * @param {object[]} posts - pre-scored posts
+ * @param {Map<string, string>} penalties - community → reason code
+ * @param {number} [points] - how much to subtract (learn.js COMMUNITY_PENALTY, 15)
+ * @returns {{ posts: object[], penalized: number }}
+ */
+export function penalizeCommunities(posts, penalties = new Map(), points = 15) {
+  if (!penalties.size) return { posts, penalized: 0 };
+  let penalized = 0;
+  const out = posts.map((post) => {
+    const reason = penalties.get(communityOf(post));
+    if (!reason) return post;
+    penalized++;
+    return {
+      ...post,
+      preScore: Math.max(0, post.preScore - points),
+      preScoreReasons: [...(post.preScoreReasons ?? []), `often skipped: ${(SKIP_REASONS[reason] ?? reason).toLowerCase()}`],
+    };
+  });
+  return { posts: out, penalized };
 }
 
 /** 7. Keep the best `max` posts by preScore (ties: newest first). */

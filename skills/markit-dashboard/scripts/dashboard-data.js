@@ -6,7 +6,9 @@
 //   <reportsDir>/<app>/<run>/raw.json       run info for that fallback
 //
 // READS AND WRITES exactly one file in the config folder:
-//   ~/.config/markit/status.json   { "ids": { "<post id>": { "status": "replied", "updatedAt": "..." } } }
+//   ~/.config/markit/feedback.json   your Replied / Skipped decisions (+ skip reason and note),
+//                                    shared with feedback.js and report.js (lib/feedback.js)
+// and reads the old status.json once, only to import marks saved before feedback.json existed.
 //
 // Nothing else from the config folder is ever read or exposed here: not .env, not profiles,
 // not usage.json. (dashboard.js reads settings.json once at startup to find reportsDir, and
@@ -21,11 +23,13 @@
 
 import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { readJsonFile, writeJsonFile } from "../../markit-find/scripts/lib/files.js";
+import { readJsonFile } from "../../markit-find/scripts/lib/files.js";
 import { validateScored } from "../../markit-find/scripts/lib/scored.js";
 import { sortPosts, sourceLabel } from "../../markit-find/scripts/lib/render-report.js";
 import { cleanContext, contextLine } from "../../markit-find/scripts/lib/context.js";
 import { prefilterLine } from "../../markit-find/scripts/lib/filters.js";
+import { readFeedback, recordDecision, statusMapFrom, validateDecision, SKIP_REASONS, REASON_LABELS } from "../../markit-find/scripts/lib/feedback.js";
+import { healthDetail } from "../../markit-find/scripts/lib/learn.js";
 
 // App names follow the same rule as profiles (lib/config.js validateAppName).
 export const APP_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
@@ -35,6 +39,8 @@ export const RUN_NAME = /^\d{4}-\d{2}-\d{2}-\d{4}(-\d{1,3})?$/;
 export const POST_ID = /^[a-z0-9][a-z0-9:._-]{0,199}$/i;
 // The only statuses the dashboard can set. "open" means "clear the mark".
 export const STATUSES = ["replied", "skipped", "open"];
+// The only fields POST /api/status accepts.
+const STATUS_FIELDS = ["id", "status", "reason", "note"];
 
 const isDir = (p) => {
   try {
@@ -121,7 +127,7 @@ export function loadRun(reportsDir, app, run) {
   try {
     const cardsFile = readJsonFile(path.join(dir, "cards.json"), null);
     if (cardsFile && Array.isArray(cardsFile.cards)) {
-      return { app, run, ranAt: cardsFile.ranAt ?? "", lookbackDays: cardsFile.lookbackDays, prefilter: prefilterLine(cardsFile.prefilter), cards: cardsFile.cards.map(pick) };
+      return { app, run, ranAt: cardsFile.ranAt ?? "", lookbackDays: cardsFile.lookbackDays, prefilter: prefilterLine(cardsFile.prefilter), keywordHealth: cleanKeywordHealth(cardsFile.keywordHealth), cards: cardsFile.cards.map(pick) };
     }
     const raw = readJsonFile(path.join(dir, "raw.json"), {});
     const scored = readJsonFile(path.join(dir, "scored.json"), null);
@@ -131,6 +137,45 @@ export function loadRun(reportsDir, app, run) {
   } catch {
     return null; // a broken or half-written run is just skipped
   }
+}
+
+/** Plain single-line text, at most `max` characters (for keyword-health strings). */
+const shortText = (v, max) => String(v ?? "").replace(/[\u0000-\u001F\u007F-\u009F]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+const count = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
+const HEALTH_FLAGS = ["productive", "noisy", "dead", "ok", "new"];
+
+/**
+ * Re-check cards.json's keywordHealth field by field (the file could have been edited), and
+ * add each keyword's one-line detail for the Keywords panel. Returns null if absent.
+ */
+export function cleanKeywordHealth(kh) {
+  if (!kh || typeof kh !== "object" || !Array.isArray(kh.keywords)) return null;
+  const keywords = kh.keywords.slice(0, 10).filter((k) => k && typeof k === "object").map((k) => {
+    const reasons = {};
+    for (const code of Object.keys(REASON_LABELS)) if (count(k.reasons?.[code])) reasons[code] = count(k.reasons[code]);
+    const clean = {
+      keyword: shortText(k.keyword, 100),
+      flag: HEALTH_FLAGS.includes(k.flag) ? k.flag : "new",
+      shown: count(k.shown),
+      replied: count(k.replied),
+      skipped: count(k.skipped),
+      agentIrrelevant: count(k.agentIrrelevant),
+      reasons,
+      candidatesRecent: Number.isInteger(k.candidatesRecent) ? k.candidatesRecent : null,
+    };
+    return { ...clean, detail: healthDetail(clean) };
+  }).filter((k) => k.keyword);
+  const suggestions = (Array.isArray(kh.suggestions) ? kh.suggestions : []).slice(0, 8).filter((s) => s && typeof s === "object").map((s) => ({
+    keyword: shortText(s.keyword, 100),
+    replacements: (Array.isArray(s.replacements) ? s.replacements : []).slice(0, 3).map((r) => shortText(r, 100)).filter(Boolean),
+    why: shortText(s.why, 200),
+  })).filter((s) => s.keyword && s.replacements.length);
+  return { keywords, suggestions };
+}
+
+/** Keyword health from one run's cards.json (null for runs made before it existed). */
+export function runKeywordHealth(reportsDir, app, run) {
+  return loadRun(reportsDir, app, run)?.keywordHealth ?? null;
 }
 
 /** The prefilter summary line for one run ("" for runs made before candidates.js). */
@@ -174,44 +219,76 @@ export function loadCards(reportsDir, app, run, statusMap = {}) {
     for (const card of r.cards) {
       if (seen.has(card.id)) continue;
       seen.add(card.id);
-      cards.push({ ...card, app, run: r.run, ranAt: r.ranAt, status: statusMap[card.id]?.status ?? "open" });
+      const mark = statusMap[card.id];
+      // reason/note only for skipped/replied cards; the reason as both its code and its label.
+      cards.push({ ...card, app, run: r.run, ranAt: r.ranAt, status: mark?.status ?? "open", reason: mark?.reason ?? "", reasonLabel: REASON_LABELS[mark?.reason] ?? "", note: mark?.note ?? "" });
     }
   }
   return cards;
 }
 
-/** status.json as { id: { status, updatedAt } }. Missing or broken file → empty. */
-export function readStatus(statusFile) {
+/**
+ * Your decisions as { id: { status, updatedAt, reason, note } }, read from feedback.json
+ * (or imported from the old status.json). Missing or broken file → empty.
+ */
+export function readStatus(feedbackFile, legacyStatusFile) {
   try {
-    const data = readJsonFile(statusFile, { ids: {} });
-    return data && typeof data.ids === "object" && data.ids !== null ? data.ids : {};
+    return statusMapFrom(readFeedback(feedbackFile, { legacyStatusFile }));
   } catch {
     return {};
   }
 }
 
 /**
- * Validate a status update from the browser. Accepts ONLY { id, status }: a string id that
- * looks like a marKit post id, and a status from the fixed list. Anything else is refused.
+ * Find a card by post id in the reports folder (newest run first). The dashboard only sends
+ * an id, so this is where the card's details for feedback.json come from. Returns
+ * { app, card } or null.
+ */
+export function findCard(reportsDir, id) {
+  for (const app of listApps(reportsDir)) {
+    for (const run of listRunNames(reportsDir, app)) {
+      const card = loadRun(reportsDir, app, run)?.cards.find((c) => c.id === id);
+      if (card) return { app, card };
+    }
+  }
+  return null;
+}
+
+/**
+ * Validate a status update from the browser. Accepts ONLY { id, status, reason?, note? }:
+ *   id      a string that looks like a marKit post id
+ *   status  replied | skipped | open
+ *   reason  skipped only, one of the fixed codes (not_my_audience, already_solved,
+ *           wrong_meaning, too_promotional, bans_promotion, other)
+ *   note    optional text; HTML is stripped, then it's trimmed and cut to 140 characters
+ * Any other field, type, or value is refused.
  *
- * @returns {{ ok: true, id, status } | { ok: false, error }}
+ * @returns {{ ok: true, id, status, reason, note } | { ok: false, error }}
  */
 export function validateStatusUpdate(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: "body must be a JSON object" };
-  const keys = Object.keys(body).sort();
-  if (keys.length !== 2 || keys[0] !== "id" || keys[1] !== "status") return { ok: false, error: "body must be exactly { id, status }" };
+  const keys = Object.keys(body);
+  if (!keys.includes("id") || !keys.includes("status") || keys.some((k) => !STATUS_FIELDS.includes(k))) {
+    return { ok: false, error: "body must be { id, status, reason?, note? }" };
+  }
   if (typeof body.id !== "string" || !POST_ID.test(body.id)) return { ok: false, error: "invalid id" };
   if (typeof body.status !== "string" || !STATUSES.includes(body.status)) return { ok: false, error: `status must be one of: ${STATUSES.join(", ")}` };
-  return { ok: true, id: body.id, status: body.status };
+  const check = validateDecision({ status: body.status, reason: body.reason, note: body.note });
+  if (!check.ok) return check;
+  return { ok: true, id: body.id, status: check.status, reason: check.reason, note: check.note };
 }
 
-/** Save one card's status. "open" removes the mark. */
-export function writeStatus(statusFile, id, status, now = new Date()) {
-  const ids = readStatus(statusFile);
-  if (status === "open") delete ids[id];
-  else ids[id] = { status, updatedAt: now.toISOString() };
-  writeJsonFile(statusFile, { ids });
-  return ids[id] ?? { status: "open" };
+/**
+ * Save one card's decision to feedback.json. "open" removes it. The card must exist in the
+ * reports folder (so nothing can fill feedback.json with made-up ids).
+ *
+ * @returns {object|null} the saved { status, reason, note, ... }, or null if the card is unknown
+ */
+export function writeStatus({ feedbackFile, legacyStatusFile, reportsDir }, { id, status, reason = "", note = "" }, now = new Date()) {
+  const found = findCard(reportsDir, id);
+  if (!found) return null;
+  const saved = recordDecision(feedbackFile, { card: found.card, app: found.app, status, reason, note, now, legacyStatusFile });
+  return { status: saved.status, reason: saved.reason ?? "", reasonLabel: SKIP_REASONS[saved.reason] ?? "", note: saved.note ?? "", updatedAt: saved.decidedAt };
 }
 
 /**

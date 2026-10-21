@@ -48,7 +48,7 @@ function fixture() {
   mkdirSync(join(reportsDir, "gridpeek", "notes"), { recursive: true });
   mkdirSync(join(reportsDir, "..hidden"), { recursive: true });
 
-  return { home, configDir, reportsDir, statusFile: join(configDir, "status.json") };
+  return { home, configDir, reportsDir, feedbackFile: join(configDir, "feedback.json"), statusFile: join(configDir, "status.json") };
 }
 
 const servers = [];
@@ -56,7 +56,7 @@ after(() => servers.forEach((d) => d.stop("test done")));
 
 async function startDashboard(opts = {}) {
   const f = fixture();
-  const dash = createDashboard({ reportsDir: f.reportsDir, statusFile: f.statusFile, ...opts });
+  const dash = createDashboard({ reportsDir: f.reportsDir, feedbackFile: f.feedbackFile, legacyStatusFile: f.statusFile, ...opts });
   servers.push(dash);
   const { port } = await dash.start({ port: 0 });
   return { ...f, dash, port };
@@ -123,7 +123,7 @@ test("if the port is busy, it tries the next one", async () => {
   await new Promise((r) => blocker.once("listening", r));
   const busy = blocker.address().port;
   const f = fixture();
-  const dash = createDashboard({ reportsDir: f.reportsDir, statusFile: f.statusFile });
+  const dash = createDashboard({ reportsDir: f.reportsDir, feedbackFile: f.feedbackFile, legacyStatusFile: f.statusFile });
   servers.push(dash);
   const { port } = await dash.start({ port: busy, tries: 10 });
   assert.ok(port > busy && port < busy + 10, `got ${port}, busy was ${busy}`);
@@ -199,12 +199,18 @@ test("unknown methods get 405, unknown paths 404", async () => {
 
 // --- Status endpoint: input validation ---------------------------------------------
 
-test("POST /api/status saves a valid { id, status } to status.json", async () => {
-  const { port, statusFile } = await startDashboard();
+const feedbackEntry = (file, id) => JSON.parse(readFileSync(file, "utf8")).entries.find((e) => e.id === id);
+
+test("POST /api/status saves a valid { id, status } to feedback.json, with the card's details", async () => {
+  const { port, feedbackFile } = await startDashboard();
   const r = await post(port, { id: "sc-1", status: "replied" });
   assert.equal(r.status, 200);
   assert.equal(r.json().status, "replied");
-  assert.equal(JSON.parse(readFileSync(statusFile, "utf8")).ids["sc-1"].status, "replied");
+  const entry = feedbackEntry(feedbackFile, "sc-1");
+  assert.equal(entry.status, "replied");
+  assert.equal(entry.app, "gridpeek");
+  assert.equal(entry.community, "r/formula1");
+  assert.equal(entry.title, "alert(1)", "HTML stripped from the stored title");
 
   const cards = (await request(port, { path: "/api/cards?app=gridpeek&run=latest" })).json();
   assert.equal(cards.cards[0].status, "replied");
@@ -212,11 +218,41 @@ test("POST /api/status saves a valid { id, status } to status.json", async () =>
   assert.equal(cards.stats.repliesThisWeek, 1);
 
   assert.equal((await post(port, { id: "sc-1", status: "open" })).status, 200);
-  assert.equal(JSON.parse(readFileSync(statusFile, "utf8")).ids["sc-1"], undefined, "'open' clears the mark");
+  assert.equal(feedbackEntry(feedbackFile, "sc-1"), undefined, "'open' clears the mark");
+});
+
+test("POST /api/status: skip with a reason and a note (HTML stripped, trimmed, cut to 140)", async () => {
+  const { port, feedbackFile } = await startDashboard();
+  const note = "  <b>mods</b> remove <script>alert(1)</script>app links " + "x".repeat(300);
+  const r = await post(port, { id: "hn-2", status: "skipped", reason: "bans_promotion", note });
+  assert.equal(r.status, 200);
+  assert.equal(r.json().reasonLabel, "Community bans promotion");
+  const entry = feedbackEntry(feedbackFile, "hn-2");
+  assert.equal(entry.reason, "bans_promotion");
+  assert.ok(entry.note.startsWith("mods remove alert(1)app links"), entry.note);
+  assert.ok(entry.note.length <= 140);
+  assert.ok(!/[<>]/.test(entry.note));
+  const card = (await request(port, { path: "/api/cards?app=gridpeek&run=latest" })).json().cards.find((c) => c.id === "hn-2");
+  assert.deepEqual([card.status, card.reason, card.reasonLabel], ["skipped", "bans_promotion", "Community bans promotion"]);
+});
+
+test("POST /api/status: an id that isn't a card in the reports folder → 404, nothing saved", async () => {
+  const { port, feedbackFile } = await startDashboard();
+  assert.equal((await post(port, { id: "hn-404", status: "replied" })).status, 404);
+  assert.ok(!existsSync(feedbackFile));
+});
+
+test("an old status.json is imported into feedback.json", async () => {
+  const f = fixture();
+  writeFileSync(f.statusFile, JSON.stringify({ ids: { "hn-2": { status: "skipped", updatedAt: new Date().toISOString() } } }));
+  assert.equal(readStatus(f.feedbackFile, f.statusFile)["hn-2"].status, "skipped");
+  // The next save writes feedback.json, keeping the imported mark.
+  writeStatus({ feedbackFile: f.feedbackFile, legacyStatusFile: f.statusFile, reportsDir: f.reportsDir }, { id: "sc-1", status: "replied" });
+  assert.deepEqual(Object.keys(readStatus(f.feedbackFile, f.statusFile)).sort(), ["hn-2", "sc-1"]);
 });
 
 test("POST /api/status rejects everything else", async () => {
-  const { port, statusFile } = await startDashboard();
+  const { port, feedbackFile } = await startDashboard();
   const cases = [
     ["no Origin", post(port, { id: "sc-1", status: "replied" }, { origin: "" }), 403],
     ["foreign Origin", post(port, { id: "sc-1", status: "replied" }, { origin: "https://evil.example" }), 403],
@@ -233,9 +269,14 @@ test("POST /api/status rejects everything else", async () => {
     ["id with spaces/HTML", post(port, { id: "<img src=x>", status: "replied" }), 400],
     ["id too long", post(port, { id: "a".repeat(300), status: "replied" }), 400],
     ["id not a string", post(port, { id: 42, status: "replied" }), 400],
+    ["reason not in list", post(port, { id: "sc-1", status: "skipped", reason: "boring" }), 400],
+    ["agent-only reason", post(port, { id: "sc-1", status: "skipped", reason: "agent_irrelevant" }), 400],
+    ["reason with replied", post(port, { id: "sc-1", status: "replied", reason: "other" }), 400],
+    ["reason not a string", post(port, { id: "sc-1", status: "skipped", reason: ["other"] }), 400],
+    ["note not a string", post(port, { id: "sc-1", status: "skipped", note: { html: "<b>" } }), 400],
   ];
   for (const [name, promise, expected] of cases) assert.equal((await promise).status, expected, name);
-  assert.ok(!existsSync(statusFile), "nothing was written");
+  assert.ok(!existsSync(feedbackFile), "nothing was written");
 });
 
 test("POST /api/status: a large chunked body (no Content-Length) is also refused", async () => {
@@ -253,7 +294,9 @@ test("POST /api/status: a large chunked body (no Content-Length) is also refused
 });
 
 test("validateStatusUpdate unit checks", () => {
-  assert.deepEqual(validateStatusUpdate({ id: "bsky-did:plc:abc-3kx", status: "skipped" }), { ok: true, id: "bsky-did:plc:abc-3kx", status: "skipped" });
+  assert.deepEqual(validateStatusUpdate({ id: "bsky-did:plc:abc-3kx", status: "skipped" }), { ok: true, id: "bsky-did:plc:abc-3kx", status: "skipped", reason: "", note: "" });
+  assert.deepEqual(validateStatusUpdate({ id: "a", status: "skipped", reason: "wrong_meaning", note: " <i>meh</i> " }), { ok: true, id: "a", status: "skipped", reason: "wrong_meaning", note: "meh" });
+  assert.equal(validateStatusUpdate({ id: "a", status: "skipped", reason: "Wrong meaning" }).ok, false, "the API takes codes only");
   assert.equal(validateStatusUpdate(null).ok, false);
   assert.equal(validateStatusUpdate("x").ok, false);
   assert.equal(validateStatusUpdate({ status: "replied", id: "a", x: 1 }).ok, false);
@@ -288,12 +331,14 @@ test("computeStats counts per platform and replies this week", () => {
   assert.deepEqual(computeStats(cards, statusMap, now), { total: 3, perPlatform: { Reddit: 2, Bluesky: 1 }, repliesThisWeek: 1, replied: 1, skipped: 1, open: 1 });
 });
 
-test("status.json round trip and data listing ignore junk folders", () => {
+test("feedback round trip and data listing ignore junk folders", () => {
   const f = fixture();
-  assert.deepEqual(readStatus(f.statusFile), {});
-  writeStatus(f.statusFile, "hn-2", "skipped", new Date("2026-10-21T00:00:00Z"));
-  assert.deepEqual(readStatus(f.statusFile), { "hn-2": { status: "skipped", updatedAt: "2026-10-21T00:00:00.000Z" } });
-  assert.equal(loadCards(f.reportsDir, "gridpeek", "2026-10-21-2100", readStatus(f.statusFile))[1].status, "skipped");
+  const files = { feedbackFile: f.feedbackFile, reportsDir: f.reportsDir };
+  assert.deepEqual(readStatus(f.feedbackFile), {});
+  const now = new Date();
+  writeStatus(files, { id: "hn-2", status: "skipped", reason: "other" }, now);
+  assert.deepEqual(readStatus(f.feedbackFile), { "hn-2": { status: "skipped", updatedAt: now.toISOString(), reason: "other", note: "" } });
+  assert.equal(loadCards(f.reportsDir, "gridpeek", "2026-10-21-2100", readStatus(f.feedbackFile))[1].status, "skipped");
   assert.deepEqual(listApps(f.reportsDir), ["gridpeek"]);
   assert.equal(listRuns(f.reportsDir, "gridpeek").length, 2, "'notes' isn't a run");
 });
@@ -354,7 +399,7 @@ test("dashboard cards carry the thread line, also-posted links, and the run's pr
   data.cards[0].context = { commentCount: 7, appsAlreadySuggested: 3, solved: false, locked: false, topComments: [{ author: "a", excerpt: "<b>hi</b>", score: 1, email: "x@y" }] };
   data.cards[0].alsoPostedAt = ["https://forum.example/t/1", "javascript:alert(1)"];
   writeFileSync(cardsFile, JSON.stringify(data));
-  const dash = createDashboard({ reportsDir: f.reportsDir, statusFile: f.statusFile });
+  const dash = createDashboard({ reportsDir: f.reportsDir, feedbackFile: f.feedbackFile, legacyStatusFile: f.statusFile });
   servers.push(dash);
   const { port } = await dash.start({ port: 0 });
   const r = (await request(port, { path: "/api/cards?app=gridpeek&run=latest" })).json();

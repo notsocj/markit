@@ -147,3 +147,45 @@ export function validateScored(data, rawIds) {
   }
   return out;
 }
+
+export const MAX_REPLACEMENTS = 3;
+
+/**
+ * Check scored.json's optional keyword suggestions (only when scored.json is an object):
+ *
+ *   "keywordSuggestions": [
+ *     { "keyword": "F1 travel app",                       ← one of the profile's keywords
+ *       "replacements": ["app for F1 race weekend trips"], ← 1–3 new search phrases
+ *       "why": "mostly matched F1 news, not trip planning" }
+ *   ]
+ *
+ * These are only PROPOSALS shown in the report and the dashboard. Nothing changes the
+ * profile until the user says yes and the agent saves it with setup.js app.
+ *
+ * @param {*} data - parsed scored.json
+ * @param {string[]} [keywords] - the profile's keywords (when known, suggestions must name one)
+ * @returns {{ keyword, replacements, why }[]}
+ * @throws {Error} listing every problem
+ */
+export function validateKeywordSuggestions(data, keywords) {
+  const list = data && !Array.isArray(data) ? data.keywordSuggestions : undefined;
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list)) throw new Error('marKit: scored.json "keywordSuggestions" must be a list.');
+
+  const known = keywords?.length ? new Map(keywords.map((k) => [k.trim().toLowerCase(), k])) : null;
+  const clean = (v, max) => String(v).replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+  const errors = [];
+  const out = [];
+  list.slice(0, 8).forEach((s, i) => {
+    const where = `keywordSuggestions[${i}]`;
+    if (!s || typeof s !== "object" || !isFilled(s.keyword)) return errors.push(`${where}: needs a "keyword"`);
+    const keyword = known ? known.get(s.keyword.trim().toLowerCase()) : clean(s.keyword, 100);
+    if (!keyword) return errors.push(`${where}: "${clean(s.keyword, 60)}" is not one of the profile's keywords`);
+    const reps = Array.isArray(s.replacements) ? s.replacements.filter(isFilled).map((r) => clean(r, 100)) : [];
+    if (!reps.length || reps.length > MAX_REPLACEMENTS) return errors.push(`${where}: "replacements" must list 1–${MAX_REPLACEMENTS} phrases`);
+    if (s.why !== undefined && !isText(s.why)) return errors.push(`${where}: "why" must be text`);
+    out.push({ keyword, replacements: reps, why: clean(s.why ?? "", 200) });
+  });
+  if (errors.length) throw new Error(`marKit: scored.json has ${errors.length} problem(s):\n${errors.map((e) => `  - ${e}`).join("\n")}`);
+  return out;
+}

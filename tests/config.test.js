@@ -48,6 +48,7 @@ test("getPaths lists every config file inside the config dir", () => {
     settingsFile: "/home/sam/.config/markit/settings.json",
     seenFile: "/home/sam/.config/markit/seen.json",
     usageFile: "/home/sam/.config/markit/usage.json",
+    feedbackFile: "/home/sam/.config/markit/feedback.json",
     statusFile: "/home/sam/.config/markit/status.json",
   });
 });

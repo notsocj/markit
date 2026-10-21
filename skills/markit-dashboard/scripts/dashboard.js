@@ -11,7 +11,9 @@
 //   GET  /api/apps         app names that have reports
 //   GET  /api/runs?app=    that app's runs, newest first
 //   GET  /api/cards?app=&run=latest|all|<run>   cards (with Replied/Skipped status) + stats
-//   POST /api/status       { id, status } with status in: replied, skipped, open
+//                          + prefilter line + keyword health (for the Keywords panel)
+//   POST /api/status       { id, status, reason?, note? }: status in replied, skipped, open;
+//                          reason (skipped only) from a fixed list; note ≤ 140 chars, plain text
 //
 // SECURITY (this is a web server, so it gets extra care):
 //   - Binds to 127.0.0.1 only: other computers on your network can't reach it.
@@ -20,9 +22,11 @@
 //     127.0.0.1 to talk to servers on your machine.
 //   - POST /api/status also requires: an Origin header from this same page (blocks other
 //     websites from submitting to it), Content-Type application/json, a body under 1 KB,
-//     and exactly { id, status } with a status from a fixed list.
+//     only the fields { id, status, reason?, note? }, values from fixed lists, and an id
+//     that belongs to a card in the reports folder. The note is stripped of HTML.
 //   - Read-only everywhere else. Serves data from the REPORTS folder only. From the config
-//     folder it only ever touches status.json. It never serves .env, profiles, or usage.
+//     folder it only ever touches feedback.json (and reads the old status.json once, to
+//     import it). It never serves .env, profiles, or usage.
 //   - Strict Content-Security-Policy: only this page's own inline script/style (with a
 //     random nonce per start) may run; no external requests, no framing.
 //   - The page shows post text with textContent (never as HTML), because post text is
@@ -96,11 +100,13 @@ function readBody(req, limit) {
  *
  * @param {object} opts
  * @param {string} opts.reportsDir - where search.js/report.js write runs
- * @param {string} opts.statusFile - ~/.config/markit/status.json
+ * @param {string} opts.feedbackFile - ~/.config/markit/feedback.json (Replied/Skipped + reasons)
+ * @param {string} [opts.legacyStatusFile] - the old status.json, imported if feedback.json is new
  * @param {number} [opts.idleMs] - shut down after this long without requests
  * @param {(reason: string) => void} [opts.onStop] - called once after shutdown
  */
-export function createDashboard({ reportsDir, statusFile, idleMs = IDLE_MS, onStop = () => {} }) {
+export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, idleMs = IDLE_MS, onStop = () => {} }) {
+  const files = { feedbackFile, legacyStatusFile, reportsDir };
   let port = null;
   let idleTimer = null;
   let stopped = false;
@@ -175,10 +181,13 @@ export function createDashboard({ reportsDir, statusFile, idleMs = IDLE_MS, onSt
         if (!data.APP_NAME.test(app)) return sendJson(req, res, 400, { error: "invalid app" });
         if (run !== "latest" && run !== "all" && !data.RUN_NAME.test(run)) return sendJson(req, res, 400, { error: "invalid run" });
         if (run === "latest") run = data.latestRun(reportsDir, app);
-        const statusMap = data.readStatus(statusFile);
+        const statusMap = data.readStatus(feedbackFile, legacyStatusFile);
         const cards = run ? data.loadCards(reportsDir, app, run, statusMap) : [];
         const prefilter = run && run !== "all" ? data.runPrefilter(reportsDir, app, run) : "";
-        return sendJson(req, res, 200, { app, run, cards, prefilter, stats: data.computeStats(cards, statusMap) });
+        // Keyword health: from the chosen run, or the newest run when showing all of them.
+        const healthRun = run === "all" ? data.latestRun(reportsDir, app) : run;
+        const keywordHealth = healthRun ? data.runKeywordHealth(reportsDir, app, healthRun) : null;
+        return sendJson(req, res, 200, { app, run, cards, prefilter, keywordHealth, stats: data.computeStats(cards, statusMap) });
       }
       return sendJson(req, res, 404, { error: "not found" });
     }
@@ -200,10 +209,12 @@ export function createDashboard({ reportsDir, statusFile, idleMs = IDLE_MS, onSt
         if (err.code === "TOO_LARGE") return sendJson(req, res, 413, { error: "body too large" });
         return sendJson(req, res, 400, { error: "body must be valid JSON" });
       }
-      // 4. Exactly { id, status }, with a status from the fixed list.
+      // 4. Only { id, status, reason?, note? }, with values from the fixed lists.
       const check = data.validateStatusUpdate(body);
       if (!check.ok) return sendJson(req, res, 400, { error: check.error });
-      const saved = data.writeStatus(statusFile, check.id, check.status);
+      // 5. The id must be a card in the reports folder (its details go into feedback.json).
+      const saved = data.writeStatus(files, check);
+      if (!saved) return sendJson(req, res, 404, { error: "unknown card" });
       return sendJson(req, res, 200, { id: check.id, ...saved });
     }
 
@@ -283,7 +294,8 @@ async function main() {
   const { reportsDir } = config.loadSettings(paths);
   const dashboard = createDashboard({
     reportsDir,
-    statusFile: paths.statusFile,
+    feedbackFile: paths.feedbackFile,
+    legacyStatusFile: paths.statusFile,
     onStop: (reason) => {
       console.log(reason === "idle" ? "marKit dashboard stopped after 30 minutes without use." : "marKit dashboard stopped.");
       process.exit(0);

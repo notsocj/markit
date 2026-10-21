@@ -23,6 +23,7 @@ disallowed-tools: Read(~/.config/markit/.env)
 2. Tell the user the URL from that line. Mention:
    - It only runs on their computer (127.0.0.1) and stops by itself after 30 minutes without use (or Ctrl+C / stopping the background task).
    - They can filter by app, run, platform, and priority; copy drafts; open posts; and mark cards **Replied** or **Skipped** (saved locally so they're tracked across sessions).
+   - **Skip asks why** with one-tap reasons (Not my audience, Already solved, Wrong meaning, Too promotional to reply, Community bans promotion, Other) and an optional note. marKit learns from them: the next /markit-find gets stricter on noisy keywords and lowers communities they keep skipping. The **Analytics** view has a Keyword health panel with any keyword replacements the agent proposed (nothing changes until they say yes in chat).
    - **Rewriting a draft happens here in chat, by card number**: e.g. "rewrite draft #3". Do that with the markit-find flow (update `draftReply` in that run's `scored.json`, then run `report.js` again), then they press **Refresh** in the dashboard.
 3. If it says there are no reports yet, suggest running /markit-find first. If it says marKit isn't set up, suggest /markit-setup.
 

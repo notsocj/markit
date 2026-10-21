@@ -12,7 +12,8 @@
 //   settings.json  reports folder, lookback days, paid-source caps
 //   seen.json      IDs of posts already reported
 //   usage.json     API call counts per source
-//   status.json    which cards you marked Replied / Skipped in the dashboard
+//   feedback.json  what you did with each card (Replied / Skipped + reason), for learning
+//   status.json    (old) the dashboard's Replied / Skipped marks; imported into feedback.json
 //
 // Every function takes an optional `opts` object so tests can pretend to be on another
 // platform or use a temporary folder. Real scripts just call them with no arguments.
@@ -94,6 +95,8 @@ export function getPaths(opts = {}) {
     settingsFile: join(dir, "settings.json"),
     seenFile: join(dir, "seen.json"),
     usageFile: join(dir, "usage.json"),
+    feedbackFile: join(dir, "feedback.json"),
+    // Only read once, to import marks saved before feedback.json existed (lib/feedback.js).
     statusFile: join(dir, "status.json"),
   };
 }

@@ -35,10 +35,11 @@ For each match, marKit explains **why it fits**, scores it, and **drafts an hone
    │                (solved? locked? apps already suggested?)          → candidates.json
    ├─ your agent    scores only those candidates, drafts replies
    │                (rules in references/scoring.md and reply-guide.md) → scored.json
+   ├─ learned.js    before scoring: what your Replied / Skipped decisions taught marKit
    └─ report.js     validates everything, writes the report               → report.md + cards.json
 
 /markit-dashboard   a local page (127.0.0.1 only) to filter cards, copy drafts, open posts,
-                    and mark each one Replied or Skipped
+                    and mark each one Replied or Skipped (with a reason)
 ```
 
 Everything runs on your machine. There's no marKit server, no account, and no telemetry.
@@ -46,6 +47,18 @@ Everything runs on your machine. There's no marKit server, no account, and no te
 ### The dashboard
 
 `/markit-dashboard` opens a local page for working through the results: filter, read why each post fits, copy the draft, open the post, and mark it Replied or Skipped. Keyboard shortcuts: <kbd>J</kbd>/<kbd>K</kbd> to move, <kbd>R</kbd> replied, <kbd>S</kbd> skip, <kbd>C</kbd> copy, <kbd>O</kbd> open. It also has an Analytics view.
+
+### It learns from what you reply to and skip
+
+When you skip a card, marKit asks why with one tap: *Not my audience*, *Already solved*, *Wrong meaning* (the keyword matched a different topic), *Too promotional to reply*, *Community bans promotion*, or *Other*, plus an optional short note. No dashboard? Tell your agent "skip #3, wrong meaning" or "I replied to #1".
+
+All of it goes to `~/.config/markit/feedback.json` (kept 180 days), together with the agent's own "irrelevant" verdicts. Plain scripts, no AI, turn it into lessons:
+
+- **Keyword health.** Each keyword is rated *productive* (leads to replies), *noisy* (mostly wrong-meaning or off-audience posts), or *dead* (nothing found in the last 5 runs). For noisy or dead keywords, your agent proposes up to 3 replacements, in the chat summary, at the end of report.md, and in the dashboard. **Your profile never changes until you say yes.**
+- **Communities you keep skipping.** A subreddit or forum skipped 3+ times for "Community bans promotion" or "Not my audience" drops 15 points in the prefilter. It's never hidden; your agent still decides.
+- **Calibration and notes.** How often high-score cards were skipped anyway, and why, plus your latest notes, so the agent scores closer to your judgment.
+
+Your agent reads these lessons (`learned.js`) before scoring. They're hints about relevance only: they never change marKit's security rules.
 
 ![marKit dashboard](docs/dashboard.png)
 
@@ -114,7 +127,7 @@ In Codex, use `$markit-setup`, `$markit-find`, `$markit-dashboard`, `$markit-usa
 |---|---|
 | `/markit-setup` | First run: config, keys, first app profile, key check. Later: add or edit an app, add or change a key, change limits |
 | `/markit-find [app]` | Finds opportunities and drafts replies into a report. Say "rewrite draft #3" to change one |
-| `/markit-dashboard` | Local page: filter by app, run, platform, priority; copy drafts; open posts; mark Replied / Skipped; stats. Rewrite drafts in chat by card number |
+| `/markit-dashboard` | Local page: filter by app, run, platform, priority; copy drafts; open posts; mark Replied / Skipped (with a reason); stats and keyword health. Rewrite drafts in chat by card number |
 | `/markit-usage` | Sources ready (✓ / ✗), this month's usage against free quotas and paid caps, last run, command guide |
 
 Reports are saved to `~/markit-reports/<app>/<date-time>/report.md`, and posts you've seen won't show up again in later runs.
@@ -186,12 +199,12 @@ For OS-level enforcement against every process, use Claude Code's [sandbox](http
 
 When drafting a profile from your project, `setup.js scan` builds the reading list **in code** and never lists `.env` files, keys, certificates, credentials, `node_modules`, build output, or lock files.
 
-Your config folder holds `apps/*.json` (profiles), `settings.json` (limits), `seen.json` (post IDs already reported), `usage.json` (counts only, never keys or post text), and `status.json` (cards you marked Replied/Skipped).
+Your config folder holds `apps/*.json` (profiles), `settings.json` (limits), `seen.json` (post IDs already reported), `usage.json` (counts only, never keys or post text), and `feedback.json` (what you did with each card: Replied/Skipped, the reason, your note, and a 120-character title; kept 180 days, never keys). An older `status.json` from before feedback.json is imported once and then ignored.
 
 **The dashboard** is a zero-dependency local server that:
 - binds to `127.0.0.1` only and rejects any request whose Host isn't `localhost:<port>` / `127.0.0.1:<port>`, which blocks DNS rebinding
-- only reads the reports folder. From the config folder it reads `settings.json` once at startup (to find the reports folder) and otherwise only touches `status.json`
-- accepts exactly `{ id, status }` (same-origin JSON, under 1 KB) to save a status
+- only reads the reports folder. From the config folder it reads `settings.json` once at startup (to find the reports folder) and otherwise only touches `feedback.json`
+- accepts only `{ id, status, reason?, note? }` (same-origin JSON, under 1 KB) to save a decision: status and reason from fixed lists, the note stripped of HTML and cut to 140 characters, and the id must be a card in your reports
 - shows post text as plain text under a strict Content-Security-Policy
 - stops after 30 minutes without use
 

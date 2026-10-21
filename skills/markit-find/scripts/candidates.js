@@ -18,11 +18,13 @@
 //   6. Merge cross-posts (same question posted twice): keep the most engaged copy and list
 //      the others in "alsoPostedAt".
 //   7. Pre-score every post 0–100 (a cheap, documented formula; no AI).
-//   8. Keep the top maxCandidates (settings.json, default 40).
-//   9. Fetch thread context (comments, solved, locked…) for the top maxContext (default 15)
+//   8. Lower the pre-score (−15) of communities you keep skipping for "Community bans
+//      promotion" or "Not my audience" (from feedback.json, see lib/learn.js). Never dropped.
+//   9. Keep the top maxCandidates (settings.json, default 40).
+//  10. Fetch thread context (comments, solved, locked…) for the top maxContext (default 15)
 //      through each adapter's optional context() method. Paid sources only if
 //      settings.contextForPaidSources is true, and always within their caps.
-//  10. Write candidates.json (+ a summary of how many posts each step dropped: counts only)
+//  11. Write candidates.json (+ a summary of how many posts each step dropped: counts only)
 //      and record every API call in usage.json.
 //
 // The agent then scores ONLY candidates.json.
@@ -40,7 +42,9 @@ import { loadSeen } from "./lib/seen.js";
 import { loadUsage, recordUsage } from "./lib/usage.js";
 import { sinceDate, excerpt, stripHtml, collapseWhitespace, toIsoDate } from "./lib/normalize.js";
 import { webIdFor } from "./lib/scored.js";
-import { dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, preScoreAll, keepTop, droppedSummary } from "./lib/filters.js";
+import { dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, preScoreAll, penalizeCommunities, keepTop, droppedSummary } from "./lib/filters.js";
+import { readFeedback } from "./lib/feedback.js";
+import { communityPenalties, COMMUNITY_PENALTY } from "./lib/learn.js";
 import { paidBudget, quotaBudget, safeReason } from "./search.js";
 import { ADAPTERS } from "./adapters/index.js";
 
@@ -113,7 +117,7 @@ export function paidContextBudget(adapter, { settings, usage, raw, meter, now })
  * @returns {Promise<{ output: object, meters: Record<string, object> }>}
  *   output — candidates.json content; meters — API usage per source, for usage.json
  */
-export async function buildCandidates({ raw, web = null, profile, settings, env = {}, seen = new Set(), usage = { months: {}, days: {} }, adapters = ADAPTERS, now = new Date(), http }) {
+export async function buildCandidates({ raw, web = null, profile, settings, env = {}, seen = new Set(), usage = { months: {}, days: {} }, feedback = [], adapters = ADAPTERS, now = new Date(), http }) {
   const lookback = raw.lookbackDays ?? profile.lookbackDays ?? settings.lookbackDays;
   const since = raw.since ? new Date(raw.since) : sinceDate(lookback, now);
 
@@ -124,7 +128,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
   let posts = [...byId.values()];
   const considered = posts.length;
 
-  // 2–8. The prefilter. Each step reports how many it dropped.
+  // 2–9. The prefilter. Each step reports how many it dropped.
   const dropped = { tooOld: 0, excluded: 0, alreadyReported: 0, language: 0, duplicate: 0, belowCutoff: 0 };
   let step;
   step = dropTooOld(posts, since); posts = step.kept; dropped.tooOld += step.dropped;
@@ -133,6 +137,8 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
   step = dropLanguages(posts, profile.languages ?? ["en"]); posts = step.kept; dropped.language += step.dropped;
   step = dedupeCrossPosts(posts); posts = step.kept; dropped.duplicate += step.dropped;
   posts = preScoreAll(posts, profile, now);
+  const penalty = penalizeCommunities(posts, communityPenalties(feedback, raw.app), COMMUNITY_PENALTY);
+  posts = penalty.posts;
   step = keepTop(posts, settings.maxCandidates ?? 40); posts = step.kept; dropped.belowCutoff += step.dropped;
 
   // search.js already dropped some posts per source before writing raw.json (too old,
@@ -146,7 +152,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
   // per-source "fetched" totals, so never report fewer than the posts actually in the file.
   const foundByApis = Math.max((raw.sources ?? []).reduce((sum, s) => sum + (s.fetched ?? 0), 0), (raw.posts ?? []).length);
 
-  // 9. Thread context for the best few.
+  // 10. Thread context for the best few.
   const meters = {};
   const contextStats = { fetched: 0, failed: 0, paidOff: 0, capped: 0, unsupported: 0 };
   const appNames = [profile.name];
@@ -208,6 +214,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
       considered,
       candidates: posts.length,
       maxCandidates: settings.maxCandidates ?? 40,
+      oftenSkipped: penalty.penalized, // posts whose pre-score your feedback lowered
       dropped,
       context: contextStats,
     },
@@ -228,6 +235,7 @@ export function formatSummary(output, file) {
     `marKit candidates · ${output.app}`,
     `  Found ${p.found} posts (${p.fromApis} from APIs, ${p.fromWeb} from web search${p.invalidWeb ? `, ${p.invalidWeb} invalid web entries skipped` : ""})`,
     `  Dropped: ${droppedSummary(p.dropped) || "none"}`,
+    ...(p.oftenSkipped ? [`  ${p.oftenSkipped} from communities you often skip (pre-score −${COMMUNITY_PENALTY}, still included)`] : []),
     `  ${p.candidates} candidates · thread context for ${c.fetched}${ctxNotes.length ? ` (${ctxNotes.join(", ")})` : ""}`,
     `candidates.json: ${file}`,
   ].join("\n");
@@ -252,6 +260,7 @@ async function main() {
     env: loadEnv(paths.envFile),
     seen: loadSeen(paths.seenFile),
     usage: loadUsage(paths.usageFile),
+    feedback: readFeedback(paths.feedbackFile, { legacyStatusFile: paths.statusFile, now }),
     now,
   });
   // One at a time: each call reads, updates, and rewrites usage.json.
