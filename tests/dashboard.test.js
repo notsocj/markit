@@ -337,4 +337,5 @@ test("the page credits its icons and fonts, and has no top-left logo icon", asyn
   assert.match(page, /Poppins \(SIL Open Font License 1\.1\)/);
   const sidebar = page.slice(page.indexOf('<aside class="side"'), page.indexOf("</aside>"));
   assert.ok(!sidebar.includes("logo-mark"), "sidebar shows the wordmark only");
+  assert.ok(!page.includes('class="brand-mark"'), "no logo icon anywhere on the page (wordmark only)");
 });
