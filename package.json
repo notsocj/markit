@@ -1,0 +1,17 @@
+{
+  "name": "markit",
+  "private": true,
+  "description": "Dev-only file for running marKit's tests. Users never need this file: they install the folders in skills/.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/notsocj/markit.git"
+  }
+}

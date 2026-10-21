@@ -1,0 +1,20 @@
+// index.js — the list of every script-based source marKit can search.
+//
+// search.js runs adapter.search() for each enabled source; usage.js runs adapter.check().
+// To add a source: write adapters/<name>.js with the shared shape (see hackernews.js),
+// then add it here. ("web" isn't listed: it's the agent's own web search, not a script.)
+
+import hackernews from "./hackernews.js";
+import stackexchange from "./stackexchange.js";
+import bluesky from "./bluesky.js";
+import youtube from "./youtube.js";
+import threads from "./threads.js";
+import x from "./x.js";
+import socialcrawl from "./socialcrawl.js";
+
+export const ADAPTERS = [hackernews, stackexchange, bluesky, youtube, threads, x, socialcrawl];
+
+/** Find an adapter by name, or undefined. */
+export function getAdapter(name) {
+  return ADAPTERS.find((adapter) => adapter.name === name);
+}

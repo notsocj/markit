@@ -1,0 +1,310 @@
+<!doctype html>
+<!--
+  dashboard-page.html — the marKit dashboard page, served by dashboard.js.
+
+  Self-contained on purpose: inline CSS and JS, no frameworks, no CDN, no fonts or images
+  from the internet. The server's Content-Security-Policy only lets this page's own
+  <style> and <script> run (they carry a random nonce, filled in where __NONCE__ appears).
+
+  SAFETY: post titles, excerpts, and drafts come from strangers' posts or from the agent.
+  They are ALWAYS inserted with textContent (shown as plain text), never innerHTML, so a
+  post containing <script> or <img onerror> can't run anything here.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>marKit dashboard</title>
+<style nonce="__NONCE__">
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2129; --muted: #626a77; --line: #e2e5ea;
+    --accent: #2f6fde; --accent-text: #ffffff; --high: #c2410c; --medium: #a16207; --low: #64748b;
+    --ok: #15803d; --warn-bg: #fff7e6; --warn-line: #f5c26b; --quote: #f1f3f6; --bar: #c7d7f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111317; --panel: #1a1d23; --text: #e6e8ec; --muted: #9aa2ae; --line: #2c313a;
+      --accent: #6b9cff; --accent-text: #0d1117; --high: #fb923c; --medium: #facc15; --low: #94a3b8;
+      --ok: #4ade80; --warn-bg: #2a2214; --warn-line: #8a6a2a; --quote: #22262d; --bar: #2f4a7a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 14px 16px; position: sticky; top: 0; z-index: 2; }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 18px; margin: 0; }
+  h1 span { color: var(--muted); font-weight: 500; }
+  .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+  select { font: inherit; font-size: 14px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); min-width: 120px; }
+  button, a.btn { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  button:hover, a.btn:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.on { border-color: var(--ok); color: var(--ok); font-weight: 600; }
+  main { padding: 16px; }
+  .stats { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .stat-num { font-size: 22px; font-weight: 700; }
+  .stat-label { color: var(--muted); font-size: 12px; }
+  .bars { display: flex; flex-direction: column; gap: 4px; }
+  .bar-row { display: grid; grid-template-columns: 110px 1fr 28px; gap: 6px; align-items: center; font-size: 12px; }
+  .bar-track { background: var(--quote); border-radius: 4px; height: 8px; overflow: hidden; }
+  .bar-fill { background: var(--bar); height: 100%; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .card.done { opacity: 0.6; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; color: var(--muted); font-size: 12px; }
+  .num { font-weight: 700; color: var(--text); font-size: 14px; }
+  .pri { font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.03em; }
+  .pri.high { color: var(--high); } .pri.medium { color: var(--medium); } .pri.low { color: var(--low); }
+  .badge { border: 1px solid var(--ok); color: var(--ok); border-radius: 999px; padding: 0 8px; font-size: 11px; }
+  h2 { font-size: 16px; margin: 6px 0 8px; overflow-wrap: anywhere; }
+  .excerpt { background: var(--quote); border-left: 3px solid var(--line); padding: 8px 12px; border-radius: 6px; color: var(--muted); margin: 8px 0; overflow-wrap: anywhere; }
+  .row { margin: 6px 0; }
+  .row b { font-weight: 600; }
+  .caution { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 6px 10px; margin: 8px 0; font-size: 14px; }
+  .draft-head { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .draft { white-space: pre-wrap; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 6px 0 10px; overflow-wrap: anywhere; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
+  .error { color: var(--high); }
+  @media (max-width: 600px) { select { min-width: 0; width: 100%; } label { flex: 1 1 45%; } .bar-row { grid-template-columns: 90px 1fr 24px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <h1>marKit <span>dashboard</span></h1>
+      <button id="refresh" type="button" title="Reload cards">Refresh</button>
+    </div>
+    <p class="hint">To rewrite a draft, say it in your agent's chat, e.g. "rewrite draft #3". Then press Refresh. marKit never posts for you.</p>
+    <div class="filters">
+      <label>App <select id="f-app"></select></label>
+      <label>Run <select id="f-run"></select></label>
+      <label>Platform <select id="f-platform"></select></label>
+      <label>Priority
+        <select id="f-priority">
+          <option value="all">All</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+        </select>
+      </label>
+      <label>Show
+        <select id="f-show">
+          <option value="open">To do</option><option value="all">All</option><option value="replied">Replied</option><option value="skipped">Skipped</option>
+        </select>
+      </label>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <section class="stats" id="stats" aria-live="polite"></section>
+  <section id="cards"></section>
+</main>
+
+<script nonce="__NONCE__">
+"use strict";
+// --- tiny helpers ---------------------------------------------------------------
+const $ = (sel) => document.querySelector(sel);
+
+// Build an element. `text` is set with textContent, so it's ALWAYS shown as plain text.
+function el(tag, { cls, text, attrs } = {}, children = []) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
+  for (const child of children) if (child) node.appendChild(child);
+  return node;
+}
+
+// Remember filter choices between visits (this browser only). Storage may be blocked,
+// so every access is wrapped.
+const store = {
+  get(key) { try { return localStorage.getItem("markit:" + key); } catch { return null; } },
+  set(key, value) { try { localStorage.setItem("markit:" + key, value); } catch {} },
+};
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || ("HTTP " + res.status));
+  return body;
+}
+
+function age(iso) {
+  const t = new Date(iso).getTime();
+  if (!iso || Number.isNaN(t)) return "date unknown";
+  const m = Math.max(0, Math.floor((Date.now() - t) / 60000));
+  if (m < 60) return m < 1 ? "just now" : m + "m ago";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + "h ago";
+  const d = Math.floor(h / 24);
+  return d < 14 ? d + "d ago" : Math.floor(d / 7) + "w ago";
+}
+
+function runLabel(r) {
+  const d = new Date(r.ranAt);
+  const when = Number.isNaN(d.getTime()) ? r.run : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return when + " · " + r.total + " (" + r.high + " high)";
+}
+
+// Only real web links may be opened (never javascript: or file: links).
+const isWebLink = (url) => /^https?:\/\//i.test(String(url || ""));
+
+// --- state ----------------------------------------------------------------------
+const state = { apps: [], runs: [], cards: [], stats: null };
+const filters = { app: "", run: "latest", platform: "all", priority: "all", show: store.get("show") || "open" };
+
+function fillSelect(select, options, value) {
+  select.replaceChildren(...options.map(([v, label]) => el("option", { text: label, attrs: { value: v } })));
+  select.value = options.some(([v]) => v === value) ? value : (options[0] ? options[0][0] : "");
+  return select.value;
+}
+
+// --- loading --------------------------------------------------------------------
+async function loadApps() {
+  const { apps } = await api("/api/apps");
+  state.apps = apps;
+  if (!apps.length) {
+    $("#cards").replaceChildren(el("p", { cls: "empty", text: "No reports yet. Run /markit-find first, then press Refresh." }));
+    $("#stats").replaceChildren();
+    return false;
+  }
+  filters.app = fillSelect($("#f-app"), apps.map((a) => [a, a]), store.get("app") || apps[0]);
+  return true;
+}
+
+async function loadRuns() {
+  const { runs } = await api("/api/runs?app=" + encodeURIComponent(filters.app));
+  state.runs = runs;
+  const options = [["latest", "Latest run"], ["all", "All runs"], ...runs.map((r) => [r.run, runLabel(r)])];
+  filters.run = fillSelect($("#f-run"), options, filters.run);
+}
+
+async function loadCards() {
+  const q = "?app=" + encodeURIComponent(filters.app) + "&run=" + encodeURIComponent(filters.run);
+  const { cards, stats } = await api("/api/cards" + q);
+  state.cards = cards;
+  state.stats = stats;
+  const platforms = [...new Set(cards.map((c) => c.platform))].sort();
+  filters.platform = fillSelect($("#f-platform"), [["all", "All"], ...platforms.map((p) => [p, p])], filters.platform);
+  render();
+}
+
+async function reloadAll() {
+  try {
+    if (await loadApps()) { await loadRuns(); await loadCards(); }
+  } catch (err) {
+    $("#cards").replaceChildren(el("p", { cls: "empty error", text: "Couldn't load: " + err.message + ". Is the dashboard still running?" }));
+  }
+}
+
+// --- actions --------------------------------------------------------------------
+async function setStatus(card, status) {
+  const next = card.status === status ? "open" : status; // clicking again clears it
+  try {
+    await api("/api/status", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: card.id, status: next }) });
+    await loadCards(); // refresh cards and stats together
+  } catch (err) {
+    alert("Couldn't save: " + err.message);
+  }
+}
+
+async function copyDraft(text, button) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Fallback for browsers that block the clipboard API.
+    const area = el("textarea");
+    area.value = text;
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  button.textContent = "Copied ✓";
+  setTimeout(() => { button.textContent = "Copy"; }, 1500);
+}
+
+// --- rendering ------------------------------------------------------------------
+function renderStats(visibleCount) {
+  const s = state.stats;
+  if (!s) return;
+  const max = Math.max(1, ...Object.values(s.perPlatform));
+  const bars = Object.entries(s.perPlatform).sort((a, b) => b[1] - a[1]).map(([name, n]) => {
+    const fill = el("div", { cls: "bar-fill" });
+    fill.style.width = Math.round((n / max) * 100) + "%"; // set via the DOM (allowed by the CSP)
+    return el("div", { cls: "bar-row" }, [el("span", { text: name }), el("div", { cls: "bar-track" }, [fill]), el("span", { text: String(n) })]);
+  });
+  $("#stats").replaceChildren(
+    el("div", {}, [el("div", { cls: "stat-num", text: String(s.total) }), el("div", { cls: "stat-label", text: "opportunities (" + visibleCount + " shown) · " + s.open + " to do · " + s.replied + " replied · " + s.skipped + " skipped" })]),
+    el("div", {}, [el("div", { cls: "stat-num", text: String(s.repliesThisWeek) }), el("div", { cls: "stat-label", text: "replies marked this week" })]),
+    el("div", { cls: "bars" }, bars.length ? bars : [el("span", { cls: "stat-label", text: "No opportunities in this run." })])
+  );
+}
+
+function renderCard(c) {
+  const done = c.status !== "open";
+  const title = c.title || (c.excerpt || "").slice(0, 80) || "(untitled)";
+  const meta = el("div", { cls: "meta" }, [
+    el("span", { cls: "num", text: "#" + c.number }),
+    el("span", { cls: "pri " + c.priority, text: c.priority }),
+    el("span", { text: c.label }),
+    el("span", { text: age(c.createdAt) }),
+    el("span", { text: "score " + c.score }),
+    filters.run === "all" ? el("span", { text: "run " + c.run }) : null,
+    done ? el("span", { cls: "badge", text: c.status === "replied" ? "Replied" : "Skipped" }) : null,
+  ]);
+
+  const parts = [meta, el("h2", { text: title })];
+  if (c.excerpt) parts.push(el("div", { cls: "excerpt", text: c.excerpt }));
+  if (c.why) parts.push(el("div", { cls: "row" }, [el("b", { text: "Why it fits: " }), document.createTextNode(c.why)]));
+  if (c.caution) parts.push(el("div", { cls: "caution", text: "⚠ " + c.caution }));
+  if (c.mention === "praise") parts.push(el("div", { cls: "row", text: "⭐ Praise: worth saving as a testimonial (ask before quoting it)." }));
+  if (c.mention === "bug") parts.push(el("div", { cls: "row", text: "🐞 Bug report: someone hit a problem with your app." }));
+
+  if (c.draftReply) {
+    const copy = el("button", { text: "Copy", attrs: { type: "button" } });
+    copy.addEventListener("click", () => copyDraft(c.draftReply, copy));
+    parts.push(el("div", { cls: "draft-head" }, [el("b", { text: "Draft reply" }), copy]));
+    parts.push(el("div", { cls: "draft", text: c.draftReply }));
+  } else {
+    parts.push(el("div", { cls: "row stat-label", text: 'No draft for low priority. Ask in chat: "write a reply for #' + c.number + '".' }));
+  }
+
+  const actions = el("div", { cls: "actions" });
+  if (isWebLink(c.url)) {
+    actions.appendChild(el("a", { cls: "btn", text: "Open post ↗", attrs: { href: c.url, target: "_blank", rel: "noopener noreferrer" } }));
+  }
+  for (const [status, label] of [["replied", "Replied"], ["skipped", "Skip"]]) {
+    const b = el("button", { cls: c.status === status ? "on" : "", text: (c.status === status ? "✓ " : "") + label, attrs: { type: "button" } });
+    b.addEventListener("click", () => setStatus(c, status));
+    actions.appendChild(b);
+  }
+  parts.push(actions);
+  return el("article", { cls: "card" + (done ? " done" : "") }, parts);
+}
+
+function render() {
+  const visible = state.cards.filter((c) =>
+    (filters.platform === "all" || c.platform === filters.platform) &&
+    (filters.priority === "all" || c.priority === filters.priority) &&
+    (filters.show === "all" || c.status === filters.show)
+  );
+  renderStats(visible.length);
+  $("#cards").replaceChildren(
+    ...(visible.length ? visible.map(renderCard) : [el("p", { cls: "empty", text: state.cards.length ? "Nothing matches these filters." : "No opportunities in this run." })])
+  );
+}
+
+// --- wiring ---------------------------------------------------------------------
+$("#f-app").addEventListener("change", async (e) => { filters.app = e.target.value; store.set("app", filters.app); filters.run = "latest"; await loadRuns(); await loadCards(); });
+$("#f-run").addEventListener("change", async (e) => { filters.run = e.target.value; await loadCards(); });
+$("#f-platform").addEventListener("change", (e) => { filters.platform = e.target.value; render(); });
+$("#f-priority").addEventListener("change", (e) => { filters.priority = e.target.value; render(); });
+$("#f-show").addEventListener("change", (e) => { filters.show = e.target.value; store.set("show", filters.show); render(); });
+$("#f-show").value = filters.show;
+$("#refresh").addEventListener("click", reloadAll);
+reloadAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Never commit secrets. marKit keeps real keys in ~/.config/markit/.env, outside this repo,
+# but this guards against someone copying one in by accident.
+.env
+.env.*
+
+# Local test output and OS clutter
+markit-reports/
+*.tmp
+.DS_Store
+node_modules/
