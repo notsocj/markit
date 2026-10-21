@@ -7,6 +7,7 @@
 //
 // What it serves:
 //   GET  /                 one self-contained HTML page (inline CSS + JS, no CDN, no frameworks)
+//   GET  /fonts/<file>     the bundled Poppins font files (exact names only; see FONT_FILES)
 //   GET  /api/apps         app names that have reports
 //   GET  /api/runs?app=    that app's runs, newest first
 //   GET  /api/cards?app=&run=latest|all|<run>   cards (with Replied/Skipped status) + stats
@@ -51,6 +52,12 @@ const BIND_ADDRESS = "127.0.0.1";
 
 // The page is read once at startup; __NONCE__ is filled in per server start.
 const PAGE_TEMPLATE = readFileSync(new URL("./dashboard-page.html", import.meta.url), "utf8");
+
+// The page's font, Poppins (SIL Open Font License 1.1, see fonts/OFL.txt), bundled so the
+// page never contacts a font CDN. Read into memory once; only these exact names are served,
+// so a request can't name any other file.
+export const FONT_FILES = ["poppins-400.woff2", "poppins-500.woff2", "poppins-600.woff2", "poppins-700.woff2"];
+const FONTS = new Map(FONT_FILES.map((name) => [name, readFileSync(new URL(`./fonts/${name}`, import.meta.url))]));
 
 /** True only for Host headers that name this server on this computer. */
 export function isAllowedHost(hostHeader, port) {
@@ -116,6 +123,7 @@ export function createDashboard({ reportsDir, statusFile, idleMs = IDLE_MS, onSt
       `script-src 'nonce-${nonce}'`,
       `style-src 'nonce-${nonce}'`,
       "connect-src 'self'",
+      "font-src 'self'",
       "img-src 'self' data:",
       "base-uri 'none'",
       "form-action 'none'",
@@ -146,6 +154,13 @@ export function createDashboard({ reportsDir, statusFile, idleMs = IDLE_MS, onSt
 
     if (req.method === "GET" || req.method === "HEAD") {
       if (url.pathname === "/") return send(req, res, 200, page, { ...pageHeaders, "content-type": "text/html; charset=utf-8" });
+
+      if (url.pathname.startsWith("/fonts/")) {
+        const font = FONTS.get(url.pathname.slice("/fonts/".length));
+        if (!font) return sendJson(req, res, 404, { error: "not found" });
+        res.writeHead(200, { ...baseHeaders, "content-type": "font/woff2", "content-length": font.length, "cache-control": "max-age=86400" });
+        return res.end(req.method === "HEAD" ? undefined : font);
+      }
 
       if (url.pathname === "/api/apps") return sendJson(req, res, 200, { apps: data.listApps(reportsDir) });
 

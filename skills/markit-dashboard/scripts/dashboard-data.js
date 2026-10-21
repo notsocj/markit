@@ -70,9 +70,20 @@ function listRunNames(reportsDir, app) {
  */
 const CARD_FIELDS = ["number", "id", "source", "site", "url", "title", "excerpt", "author", "createdAt", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention"];
 
+/** Engagement as plain numbers/booleans only (e.g. { score: 12, comments: 4 }). */
+function cleanEngagement(engagement) {
+  const out = {};
+  if (!engagement || typeof engagement !== "object") return out;
+  for (const [key, value] of Object.entries(engagement)) {
+    if (/^[a-zA-Z]{1,20}$/.test(key) && (Number.isFinite(value) || typeof value === "boolean")) out[key] = value;
+  }
+  return out;
+}
+
 function pick(card) {
   const out = {};
   for (const field of CARD_FIELDS) if (card[field] !== undefined) out[field] = card[field];
+  out.engagement = cleanEngagement(card.engagement);
   out.platform = sourceLabel(card).replace(/ r\/.*$/, ""); // "Reddit r/formula1" → "Reddit" for filtering
   out.label = sourceLabel(card); // full display name
   return out;

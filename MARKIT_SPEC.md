@@ -685,4 +685,20 @@ A 4th skill, installed with the other three and using the shared code. It gives 
 
 **Page:** filters (app, run incl. "All runs", platform, priority, show: to do / all / replied / skipped; app and "show" remembered in localStorage), stats with per-platform bars, numbered cards (priority, platform, age, score, title, excerpt, why it fits, caution, praise/bug note, draft with **Copy**, **Open post** for http(s) links only with `rel="noopener noreferrer"`, **Replied** / **Skip** toggles). All untrusted text is inserted with `textContent`, never `innerHTML`. Light and dark mode; works at phone width.
 
+**Design (redesign, 2026-10-22):** a real dashboard, inspired by (not copied from) inbox-style tools.
+- **Layout:** three columns:
+  - sidebar: the "marKit" wordmark (no icon), app switcher, Inbox views To do / Replied / Skipped / All with counts, Analytics, a latest-run card, and "only on this computer"
+  - opportunity list: search, run, platform, priority segment, and sort (best match / newest); each item shows the platform logo, site, age, engagement, number + title, score pill, and keyword
+  - detail pane: meta, title, score panel (score bar, priority, intent, found-by keyword), the post, why it fits, caution, praise/bug notes, and the draft with Copy plus a copyable "rewrite draft #N" instruction; action bar with Mark replied, Skip, Copy draft, and Open post
+- **Analytics view:** KPI cards (opportunities, replies this week, average score, runs), by platform, runs over time (stacked by priority), priority split, progress, top keywords, and intents.
+- **Behavior:** keyboard shortcuts (J/K, R, S, C, O, /, ?, Esc), an Undo toast after marking, auto-advance to the next card, and the choices of app/view/sort remembered in localStorage.
+- **Responsive:** an icon rail under 1180px; under 820px a top bar, a full-width list, and a full-screen detail with Back. Dark first, with light mode via `prefers-color-scheme`.
+- **Assets, all local:**
+  - Font: Poppins 400/500/600/700 woff2 (OFL, `scripts/fonts/`), served by `GET /fonts/<exact name>` from a fixed list, with CSP `font-src 'self'`.
+  - Icons: Solar (CC BY 4.0) and Simple Icons platform logos (CC0), embedded as an SVG `<symbol>` sprite. Iconify aliases (e.g. `magnifer-linear` → `magnifier-linear`) are resolved when building the sprite.
+  - Favicon: the logo mark as a `data:` SVG.
+  - Satoshi isn't bundled: its license forbids redistributing the font files, though it allows logos made from it, so the wordmark is outlined vector paths.
+- **Brand files:** `docs/brand/logo-mark.svg` (a violet speech bubble with a check, "mark it"), plus `logo-light.svg` and `logo-dark.svg` (mark + outlined Satoshi Bold wordmark).
+- **Data:** cards also carry `engagement`, cleaned to numbers and booleans only.
+
 **SKILL.md:** starts `node ${CLAUDE_SKILL_DIR}/scripts/dashboard.js` in the background, tells the user the URL, explains it's local-only and stops by itself, and that rewriting drafts happens in chat by card number (then press Refresh). The agent never marks cards Replied itself.

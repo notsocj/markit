@@ -61,7 +61,7 @@ export function buildReport({ raw, scored, seenDates = {}, now = new Date(), tim
 }
 
 // The fields a card needs, and nothing else (cards.json is read by the dashboard).
-const CARD_FIELDS = ["id", "source", "site", "url", "title", "excerpt", "author", "createdAt", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention"];
+const CARD_FIELDS = ["id", "source", "site", "url", "title", "excerpt", "author", "createdAt", "engagement", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention"];
 
 /** cards.json content: run info plus the numbered cards exactly as report.md shows them. */
 export function buildCards(raw, numbered) {

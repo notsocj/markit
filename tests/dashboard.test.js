@@ -297,3 +297,44 @@ test("status.json round trip and data listing ignore junk folders", () => {
   assert.deepEqual(listApps(f.reportsDir), ["gridpeek"]);
   assert.equal(listRuns(f.reportsDir, "gridpeek").length, 2, "'notes' isn't a run");
 });
+
+// --- Redesign (fonts, engagement) ----------------------------------------------------
+
+test("bundled Poppins fonts are served by exact name only", async () => {
+  const { port } = await startDashboard();
+  const ok = await new Promise((resolve, reject) => {
+    http.get({ host: "127.0.0.1", port, path: "/fonts/poppins-600.woff2", headers: { host: `127.0.0.1:${port}` } }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode, type: res.headers["content-type"], bytes: Buffer.concat(chunks) }));
+    }).on("error", reject);
+  });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.type, "font/woff2");
+  assert.equal(ok.bytes.subarray(0, 4).toString("latin1"), "wOF2", "a real woff2 file");
+  for (const path of ["/fonts/OFL.txt", "/fonts/poppins-600.woff2.bak", "/fonts/../dashboard.js", "/fonts/%2e%2e%2fdashboard.js", "/fonts/", "/fonts/Poppins-600.woff2"]) {
+    assert.equal((await request(port, { path })).status, 404, path);
+  }
+  const csp = (await request(port)).headers["content-security-policy"];
+  assert.match(csp, /font-src 'self'/);
+});
+
+test("cards carry engagement as numbers only", () => {
+  const f = fixture();
+  const cardsFile = join(f.reportsDir, "gridpeek", "2026-10-21-2100", "cards.json");
+  const data = JSON.parse(readFileSync(cardsFile, "utf8"));
+  data.cards[0].engagement = { score: 524, comments: 278, evil: "<script>", nested: { x: 1 }, "bad key!": 3, hasReplies: true };
+  writeFileSync(cardsFile, JSON.stringify(data));
+  const card = loadCards(f.reportsDir, "gridpeek", "2026-10-21-2100")[0];
+  assert.deepEqual(card.engagement, { score: 524, comments: 278, hasReplies: true });
+});
+
+test("the page credits its icons and fonts, and has no top-left logo icon", async () => {
+  const { port } = await startDashboard();
+  const page = (await request(port)).text;
+  assert.match(page, /Solar by 480 Design \(CC BY 4\.0/);
+  assert.match(page, /Simple Icons \(CC0\)/);
+  assert.match(page, /Poppins \(SIL Open Font License 1\.1\)/);
+  const sidebar = page.slice(page.indexOf('<aside class="side"'), page.indexOf("</aside>"));
+  assert.ok(!sidebar.includes("logo-mark"), "sidebar shows the wordmark only");
+});

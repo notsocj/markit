@@ -2,122 +2,510 @@
 <!--
   dashboard-page.html — the marKit dashboard page, served by dashboard.js.
 
-  Self-contained on purpose: inline CSS and JS, no frameworks, no CDN, no fonts or images
-  from the internet. The server's Content-Security-Policy only lets this page's own
-  <style> and <script> run (they carry a random nonce, filled in where __NONCE__ appears).
+  Self-contained on purpose: inline CSS and JS, no frameworks, no CDN. The only other
+  files it loads are the bundled Poppins fonts from this same server (/fonts/...).
+  The server's Content-Security-Policy only lets this page's own <style> and <script> run
+  (they carry a random nonce, filled in where __NONCE__ appears).
 
   SAFETY: post titles, excerpts, and drafts come from strangers' posts or from the agent.
   They are ALWAYS inserted with textContent (shown as plain text), never innerHTML, so a
   post containing <script> or <img onerror> can't run anything here.
+
+  Credits: icons are from Solar by 480 Design (CC BY 4.0) and platform logos from Simple
+  Icons (CC0), embedded below as SVG symbols. Font: Poppins (SIL Open Font License 1.1).
+  The marKit logo's wordmark is Satoshi converted to outlines.
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>marKit dashboard</title>
+<meta name="color-scheme" content="dark light">
+<title>marKit</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22mk-g%22%20x1%3D%223%22%20y1%3D%223%22%20x2%3D%2229%22%20y2%3D%2229%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%239A86FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%235B3CF0%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Cpath%20fill%3D%22url%28%23mk-g%29%22%20d%3D%22M8%203h16a5%205%200%200%201%205%205v11a5%205%200%200%201-5%205h-8.3l-5.5%204.5c-.8.7-2.1.1-2.1-1V24H8a5%205%200%200%201-5-5V8a5%205%200%200%201%205-5z%22%2F%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M10.6%2013.6l3.7%203.7%207.3-7.3%22%2F%3E%3C%2Fsvg%3E">
 <style nonce="__NONCE__">
+  @font-face { font-family: "Poppins"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/poppins-400.woff2") format("woff2"); }
+  @font-face { font-family: "Poppins"; font-weight: 500; font-style: normal; font-display: swap; src: url("/fonts/poppins-500.woff2") format("woff2"); }
+  @font-face { font-family: "Poppins"; font-weight: 600; font-style: normal; font-display: swap; src: url("/fonts/poppins-600.woff2") format("woff2"); }
+  @font-face { font-family: "Poppins"; font-weight: 700; font-style: normal; font-display: swap; src: url("/fonts/poppins-700.woff2") format("woff2"); }
+
+  /* ---------- Design tokens (dark first; light below) ---------- */
   :root {
-    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2129; --muted: #626a77; --line: #e2e5ea;
-    --accent: #2f6fde; --accent-text: #ffffff; --high: #c2410c; --medium: #a16207; --low: #64748b;
-    --ok: #15803d; --warn-bg: #fff7e6; --warn-line: #f5c26b; --quote: #f1f3f6; --bar: #c7d7f5;
+    --bg: #0b0b0f; --side: #0f0f14; --panel: #14141a; --panel-2: #1a1a22; --hover: #1d1d26;
+    --line: #23232d; --line-2: #2f2f3b; --text: #ececf1; --muted: #9d9daf; --faint: #6c6c7d;
+    --accent: #7c5cff; --accent-2: #9a86ff; --accent-ink: #ffffff; --accent-soft: rgba(124, 92, 255, 0.14);
+    --high: #ff6b4a; --high-soft: rgba(255, 107, 74, 0.13);
+    --medium: #f5b83d; --medium-soft: rgba(245, 184, 61, 0.13);
+    --low: #8e93a8; --low-soft: rgba(142, 147, 168, 0.14);
+    --ok: #3dd68c; --ok-soft: rgba(61, 214, 140, 0.13);
+    --warn-bg: rgba(245, 184, 61, 0.07); --warn-line: rgba(245, 184, 61, 0.32);
+    --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    --radius: 12px; --radius-sm: 8px;
   }
-  @media (prefers-color-scheme: dark) {
+  @media (prefers-color-scheme: light) {
     :root {
-      --bg: #111317; --panel: #1a1d23; --text: #e6e8ec; --muted: #9aa2ae; --line: #2c313a;
-      --accent: #6b9cff; --accent-text: #0d1117; --high: #fb923c; --medium: #facc15; --low: #94a3b8;
-      --ok: #4ade80; --warn-bg: #2a2214; --warn-line: #8a6a2a; --quote: #22262d; --bar: #2f4a7a;
+      --bg: #f5f5f8; --side: #ffffff; --panel: #ffffff; --panel-2: #f3f2f8; --hover: #f0eff6;
+      --line: #e7e6ee; --line-2: #dad8e4; --text: #16141f; --muted: #62627a; --faint: #8d8da0;
+      --accent: #5b3cf0; --accent-2: #7c5cff; --accent-soft: rgba(91, 60, 240, 0.09);
+      --high: #e2482a; --high-soft: rgba(226, 72, 42, 0.09);
+      --medium: #b7790b; --medium-soft: rgba(214, 150, 20, 0.12);
+      --low: #6b7088; --low-soft: rgba(107, 112, 136, 0.1);
+      --ok: #12935a; --ok-soft: rgba(18, 147, 90, 0.1);
+      --warn-bg: #fff8e8; --warn-line: #f0d08a;
+      --shadow: 0 12px 40px rgba(22, 20, 31, 0.12);
     }
   }
+
+  /* ---------- Base ---------- */
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 14px 16px; position: sticky; top: 0; z-index: 2; }
-  .wrap { max-width: 920px; margin: 0 auto; }
-  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  h1 { font-size: 18px; margin: 0; }
-  h1 span { color: var(--muted); font-weight: 500; }
-  .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
-  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
-  select { font: inherit; font-size: 14px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); min-width: 120px; }
-  button, a.btn { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-  button:hover, a.btn:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-  button.on { border-color: var(--ok); color: var(--ok); font-weight: 600; }
-  main { padding: 16px; }
-  .stats { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-  .stat-num { font-size: 22px; font-weight: 700; }
-  .stat-label { color: var(--muted); font-size: 12px; }
-  .bars { display: flex; flex-direction: column; gap: 4px; }
-  .bar-row { display: grid; grid-template-columns: 110px 1fr 28px; gap: 6px; align-items: center; font-size: 12px; }
-  .bar-track { background: var(--quote); border-radius: 4px; height: 8px; overflow: hidden; }
-  .bar-fill { background: var(--bar); height: 100%; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
-  .card.done { opacity: 0.6; }
-  .meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; color: var(--muted); font-size: 12px; }
-  .num { font-weight: 700; color: var(--text); font-size: 14px; }
-  .pri { font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.03em; }
-  .pri.high { color: var(--high); } .pri.medium { color: var(--medium); } .pri.low { color: var(--low); }
-  .badge { border: 1px solid var(--ok); color: var(--ok); border-radius: 999px; padding: 0 8px; font-size: 11px; }
-  h2 { font-size: 16px; margin: 6px 0 8px; overflow-wrap: anywhere; }
-  .excerpt { background: var(--quote); border-left: 3px solid var(--line); padding: 8px 12px; border-radius: 6px; color: var(--muted); margin: 8px 0; overflow-wrap: anywhere; }
-  .row { margin: 6px 0; }
-  .row b { font-weight: 600; }
-  .caution { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 6px 10px; margin: 8px 0; font-size: 14px; }
-  .draft-head { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-  .draft { white-space: pre-wrap; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 6px 0 10px; overflow-wrap: anywhere; }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-  .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
-  .error { color: var(--high); }
-  @media (max-width: 600px) { select { min-width: 0; width: 100%; } label { flex: 1 1 45%; } .bar-row { grid-template-columns: 90px 1fr 24px; } }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 400 14px/1.5 "Poppins", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  [hidden] { display: none !important; }
+  .ic { width: 18px; height: 18px; flex: none; display: block; }
+  .ic-sm { width: 15px; height: 15px; }
+  .ic-lg { width: 22px; height: 22px; }
+  kbd {
+    font: 500 11px/1 "Poppins", ui-sans-serif, sans-serif; color: var(--faint);
+    border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 5px; padding: 2px 5px; background: var(--panel-2);
+  }
+  .muted { color: var(--muted); }
+  .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+  /* ---------- App frame: sidebar | list | detail ---------- */
+  .app { display: grid; grid-template-columns: 252px minmax(340px, 420px) 1fr; height: 100vh; }
+  .app.is-analytics { grid-template-columns: 252px 1fr; }
+  .app.is-analytics .list-col, .app.is-analytics .detail-col { display: none; }
+  .app:not(.is-analytics) .analytics { display: none; }
+
+  /* ---------- Sidebar ---------- */
+  .side { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 6px; min-height: 0; overflow-y: auto; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px 14px; color: var(--text); }
+  .brand-mark { width: 30px; height: 30px; }
+  .brand-word { height: 34px; width: 82px; }
+  .app-switch { position: relative; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line-2); background: var(--panel); border-radius: 10px; padding: 8px 10px; margin-bottom: 14px; }
+  .app-switch:hover { border-color: var(--accent); }
+  .app-avatar { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--accent-soft); color: var(--accent-2); text-transform: uppercase; flex: none; }
+  .app-switch select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font-weight: 600; flex: 1; min-width: 0; padding-right: 18px; cursor: pointer; }
+  .app-switch select:focus-visible { outline: none; }
+  .app-switch:focus-within { border-color: var(--accent); }
+  .app-switch .ic { position: absolute; right: 10px; pointer-events: none; color: var(--muted); }
+  .nav-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); padding: 10px 10px 4px; }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav-btn { display: flex; align-items: center; gap: 11px; width: 100%; border: 0; background: transparent; color: var(--muted); padding: 9px 10px; border-radius: 9px; font-weight: 500; text-align: left; }
+  .nav-btn:hover { background: var(--hover); color: var(--text); }
+  .nav-btn.is-active { background: var(--accent-soft); color: var(--text); }
+  .nav-btn.is-active .ic { color: var(--accent-2); }
+  .nav-btn .lbl { flex: 1; }
+  .count { font-size: 11px; font-weight: 600; min-width: 22px; text-align: center; padding: 1px 7px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
+  .nav-btn.is-active .count { background: var(--accent); color: var(--accent-ink); }
+  .side-spacer { flex: 1; min-height: 12px; }
+  .run-card { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 12px; display: grid; gap: 4px; }
+  .run-card-top { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .run-card-when { font-weight: 600; }
+  .run-card-sub { font-size: 12px; color: var(--muted); }
+  .run-card-tip { font-size: 12px; color: var(--faint); margin-top: 4px; }
+  .run-card-tip code { white-space: nowrap; font: 500 11.5px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent-2); background: var(--accent-soft); padding: 2px 5px; border-radius: 5px; }
+  .side-foot { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 12px; padding: 10px 6px 0; }
+  .side-foot .grow { flex: 1; }
+  .icon-btn { border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: 8px; padding: 6px; display: inline-grid; place-items: center; }
+  .icon-btn:hover { background: var(--hover); color: var(--text); border-color: var(--line); }
+
+  /* ---------- List column ---------- */
+  .list-col { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: var(--bg); }
+  .list-head { padding: 22px 18px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 12px; }
+  .title-row { display: flex; align-items: center; gap: 10px; }
+  .title-row h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; flex: 1; display: flex; align-items: center; gap: 10px; }
+  .title-row h1 .ic { color: var(--accent-2); }
+  .list-desc { margin: -6px 0 0; color: var(--muted); font-size: 13px; }
+  .search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-2); background: var(--panel); border-radius: 10px; padding: 0 10px; }
+  .search:focus-within { border-color: var(--accent); }
+  .search .ic { color: var(--faint); }
+  .search input { border: 0; background: transparent; outline: none; flex: 1; padding: 9px 0; min-width: 0; }
+  .search input::placeholder { color: var(--faint); }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip-select { position: relative; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--panel); border-radius: 999px; padding: 4px 10px 4px 9px; color: var(--muted); font-size: 12.5px; max-width: 100%; }
+  .chip-select:hover, .chip-select:focus-within { border-color: var(--accent); color: var(--text); }
+  .chip-select select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; padding-right: 16px; font-weight: 500; color: var(--text); cursor: pointer; max-width: 150px; text-overflow: ellipsis; }
+  .chip-select select:focus-visible { outline: none; }
+  .chip-select .caret { position: absolute; right: 8px; width: 13px; height: 13px; pointer-events: none; }
+  .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 999px; padding: 2px; background: var(--panel); }
+  .seg button { border: 0; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 500; padding: 3px 10px; border-radius: 999px; }
+  .seg button:hover { color: var(--text); }
+  .seg button.is-active { background: var(--accent-soft); color: var(--text); }
+  .list-meta { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  .list-meta b { color: var(--text); font-weight: 600; }
+  .sort { display: inline-flex; align-items: center; gap: 6px; position: relative; }
+  .sort select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font-weight: 600; color: var(--text); padding-right: 16px; cursor: pointer; }
+  .sort .caret { position: absolute; right: 0; width: 13px; height: 13px; pointer-events: none; }
+  .list { overflow-y: auto; flex: 1; min-height: 0; padding: 6px; }
+
+  .item { position: relative; display: grid; gap: 7px; width: 100%; text-align: left; border: 1px solid transparent; background: transparent; border-radius: var(--radius); padding: 13px 14px 13px 16px; margin-bottom: 2px; color: var(--text); }
+  .item:hover { background: var(--panel); }
+  .item.is-active { background: var(--panel); border-color: var(--line-2); }
+  .item.is-active::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--accent); }
+  .item.is-done .item-title { color: var(--muted); }
+  .item-top { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); min-width: 0; }
+  .item-site { font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-eng { margin-left: auto; display: inline-flex; gap: 10px; white-space: nowrap; }
+  .eng { display: inline-flex; align-items: center; gap: 3px; }
+  .item-title { font-weight: 600; font-size: 14.5px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .item-num { color: var(--faint); font-weight: 500; margin-right: 4px; }
+  .item-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .unread { position: absolute; left: 6px; top: 20px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+  .plat { width: 20px; height: 20px; border-radius: 6px; display: inline-grid; place-items: center; flex: none; background: var(--panel-2); color: var(--muted); }
+  .plat .ic { width: 13px; height: 13px; }
+  .plat-reddit { background: #ff4500; color: #fff; }
+  .plat-hn { background: #ff6600; color: #fff; }
+  .plat-se { background: #1e5397; color: #fff; }
+  .plat-bsky { background: #1185fe; color: #fff; }
+  .plat-yt { background: #ff0000; color: #fff; }
+  .plat-threads, .plat-x { background: var(--text); color: var(--bg); }
+  .plat-quora { background: #b92b27; color: #fff; }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; border: 1px solid var(--line-2); border-radius: 7px; padding: 2px 8px; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .score { font-weight: 600; border: 0; padding: 2px 8px 2px 6px; }
+  .score.high { background: var(--high-soft); color: var(--high); }
+  .score.medium { background: var(--medium-soft); color: var(--medium); }
+  .score.low { background: var(--low-soft); color: var(--low); }
+  .badge-ok { border: 0; background: var(--ok-soft); color: var(--ok); }
+  .badge-skip { border: 0; background: var(--low-soft); color: var(--low); }
+
+  /* ---------- Detail column ---------- */
+  .detail-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--bg); }
+  .d-scroll { flex: 1; overflow-y: auto; padding: 26px 32px 24px; }
+  .d-inner { max-width: 820px; margin: 0 auto; display: grid; gap: 18px; }
+  .btn.d-back { display: none; }
+  .d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .d-meta .site { color: var(--text); font-weight: 600; }
+  .d-meta .grow { flex: 1; }
+  .d-title { font-size: 24px; line-height: 1.3; font-weight: 600; letter-spacing: -0.015em; margin: 0; overflow-wrap: anywhere; }
+  .d-title .d-num { color: var(--faint); font-weight: 500; margin-right: 6px; }
+  .d-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 12px 16px; font-size: 13px; }
+  .d-score { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+  .d-score b { font-size: 16px; }
+  .d-score.high { color: var(--high); } .d-score.medium { color: var(--medium); } .d-score.low { color: var(--low); }
+  .scorebar { width: 64px; height: 6px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+  .scorebar > i { display: block; height: 100%; border-radius: 4px; background: currentColor; }
+  .d-sep { width: 1px; align-self: stretch; background: var(--line); }
+  .d-kv { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
+  .d-kv b { color: var(--text); font-weight: 500; }
+  .d-block { display: grid; gap: 8px; }
+  .d-label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+  .d-label .grow { flex: 1; }
+  .d-post { margin: 0; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 14px 16px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+  .d-why { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+  .d-note { display: flex; gap: 10px; align-items: flex-start; border-radius: var(--radius); padding: 12px 14px; font-size: 13.5px; overflow-wrap: anywhere; }
+  .d-note .ic { margin-top: 2px; }
+  .d-note b { display: block; font-weight: 600; margin-bottom: 1px; }
+  .d-caution { background: var(--warn-bg); border: 1px solid var(--warn-line); }
+  .d-caution .ic { color: var(--medium); }
+  .d-praise { background: var(--ok-soft); border: 1px solid transparent; } .d-praise .ic { color: var(--ok); }
+  .d-bug { background: var(--high-soft); border: 1px solid transparent; } .d-bug .ic { color: var(--high); }
+  .d-draft { border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--radius); padding: 16px 18px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; font-size: 14.5px; }
+  .d-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+  .d-hint code { font: 500 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent-2); background: var(--accent-soft); padding: 2px 6px; border-radius: 6px; }
+  .link-btn { border: 0; background: transparent; color: var(--accent-2); font-weight: 500; font-size: 12.5px; padding: 0; display: inline-flex; align-items: center; gap: 4px; }
+  .link-btn:hover { text-decoration: underline; }
+  .d-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding: 14px 32px; background: var(--side); }
+  .d-actions .grow { flex: 1; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line-2); background: var(--panel); color: var(--text); border-radius: 10px; padding: 8px 14px; font-weight: 500; text-decoration: none; white-space: nowrap; }
+  .btn:hover { border-color: var(--accent); }
+  .btn kbd { margin-left: 2px; }
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn-ghost:hover { background: var(--hover); color: var(--text); border-color: var(--line); }
+  .btn-ghost.is-on { color: var(--ok); background: var(--ok-soft); }
+  .btn-ghost.is-on-skip { color: var(--low); background: var(--low-soft); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+  .btn-primary kbd { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.25); color: #fff; }
+
+  /* ---------- Empty states ---------- */
+  .empty { display: grid; place-items: center; text-align: center; gap: 10px; padding: 48px 24px; color: var(--muted); }
+  .empty .ic { width: 34px; height: 34px; color: var(--faint); }
+  .empty h3 { margin: 0; color: var(--text); font-size: 16px; font-weight: 600; }
+  .empty p { margin: 0; max-width: 340px; font-size: 13.5px; }
+  .empty code { font: 500 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent-2); background: var(--accent-soft); padding: 2px 6px; border-radius: 6px; }
+  .detail-empty { flex: 1; display: grid; place-items: center; }
+  .boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 5; }
+  .boot-card { text-align: center; display: grid; gap: 12px; justify-items: center; max-width: 380px; padding: 24px; }
+  .boot-card .brand { padding: 0; }
+
+  /* ---------- Analytics ---------- */
+  .analytics { overflow-y: auto; min-height: 0; padding: 26px 32px 40px; }
+  .an-inner { max-width: 1120px; margin: 0 auto; display: grid; gap: 18px; }
+  .an-head h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; }
+  .an-head h1 .ic { color: var(--accent-2); }
+  .an-head p { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .kpi { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; }
+  .kpi-top { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; font-weight: 500; }
+  .kpi-top .ic { color: var(--accent-2); }
+  .kpi-num { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+  .kpi-sub { font-size: 12px; color: var(--faint); }
+  .an-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 16px 18px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+  .card h2 { margin: 0; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card h2 .ic { color: var(--muted); }
+  .hbars { display: grid; gap: 10px; }
+  .hbar { display: grid; grid-template-columns: minmax(0, 220px) 1fr 34px; align-items: center; gap: 10px; font-size: 13px; }
+  .hbar-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .hbar-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hbar-track { height: 8px; border-radius: 5px; background: var(--panel-2); overflow: hidden; }
+  .hbar-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .hbar-num { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stack { display: flex; height: 12px; border-radius: 7px; overflow: hidden; background: var(--panel-2); }
+  .stack > i { display: block; height: 100%; }
+  .bg-high { background: var(--high); } .bg-medium { background: var(--medium); } .bg-low { background: var(--low); } .bg-ok { background: var(--ok); } .bg-todo { background: var(--line-2); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend b { color: var(--text); font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
+  .cols { display: flex; align-items: flex-end; justify-content: space-around; gap: 10px; height: 170px; padding-top: 8px; }
+  .col { flex: 1; min-width: 0; max-width: 64px; display: grid; grid-template-rows: 1fr auto auto; gap: 6px; height: 100%; text-align: center; }
+  .col-bar { align-self: end; display: flex; flex-direction: column-reverse; border-radius: 6px; overflow: hidden; min-height: 2px; background: var(--panel-2); }
+  .col-bar > i { display: block; }
+  .col-num { font-size: 12px; font-weight: 600; }
+  .col-lbl { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---------- Overlays ---------- */
+  .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(16px); opacity: 0; pointer-events: none; display: flex; align-items: center; gap: 12px; background: var(--text); color: var(--bg); border-radius: 10px; padding: 10px 14px; font-weight: 500; font-size: 13.5px; box-shadow: var(--shadow); transition: opacity 0.18s ease, transform 0.18s ease; z-index: 20; }
+  .toast.is-on { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .toast button { border: 0; background: transparent; color: var(--accent-2); font-weight: 600; padding: 0; }
+  @media (prefers-color-scheme: light) { .toast button { color: #b4a6ff; } }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 30; padding: 16px; }
+  .modal { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; box-shadow: var(--shadow); width: 100%; max-width: 420px; padding: 20px; display: grid; gap: 14px; }
+  .modal h2 { margin: 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; font-size: 13.5px; align-items: center; }
+  .keys .k { display: flex; gap: 4px; justify-content: flex-end; }
+
+  /* ---------- Responsive ---------- */
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+  @media (max-width: 1180px) {
+    .app { grid-template-columns: 72px minmax(320px, 400px) 1fr; }
+    .app.is-analytics { grid-template-columns: 72px 1fr; }
+    .side { padding: 16px 10px; align-items: center; }
+    .side .brand { display: none; } .brand-word, .nav-label, .nav-btn .lbl, .run-card, .side-foot .lbl, .app-switch select, .app-switch .ic { display: none; }
+    .app-switch { padding: 6px; margin-bottom: 10px; justify-content: center; }
+    .nav-btn { justify-content: center; padding: 10px; position: relative; }
+    .nav-btn .count { position: absolute; top: 2px; right: -2px; min-width: 18px; padding: 0 5px; font-size: 10px; }
+    .side-foot { flex-direction: column; padding: 8px 0 0; }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 1180px) and (min-width: 821px) { .app-switch select { display: block; position: absolute; inset: 0; opacity: 0; } }
+  @media (max-width: 820px) {
+    .app, .app.is-analytics { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: 100dvh; }
+    .side { flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--line); gap: 6px; }
+    .side .brand { display: none; }
+    .app-switch { margin: 0; } .app-switch select { display: block; position: absolute; inset: 0; opacity: 0; }
+    .nav { flex-direction: row; } .side-spacer { display: none; } .side-foot { flex-direction: row; padding: 0; }
+    .list-col { border-right: 0; }
+    .detail-col { position: fixed; inset: 0; z-index: 10; display: none; }
+    .app.show-detail .detail-col { display: flex; }
+    .app.is-analytics .detail-col { display: none; }
+    .btn.d-back { display: inline-flex; margin-left: -8px; }
+    .d-scroll { padding: 18px 16px; } .d-actions { padding: 12px 16px; } .d-sep { display: none; }
+    .toast { white-space: nowrap; max-width: calc(100vw - 24px); }
+    .d-actions kbd, .btn kbd { display: none; }
+    .analytics { padding: 18px 16px 32px; }
+    .an-grid, .kpis { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <div class="wrap">
-    <div class="top">
-      <h1>marKit <span>dashboard</span></h1>
-      <button id="refresh" type="button" title="Reload cards">Refresh</button>
+<!-- Icons: Solar by 480 Design (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) and Simple Icons (CC0),
+     embedded as SVG symbols so the page loads nothing from the internet. -->
+<svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs><linearGradient id="mk-g" x1="3" y1="3" x2="29" y2="29" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#9A86FF"/><stop offset="1" stop-color="#5B3CF0"/></linearGradient></defs>
+<symbol id="logo-mark" viewBox="0 0 32 32"><path fill="url(#mk-g)" d="M8 3h16a5 5 0 0 1 5 5v11a5 5 0 0 1-5 5h-8.3l-5.5 4.5c-.8.7-2.1.1-2.1-1V24H8a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5z"/><path fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M10.6 13.6l3.7 3.7 7.3-7.3"/></symbol>
+<symbol id="logo-word" viewBox="40 0 76.7 32"><g fill="currentColor"><path transform="translate(40 -0.35) scale(0.0245)" d="M185 1010V730C185 650 232 612 290 612C348 612 385 649 385 718V1010H507V730C507 649 552 611 611 611C669 611 707 648 707 719V1010H828V687C828 573 762 501 642 501C567 501 509 538 484 595C458 538 406 501 331 501C260 501 210 533 185 574L175 516H63V1010Z M1095 1023C1172 1023 1239 988 1260 937L1269 1010H1376V710C1376 573 1294 501 1161 501C1027 501 939 571 939 678H1043C1043 626 1083 596 1155 596C1217 596 1257 623 1257 690V701L1109 712C992 721 926 778 926 869C926 962 990 1023 1095 1023ZM1135 931C1080 931 1050 909 1050 864C1050 824 1079 799 1155 792L1258 784V810C1258 886 1210 931 1135 931Z M1806 514C1786 509 1769 507 1752 507C1686 507 1639 540 1618 589L1611 517H1496V1010H1618V770C1618 674 1673 627 1761 627H1806Z M2035 279H1907V1010H2035V854L2156 699L2337 1010H2485L2240 591L2482 279H2331L2035 663Z M2624 417C2664 417 2697 384 2697 343C2697 302 2664 270 2624 270C2582 270 2549 302 2549 343C2549 384 2582 417 2624 417ZM2563 1010H2685V516H2563Z M2979 1010V618H3075V516H2979V362H2857V516H2762V618H2857V1010Z"/></g></symbol>
+<symbol id="i-alt-arrow-down-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9L12 15L5 9"/></symbol>
+<symbol id="i-alt-arrow-up-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 15L12 9L5 15"/></symbol>
+<symbol id="i-archive-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M9 12C9 11.5341 9 11.3011 9.07612 11.1173C9.17761 10.8723 9.37229 10.6776 9.61732 10.5761C9.80109 10.5 10.0341 10.5 10.5 10.5H13.5C13.9659 10.5 14.1989 10.5 14.3827 10.5761C14.6277 10.6776 14.8224 10.8723 14.9239 11.1173C15 11.3011 15 11.5341 15 12C15 12.4659 15 12.6989 14.9239 12.8827C14.8224 13.1277 14.6277 13.3224 14.3827 13.4239C14.1989 13.5 13.9659 13.5 13.5 13.5H10.5C10.0341 13.5 9.80109 13.5 9.61732 13.4239C9.37229 13.3224 9.17761 13.1277 9.07612 12.8827C9 12.6989 9 12.4659 9 12Z"/><path d="M20.5 7V13C20.5 16.7712 20.5 18.6569 19.3284 19.8284C18.1569 21 16.2712 21 12.5 21H11.5C7.72876 21 5.84315 21 4.67157 19.8284C3.5 18.6569 3.5 16.7712 3.5 13V7"/><path d="M2 5C2 4.05719 2 3.58579 2.29289 3.29289C2.58579 3 3.05719 3 4 3H20C20.9428 3 21.4142 3 21.7071 3.29289C22 3.58579 22 4.05719 22 5C22 5.94281 22 6.41421 21.7071 6.70711C21.4142 7 20.9428 7 20 7H4C3.05719 7 2.58579 7 2.29289 6.70711C2 6.41421 2 5.94281 2 5Z"/></g></symbol>
+<symbol id="i-bolt-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M5.66953 9.91436L8.73167 5.77133C10.711 3.09327 11.7007 1.75425 12.6241 2.03721C13.5474 2.32018 13.5474 3.96249 13.5474 7.24712V7.55682C13.5474 8.74151 13.5474 9.33386 13.926 9.70541L13.946 9.72466C14.3327 10.0884 14.9492 10.0884 16.1822 10.0884C18.4011 10.0884 19.5106 10.0884 19.8855 10.7613C19.8917 10.7724 19.8977 10.7837 19.9036 10.795C20.2576 11.4784 19.6152 12.3475 18.3304 14.0857L15.2683 18.2287C13.2889 20.9067 12.2992 22.2458 11.3758 21.9628C10.4525 21.6798 10.4525 20.0375 10.4525 16.7528L10.4526 16.4433C10.4526 15.2585 10.4526 14.6662 10.074 14.2946L10.054 14.2754C9.6673 13.9117 9.05079 13.9117 7.81775 13.9117C5.59888 13.9117 4.48945 13.9117 4.1145 13.2387C4.10829 13.2276 4.10225 13.2164 4.09639 13.205C3.74244 12.5217 4.3848 11.6526 5.66953 9.91436Z"/></symbol>
+<symbol id="i-bug-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M19 15V11.9375C19 9.76288 17.2371 8 15.0625 8H8.9375C6.76288 8 5 9.76288 5 11.9375V15C5 18.866 8.13401 22 12 22C15.866 22 19 18.866 19 15Z"/><path d="M16.5 8.27065V7.5C16.5 5.01472 14.4853 3 12 3C9.51472 3 7.5 5.01472 7.5 7.5V8.27065"/><path d="M19 14H22"/><path d="M5 14H2"/><path d="M14.2905 3.62571C15.1937 3.08381 16.0969 2.5419 17 2"/><path d="M9.70947 3.62569C8.80631 3.0838 7.90315 2.5419 6.99998 2"/><path d="M17.8003 18.9202C18.7003 19.2801 19.6002 19.6401 20.5002 20.0001"/><path d="M17.7798 9.08789C18.6865 8.72521 19.5932 8.36252 20.4999 7.99984"/><path d="M6.19971 18.9202C5.29976 19.2801 4.39981 19.6401 3.49987 20.0001"/><path d="M12 22V15"/><path d="M6.22021 9.08789C5.31354 8.72522 4.40686 8.36255 3.50018 7.99988"/></g></symbol>
+<symbol id="i-calendar-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 12C2 8.22876 2 6.34315 3.17157 5.17157C4.34315 4 6.22876 4 10 4H14C17.7712 4 19.6569 4 20.8284 5.17157C22 6.34315 22 8.22876 22 12V14C22 17.7712 22 19.6569 20.8284 20.8284C19.6569 22 17.7712 22 14 22H10C6.22876 22 4.34315 22 3.17157 20.8284C2 19.6569 2 17.7712 2 14V12Z"/><path d="M7 4V2.5"/><path d="M17 4V2.5"/><path d="M2.5 9H21.5"/><path stroke-linejoin="round" d="M17 13H17.0001"/><path stroke-linejoin="round" d="M12 13H12.0001"/><path stroke-linejoin="round" d="M7 13H7.0001"/><path stroke-linejoin="round" d="M17 17.0234H17.0001"/><path stroke-linejoin="round" d="M12 17.0234H12.0001"/><path stroke-linejoin="round" d="M7 17.0234H7.0001"/></g></symbol>
+<symbol id="i-chart-2-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path stroke-linejoin="round" d="M3 22H21"/><path d="M3 11C3 10.0572 3 9.58579 3.29289 9.29289C3.58579 9 4.05719 9 5 9C5.94281 9 6.41421 9 6.70711 9.29289C7 9.58579 7 10.0572 7 11V17C7 17.9428 7 18.4142 6.70711 18.7071C6.41421 19 5.94281 19 5 19C4.05719 19 3.58579 19 3.29289 18.7071C3 18.4142 3 17.9428 3 17V11Z"/><path d="M10 7C10 6.05719 10 5.58579 10.2929 5.29289C10.5858 5 11.0572 5 12 5C12.9428 5 13.4142 5 13.7071 5.29289C14 5.58579 14 6.05719 14 7V17C14 17.9428 14 18.4142 13.7071 18.7071C13.4142 19 12.9428 19 12 19C11.0572 19 10.5858 19 10.2929 18.7071C10 18.4142 10 17.9428 10 17V7Z"/><path d="M17 4C17 3.05719 17 2.58579 17.2929 2.29289C17.5858 2 18.0572 2 19 2C19.9428 2 20.4142 2 20.7071 2.29289C21 2.58579 21 3.05719 21 4V17C21 17.9428 21 18.4142 20.7071 18.7071C20.4142 19 19.9428 19 19 19C18.0572 19 17.5858 19 17.2929 18.7071C17 18.4142 17 17.9428 17 17V4Z"/></g></symbol>
+<symbol id="i-chat-round-line-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 13.5997 2.37562 15.1116 3.04346 16.4525C3.22094 16.8088 3.28001 17.2161 3.17712 17.6006L2.58151 19.8267C2.32295 20.793 3.20701 21.677 4.17335 21.4185L6.39939 20.8229C6.78393 20.72 7.19121 20.7791 7.54753 20.9565C8.88837 21.6244 10.4003 22 12 22Z"/><path d="M8 10.5H16"/><path d="M8 14H13.5"/></g></symbol>
+<symbol id="i-check-circle-bold" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z" clip-rule="evenodd"/></symbol>
+<symbol id="i-check-circle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path stroke-linejoin="round" d="M8.5 12.5L10.5 14.5L15.5 9.5"/></g></symbol>
+<symbol id="i-clock-circle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path stroke-linejoin="round" d="M12 8V12L14.5 14.5"/></g></symbol>
+<symbol id="i-close-circle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M14.5 9.50002L9.5 14.5M9.49998 9.5L14.5 14.5"/></g></symbol>
+<symbol id="i-copy-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M6 11C6 8.17157 6 6.75736 6.87868 5.87868C7.75736 5 9.17157 5 12 5H15C17.8284 5 19.2426 5 20.1213 5.87868C21 6.75736 21 8.17157 21 11V16C21 18.8284 21 20.2426 20.1213 21.1213C19.2426 22 17.8284 22 15 22H12C9.17157 22 7.75736 22 6.87868 21.1213C6 20.2426 6 18.8284 6 16V11Z"/><path d="M6 19C4.34315 19 3 17.6569 3 16V10C3 6.22876 3 4.34315 4.17157 3.17157C5.34315 2 7.22876 2 11 2H15C16.6569 2 18 3.34315 18 5"/></g></symbol>
+<symbol id="i-danger-triangle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M5.31171 10.7615C8.23007 5.58716 9.68925 3 12 3C14.3107 3 15.7699 5.58716 18.6883 10.7615L19.0519 11.4063C21.4771 15.7061 22.6897 17.856 21.5937 19.428C20.4978 21 17.7864 21 12.3637 21H11.6363C6.21356 21 3.50217 21 2.40626 19.428C1.31034 17.856 2.52291 15.7061 4.94805 11.4063L5.31171 10.7615Z"/><path d="M12 8V13"/><path stroke-linejoin="round" d="M12 16H12.0001"/></g></symbol>
+<symbol id="i-eye-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M3.27489 15.2957C2.42496 14.1915 2 13.6394 2 12C2 10.3606 2.42496 9.80853 3.27489 8.70433C4.97196 6.49956 7.81811 4 12 4C16.1819 4 19.028 6.49956 20.7251 8.70433C21.575 9.80853 22 10.3606 22 12C22 13.6394 21.575 14.1915 20.7251 15.2957C19.028 17.5004 16.1819 20 12 20C7.81811 20 4.97196 17.5004 3.27489 15.2957Z"/><path d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z"/></g></symbol>
+<symbol id="i-filter-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M19 3H5C3.58579 3 2.87868 3 2.43934 3.4122C2 3.8244 2 4.48782 2 5.81466V6.50448C2 7.54232 2 8.06124 2.2596 8.49142C2.5192 8.9216 2.99347 9.18858 3.94202 9.72255L6.85504 11.3624C7.49146 11.7206 7.80967 11.8998 8.03751 12.0976C8.51199 12.5095 8.80408 12.9935 8.93644 13.5872C9 13.8722 9 14.2058 9 14.8729L9 17.5424C9 18.452 9 18.9067 9.25192 19.2613C9.50385 19.6158 9.95128 19.7907 10.8462 20.1406C12.7248 20.875 13.6641 21.2422 14.3321 20.8244C15 20.4066 15 19.4519 15 17.5424V14.8729C15 14.2058 15 13.8722 15.0636 13.5872C15.1959 12.9935 15.488 12.5095 15.9625 12.0976C16.1903 11.8998 16.5085 11.7206 17.145 11.3624L20.058 9.72255C21.0065 9.18858 21.4808 8.9216 21.7404 8.49142C22 8.06124 22 7.54232 22 6.50448V5.81466C22 4.48782 22 3.8244 21.5607 3.4122C21.1213 3 20.4142 3 19 3Z"/></symbol>
+<symbol id="i-global-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M22 12C22 13.3132 21.7413 14.6136 21.2388 15.8268C20.7362 17.0401 19.9997 18.1425 19.0711 19.0711C18.1425 19.9997 17.0401 20.7362 15.8268 21.2388C14.6136 21.7413 13.3132 22 12 22C10.6868 22 9.38642 21.7413 8.17317 21.2388C6.95991 20.7362 5.85752 19.9997 4.92893 19.0711C4.00035 18.1425 3.26375 17.0401 2.7612 15.8268C2.25866 14.6136 2 13.3132 2 12C2 10.6868 2.25866 9.38642 2.76121 8.17316C3.26375 6.95991 4.00035 5.85752 4.92893 4.92893C5.85752 4.00035 6.95991 3.26375 8.17317 2.7612C9.38642 2.25866 10.6868 2 12 2C13.3132 2 14.6136 2.25866 15.8268 2.76121C17.0401 3.26375 18.1425 4.00035 19.0711 4.92893C19.9997 5.85752 20.7362 6.95991 21.2388 8.17317C21.7413 9.38642 22 10.6868 22 12L22 12Z"/><path d="M16 12C16 13.3132 15.8965 14.6136 15.6955 15.8268C15.4945 17.0401 15.1999 18.1425 14.8284 19.0711C14.457 19.9997 14.016 20.7362 13.5307 21.2388C13.0454 21.7413 12.5253 22 12 22C11.4747 22 10.9546 21.7413 10.4693 21.2388C9.98396 20.7362 9.54301 19.9997 9.17157 19.0711C8.80014 18.1425 8.5055 17.0401 8.30448 15.8268C8.10346 14.6136 8 13.3132 8 12C8 10.6868 8.10346 9.38642 8.30448 8.17316C8.5055 6.95991 8.80014 5.85752 9.17157 4.92893C9.54301 4.00035 9.98396 3.26375 10.4693 2.7612C10.9546 2.25866 11.4747 2 12 2C12.5253 2 13.0454 2.25866 13.5307 2.76121C14.016 3.26375 14.457 4.00035 14.8284 4.92893C15.1999 5.85752 15.4945 6.95991 15.6955 8.17317C15.8965 9.38642 16 10.6868 16 12L16 12Z"/><path d="M2 12H22"/></g></symbol>
+<symbol id="i-graph-up-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z"/><path stroke-linejoin="round" d="M7 14L9.29289 11.7071C9.68342 11.3166 10.3166 11.3166 10.7071 11.7071L12.2929 13.2929C12.6834 13.6834 13.3166 13.6834 13.7071 13.2929L17 10M14.5 10H17V12.5"/></g></symbol>
+<symbol id="i-hashtag-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M10 3L5 21"/><path d="M19 3L14 21"/><path d="M22 9H4"/><path d="M20 16H2"/></g></symbol>
+<symbol id="i-heart-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2 9.1371C2 14 6.01943 16.5914 8.96173 18.9109C10 19.7294 11 20.5 12 20.5C13 20.5 14 19.7294 15.0383 18.9109C17.9806 16.5914 22 14 22 9.1371C22 4.27416 16.4998 0.825464 12 5.50063C7.50016 0.825464 2 4.27416 2 9.1371Z"/></symbol>
+<symbol id="i-history-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M12 8V12L14.5 14.5"/><path d="M4.33776 6.87052L5.60414 5.60414C9.10115 2.10713 14.7996 2.13576 18.3319 5.6681C21.8642 9.20044 21.8929 14.8988 18.3959 18.3959C14.8988 21.8929 9.20044 21.8642 5.6681 18.3319C3.57589 16.2397 2.71285 13.3876 3.08355 10.6831M4.32497 4.32497L4.33776 6.87052L6.88331 6.88331"/></g></symbol>
+<symbol id="i-inbox-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z"/><path d="M2 13H5.16026C6.06543 13 6.51802 13 6.91584 13.183C7.31367 13.3659 7.60821 13.7096 8.19729 14.3968L8.80271 15.1032C9.39179 15.7904 9.68633 16.1341 10.0842 16.317C10.482 16.5 10.9346 16.5 11.8397 16.5H12.1603C13.0654 16.5 13.518 16.5 13.9158 16.317C14.3137 16.1341 14.6082 15.7904 15.1973 15.1032L15.8027 14.3968C16.3918 13.7096 16.6863 13.3659 17.0842 13.183C17.482 13 17.9346 13 18.8397 13H22"/></g></symbol>
+<symbol id="i-info-circle-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 17V11"/><path stroke-linejoin="round" d="M12 8H12.0001"/></g></symbol>
+<symbol id="i-keyboard-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 11C2 8.17157 2 6.75736 2.87868 5.87868C3.75736 5 5.17157 5 8 5H16C18.8284 5 20.2426 5 21.1213 5.87868C22 6.75736 22 8.17157 22 11V13C22 15.8284 22 17.2426 21.1213 18.1213C20.2426 19 18.8284 19 16 19H8C5.17157 19 3.75736 19 2.87868 18.1213C2 17.2426 2 15.8284 2 13V11Z"/><path d="M7 16H17"/><path stroke-linejoin="round" d="M6 9H6.0001"/><path stroke-linejoin="round" d="M9 9H9.0001"/><path stroke-linejoin="round" d="M12 9H12.0001"/><path stroke-linejoin="round" d="M15 9H15.0001"/><path stroke-linejoin="round" d="M18 9H18.0001"/><path stroke-linejoin="round" d="M18 12H18.0001"/><path stroke-linejoin="round" d="M15 12H15.0001"/><path stroke-linejoin="round" d="M12 12H12.0001"/><path stroke-linejoin="round" d="M9 12H9.0001"/><path stroke-linejoin="round" d="M6 12H6.0001"/></g></symbol>
+<symbol id="i-layers-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M4.97883 9.68508C2.99294 8.89073 2 8.49355 2 8C2 7.50645 2.99294 7.10927 4.97883 6.31492L7.7873 5.19153C9.77318 4.39718 10.7661 4 12 4C13.2339 4 14.2268 4.39718 16.2127 5.19153L19.0212 6.31492C21.0071 7.10927 22 7.50645 22 8C22 8.49355 21.0071 8.89073 19.0212 9.68508L16.2127 10.8085C14.2268 11.6028 13.2339 12 12 12C10.7661 12 9.77318 11.6028 7.7873 10.8085L4.97883 9.68508Z"/><path d="M5.76613 10L4.97883 10.3149C2.99294 11.1093 2 11.5065 2 12C2 12.4935 2.99294 12.8907 4.97883 13.6851L7.7873 14.8085C9.77318 15.6028 10.7661 16 12 16C13.2339 16 14.2268 15.6028 16.2127 14.8085L19.0212 13.6851C21.0071 12.8907 22 12.4935 22 12C22 11.5065 21.0071 11.1093 19.0212 10.3149L18.2339 10"/><path d="M5.76613 14L4.97883 14.3149C2.99294 15.1093 2 15.5065 2 16C2 16.4935 2.99294 16.8907 4.97883 17.6851L7.7873 18.8085C9.77318 19.6028 10.7661 20 12 20C13.2339 20 14.2268 19.6028 16.2127 18.8085L19.0212 17.6851C21.0071 16.8907 22 16.4935 22 16C22 15.5065 21.0071 15.1093 19.0212 14.3149L18.2339 14"/></g></symbol>
+<symbol id="i-lightbulb-bolt-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M14.5 19.5H9.5M14.5 19.5C14.5 18.7865 14.5 18.4297 14.5381 18.193C14.6609 17.4296 14.6824 17.3815 15.1692 16.7807C15.3201 16.5945 15.8805 16.0927 17.0012 15.0892C18.5349 13.7159 19.5 11.7206 19.5 9.5C19.5 5.35786 16.1421 2 12 2C7.85786 2 4.5 5.35786 4.5 9.5C4.5 11.7206 5.4651 13.7159 6.99876 15.0892C8.11945 16.0927 8.67987 16.5945 8.83082 16.7807C9.31762 17.3815 9.3391 17.4296 9.46192 18.193C9.5 18.4297 9.5 18.7865 9.5 19.5M14.5 19.5C14.5 20.4346 14.5 20.9019 14.299 21.25C14.1674 21.478 13.978 21.6674 13.75 21.799C13.4019 22 12.9346 22 12 22C11.0654 22 10.5981 22 10.25 21.799C10.022 21.6674 9.83261 21.478 9.70096 21.25C9.5 20.9019 9.5 20.4346 9.5 19.5"/><path stroke-linejoin="round" d="M12.7857 8.5L10.6429 11.5H13.6429L11.5 14.5"/></g></symbol>
+<symbol id="i-list-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M20 7L4 7"/><path d="M15 12L4 12"/><path d="M9 17H4"/></g></symbol>
+<symbol id="i-magnifer-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="11.5" cy="11.5" r="9.5"/><path d="M18.2173 18.2178L21.9999 22.0004"/></g></symbol>
+<symbol id="i-magnifier-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="11.5" cy="11.5" r="9.5"/><path d="M18.2173 18.2178L21.9999 22.0004"/></g></symbol>
+<symbol id="i-panel-right-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 11C2 7.22876 2 5.34315 3.17157 4.17157C4.34315 3 6.22876 3 10 3H14C17.7712 3 19.6569 3 20.8284 4.17157C22 5.34315 22 7.22876 22 11V13C22 16.7712 22 18.6569 20.8284 19.8284C19.6569 21 17.7712 21 14 21H10C6.22876 21 4.34315 21 3.17157 19.8284C2 18.6569 2 16.7712 2 13V11Z"/><path d="M15 21L15 3"/></g></symbol>
+<symbol id="i-pen-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M14.3601 4.07866L15.2869 3.15178C16.8226 1.61607 19.3125 1.61607 20.8482 3.15178C22.3839 4.68748 22.3839 7.17735 20.8482 8.71306L19.9213 9.63993M14.3601 4.07866C14.3601 4.07866 14.4759 6.04828 16.2138 7.78618C17.9517 9.52407 19.9213 9.63993 19.9213 9.63993M19.9213 9.63993L11.4001 18.1612C10.8229 18.7383 10.5344 19.0269 10.2162 19.2751C9.84082 19.5679 9.43469 19.8189 9.00498 20.0237C8.6407 20.1973 8.25352 20.3263 7.47918 20.5844L4.19792 21.6782L3.39584 21.9456C3.01478 22.0726 2.59466 21.9734 2.31063 21.6894C2.0266 21.4053 1.92743 20.9852 2.05445 20.6042L2.32181 19.8021L3.41556 16.5208C3.67368 15.7465 3.80273 15.3593 3.97634 14.995C4.18114 14.5653 4.43213 14.1592 4.7249 13.7838C4.97308 13.4656 5.26166 13.1771 5.83882 12.5999L14.3601 4.07866M4.19792 21.6782L2.32181 19.8021"/></symbol>
+<symbol id="i-refresh-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M3.67981 13L3.67981 11.3333C3.67981 6.73096 7.4402 3 12.0789 3C15.1178 3 17.7799 4.60136 19.2545 7M2 11.3333L3.67981 13L5.35962 11.3333"/><path d="M20.3139 11V12.6667C20.3139 17.269 16.5391 21 11.8827 21C8.83213 21 6.15995 19.3986 4.67969 17M22.0001 12.6667L20.3139 11L18.6277 12.6667"/></g></symbol>
+<symbol id="i-sidebar-minimalistic-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2 11C2 7.22876 2 5.34315 3.17157 4.17157C4.34315 3 6.22876 3 10 3H14C17.7712 3 19.6569 3 20.8284 4.17157C22 5.34315 22 7.22876 22 11V13C22 16.7712 22 18.6569 20.8284 19.8284C19.6569 21 17.7712 21 14 21H10C6.22876 21 4.34315 21 3.17157 19.8284C2 18.6569 2 16.7712 2 13V11Z"/><path d="M15 21L15 3"/></g></symbol>
+<symbol id="i-sort-vertical-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M16 18L16 6M12 10.125L16 6L20 10.125"/><path d="M8 6L8 18M4 13.875L8 18L12 13.875"/></g></symbol>
+<symbol id="i-square-arrow-right-up-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path stroke-linejoin="round" d="M9 15L15 9M15 13.5V9H10.5"/><path d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z"/></g></symbol>
+<symbol id="i-star-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M9.15316 5.40838C10.4198 3.13613 11.0531 2 12 2C12.9469 2 13.5802 3.13612 14.8468 5.40837L15.1745 5.99623C15.5345 6.64193 15.7144 6.96479 15.9951 7.17781C16.2757 7.39083 16.6251 7.4699 17.3241 7.62805L17.9605 7.77203C20.4201 8.32856 21.65 8.60682 21.9426 9.54773C22.2352 10.4886 21.3968 11.4691 19.7199 13.4299L19.2861 13.9372C18.8096 14.4944 18.5713 14.773 18.4641 15.1177C18.357 15.4624 18.393 15.8341 18.465 16.5776L18.5306 17.2544C18.7841 19.8706 18.9109 21.1787 18.1449 21.7602C17.3788 22.3417 16.2273 21.8115 13.9243 20.7512L13.3285 20.4768C12.6741 20.1755 12.3469 20.0248 12 20.0248C11.6531 20.0248 11.3259 20.1755 10.6715 20.4768L10.0757 20.7512C7.77268 21.8115 6.62118 22.3417 5.85515 21.7602C5.08912 21.1787 5.21588 19.8706 5.4694 17.2544L5.53498 16.5776C5.60703 15.8341 5.64305 15.4624 5.53586 15.1177C5.42868 14.773 5.19043 14.4944 4.71392 13.9372L4.2801 13.4299C2.60325 11.4691 1.76482 10.4886 2.05742 9.54773C2.35002 8.60682 3.57986 8.32856 6.03954 7.77203L6.67589 7.62805C7.37485 7.4699 7.72433 7.39083 8.00494 7.17781C8.28555 6.96479 8.46553 6.64194 8.82547 5.99623L9.15316 5.40838Z"/></symbol>
+<symbol id="i-tag-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M4.72848 16.1369C3.18295 14.5914 2.41018 13.8186 2.12264 12.816C1.83509 11.8134 2.08083 10.7485 2.57231 8.61875L2.85574 7.39057C3.26922 5.59881 3.47597 4.70292 4.08944 4.08944C4.70292 3.47597 5.59881 3.26922 7.39057 2.85574L8.61875 2.57231C10.7485 2.08083 11.8134 1.83509 12.816 2.12264C13.8186 2.41018 14.5914 3.18295 16.1369 4.72848L17.9665 6.55812C20.6555 9.24711 22 10.5916 22 12.2623C22 13.933 20.6555 15.2775 17.9665 17.9665C15.2775 20.6555 13.933 22 12.2623 22C10.5916 22 9.24711 20.6555 6.55812 17.9665L4.72848 16.1369Z"/><circle cx="8.607" cy="8.879" r="2" transform="rotate(-45 8.607 8.879)"/><path d="M11.5417 18.5L18.5208 11.5208"/></g></symbol>
+<symbol id="i-target-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"/><path d="M2 12L5 12"/><path d="M19 12L22 12"/><path d="M12 22L12 19"/><path d="M12 5L12 2"/><path stroke-linejoin="round" d="M10 12H12H14"/><path stroke-linejoin="round" d="M12 14L12 12L12 10"/></g></symbol>
+<symbol id="i-undo-left-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7H15C16.8692 7 17.8039 7 18.5 7.40193C18.9561 7.66523 19.3348 8.04394 19.5981 8.49999C20 9.19615 20 10.1308 20 12C20 13.8692 20 14.8038 19.5981 15.5C19.3348 15.9561 18.9561 16.3348 18.5 16.5981C17.8039 17 16.8692 17 15 17H8.00001M7 10L4 7L7 4"/></symbol>
+<symbol id="i-user-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><circle cx="12" cy="6" r="4"/><path d="M20 17.5C20 19.9853 20 22 12 22C4 22 4 19.9853 4 17.5C4 15.0147 7.58172 13 12 13C16.4183 13 20 15.0147 20 17.5Z"/></g></symbol>
+<symbol id="i-widget-linear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M2.5 6.5C2.5 4.61438 2.5 3.67157 3.08579 3.08579C3.67157 2.5 4.61438 2.5 6.5 2.5C8.38562 2.5 9.32843 2.5 9.91421 3.08579C10.5 3.67157 10.5 4.61438 10.5 6.5C10.5 8.38562 10.5 9.32843 9.91421 9.91421C9.32843 10.5 8.38562 10.5 6.5 10.5C4.61438 10.5 3.67157 10.5 3.08579 9.91421C2.5 9.32843 2.5 8.38562 2.5 6.5Z"/><path d="M13.5 17.5C13.5 15.6144 13.5 14.6716 14.0858 14.0858C14.6716 13.5 15.6144 13.5 17.5 13.5C19.3856 13.5 20.3284 13.5 20.9142 14.0858C21.5 14.6716 21.5 15.6144 21.5 17.5C21.5 19.3856 21.5 20.3284 20.9142 20.9142C20.3284 21.5 19.3856 21.5 17.5 21.5C15.6144 21.5 14.6716 21.5 14.0858 20.9142C13.5 20.3284 13.5 19.3856 13.5 17.5Z"/><path d="M2.5 17.5C2.5 15.6144 2.5 14.6716 3.08579 14.0858C3.67157 13.5 4.61438 13.5 6.5 13.5C8.38562 13.5 9.32843 13.5 9.91421 14.0858C10.5 14.6716 10.5 15.6144 10.5 17.5C10.5 19.3856 10.5 20.3284 9.91421 20.9142C9.32843 21.5 8.38562 21.5 6.5 21.5C4.61438 21.5 3.67157 21.5 3.08579 20.9142C2.5 20.3284 2.5 19.3856 2.5 17.5Z"/><path d="M13.5 6.5C13.5 4.61438 13.5 3.67157 14.0858 3.08579C14.6716 2.5 15.6144 2.5 17.5 2.5C19.3856 2.5 20.3284 2.5 20.9142 3.08579C21.5 3.67157 21.5 4.61438 21.5 6.5C21.5 8.38562 21.5 9.32843 20.9142 9.91421C20.3284 10.5 19.3856 10.5 17.5 10.5C15.6144 10.5 14.6716 10.5 14.0858 9.91421C13.5 9.32843 13.5 8.38562 13.5 6.5Z"/></g></symbol>
+<symbol id="b-bluesky" viewBox="0 0 24 24"><path fill="currentColor" d="M5.202 2.857C7.954 4.922 10.913 9.11 12 11.358c1.087-2.247 4.046-6.436 6.798-8.501C20.783 1.366 24 .213 24 3.883c0 .732-.42 6.156-.667 7.037c-.856 3.061-3.978 3.842-6.755 3.37c4.854.826 6.089 3.562 3.422 6.299c-5.065 5.196-7.28-1.304-7.847-2.97c-.104-.305-.152-.448-.153-.327c0-.121-.05.022-.153.327c-.568 1.666-2.782 8.166-7.847 2.97c-2.667-2.737-1.432-5.473 3.422-6.3c-2.777.473-5.899-.308-6.755-3.369C.42 10.04 0 4.615 0 3.883c0-3.67 3.217-2.517 5.202-1.026"/></symbol>
+<symbol id="b-quora" viewBox="0 0 24 24"><path fill="currentColor" d="M7.38.948A11.963 11.963 0 0 1 21.248 19.54l2.41 2.422c.732.736.21 1.99-.828 1.99l-10.71.01h-.324A11.963 11.963 0 0 1 7.382.95Zm7.322 4.428a7.172 7.172 0 1 0-5.488 13.252a7.172 7.172 0 0 0 5.489-13.252Z"/></symbol>
+<symbol id="b-reddit" viewBox="0 0 24 24"><path fill="currentColor" d="M12 0C5.373 0 0 5.373 0 12c0 3.314 1.343 6.314 3.515 8.485l-2.286 2.286A.72.72 0 0 0 1.738 24H12c6.627 0 12-5.373 12-12S18.627 0 12 0m4.388 3.199a1.999 1.999 0 1 1-1.947 2.46v.002a2.37 2.37 0 0 0-2.032 2.341v.007c1.776.067 3.4.567 4.686 1.363a2.802 2.802 0 1 1 2.908 4.753c-.088 3.256-3.637 5.876-7.997 5.876c-4.361 0-7.905-2.617-7.998-5.87a2.8 2.8 0 0 1 1.189-5.34c.645 0 1.239.218 1.712.585c1.275-.79 2.881-1.291 4.64-1.365v-.01a3.23 3.23 0 0 1 2.88-3.207a2 2 0 0 1 1.959-1.595m-8.085 8.376c-.784 0-1.459.78-1.506 1.797s.64 1.429 1.426 1.429s1.371-.369 1.418-1.385s-.553-1.841-1.338-1.841m7.406 0c-.786 0-1.385.824-1.338 1.841s.634 1.385 1.418 1.385c.785 0 1.473-.413 1.426-1.429c-.046-1.017-.721-1.797-1.506-1.797m-3.703 4.013c-.974 0-1.907.048-2.77.135a.222.222 0 0 0-.183.305a3.2 3.2 0 0 0 2.953 1.964a3.2 3.2 0 0 0 2.953-1.964a.222.222 0 0 0-.184-.305a28 28 0 0 0-2.769-.135"/></symbol>
+<symbol id="b-stackexchange" viewBox="0 0 24 24"><path fill="currentColor" d="M21.728 15.577v1.036c0 1.754-1.395 3.177-3.1 3.177h-.904L13.645 24v-4.21H5.371c-1.704 0-3.099-1.423-3.099-3.181v-1.032zM2.275 10.463h19.323v3.979H2.275zm0-5.141h19.323v3.979H2.275zM18.575 0c1.681 0 3.023 1.42 3.023 3.178v1.034H2.275V3.178C2.275 1.422 3.67 0 5.375 0z"/></symbol>
+<symbol id="b-threads" viewBox="0 0 24 24"><path fill="currentColor" d="M18.263 11.097c-.03-3.486-1.92-5.586-5.111-5.586c-2.13 0-3.922.963-4.863 2.499l2.062 1.438c.535-.843 1.272-1.543 2.628-1.543c1.528 0 2.318.85 2.544 2.431a15 15 0 0 0-2.236-.173c-4.125 0-6.068 1.867-6.068 4.336s1.943 3.99 4.804 3.99c3.139 0 5.013-2.115 5.781-4.735c.798.361 1.348 1.204 1.348 2.47c0 3.387-3.907 5.232-7.22 5.232c-4.885 0-8.077-3.207-8.077-8.424c0-6.392 4.223-10.487 9.9-10.487c3.808 0 5.69 1.671 6.97 3.914l2.108-1.475C21.44 2.078 18.331 0 13.663 0C6.227 0 1.168 5.277 1.168 12.934c0 7 4.953 11.066 10.856 11.066c4.878 0 9.809-2.846 9.809-7.716c0-2.545-1.46-4.231-3.569-5.187m-6.33 4.855c-1.077 0-2.026-.512-2.026-1.453c0-1.483 1.822-1.934 3.606-1.934c.678 0 1.34.045 1.927.173c-.422 1.927-1.671 3.215-3.508 3.214Z"/></symbol>
+<symbol id="b-x" viewBox="0 0 24 24"><path fill="currentColor" d="M14.234 10.162L22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299l-.929-1.329L3.076 1.56h3.182l5.965 8.532l.929 1.329l7.754 11.09h-3.182z"/></symbol>
+<symbol id="b-ycombinator" viewBox="0 0 24 24"><path fill="currentColor" d="M0 24V0h24v24zM6.951 5.896l4.112 7.708v5.064h1.583v-4.972l4.148-7.799h-1.749l-2.457 4.875c-.372.745-.688 1.434-.688 1.434s-.297-.708-.651-1.434L8.831 5.896z"/></symbol>
+<symbol id="b-youtube" viewBox="0 0 24 24"><path fill="currentColor" d="M23.498 6.186a3.02 3.02 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.02 3.02 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.02 3.02 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.02 3.02 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814M9.545 15.568V8.432L15.818 12z"/></symbol>
+</svg>
+
+<div class="app" id="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="side" aria-label="Navigation">
+    <div class="brand">
+      <svg class="brand-word" role="img" aria-label="marKit"><use href="#logo-word"/></svg>
     </div>
-    <p class="hint">To rewrite a draft, say it in your agent's chat, e.g. "rewrite draft #3". Then press Refresh. marKit never posts for you.</p>
-    <div class="filters">
-      <label>App <select id="f-app"></select></label>
-      <label>Run <select id="f-run"></select></label>
-      <label>Platform <select id="f-platform"></select></label>
-      <label>Priority
-        <select id="f-priority">
-          <option value="all">All</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
-        </select>
+
+    <label class="app-switch" title="Switch app">
+      <span class="app-avatar" id="app-avatar">?</span>
+      <select id="f-app" aria-label="App"></select>
+      <svg class="ic ic-sm" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg>
+    </label>
+
+    <div class="nav-label">Inbox</div>
+    <nav class="nav" id="nav-inbox">
+      <button class="nav-btn" data-view="open" type="button" title="To do"><svg class="ic" aria-hidden="true"><use href="#i-inbox-linear"/></svg><span class="lbl">To do</span><span class="count" data-count="open">0</span></button>
+      <button class="nav-btn" data-view="replied" type="button" title="Replied"><svg class="ic" aria-hidden="true"><use href="#i-check-circle-linear"/></svg><span class="lbl">Replied</span><span class="count" data-count="replied">0</span></button>
+      <button class="nav-btn" data-view="skipped" type="button" title="Skipped"><svg class="ic" aria-hidden="true"><use href="#i-archive-linear"/></svg><span class="lbl">Skipped</span><span class="count" data-count="skipped">0</span></button>
+      <button class="nav-btn" data-view="all" type="button" title="All"><svg class="ic" aria-hidden="true"><use href="#i-layers-linear"/></svg><span class="lbl">All</span><span class="count" data-count="all">0</span></button>
+    </nav>
+    <div class="nav-label">Insights</div>
+    <nav class="nav">
+      <button class="nav-btn" data-view="analytics" type="button" title="Analytics"><svg class="ic" aria-hidden="true"><use href="#i-chart-2-linear"/></svg><span class="lbl">Analytics</span></button>
+    </nav>
+
+    <div class="side-spacer"></div>
+    <div class="run-card" id="run-card" hidden>
+      <div class="run-card-top"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-history-linear"/></svg>Latest run</div>
+      <div class="run-card-when" id="run-when"></div>
+      <div class="run-card-sub" id="run-sub"></div>
+      <div class="run-card-tip">Search again: run <code>/markit-find</code> in your agent.</div>
+    </div>
+    <div class="side-foot">
+      <svg class="ic ic-sm" aria-hidden="true"><use href="#i-global-linear"/></svg>
+      <span class="lbl">Only on this computer</span>
+      <span class="grow"></span>
+      <button class="icon-btn" id="kbd-btn" type="button" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts"><svg class="ic" aria-hidden="true"><use href="#i-keyboard-linear"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- ===== List ===== -->
+  <section class="list-col" aria-label="Opportunities">
+    <header class="list-head">
+      <div class="title-row">
+        <h1><svg class="ic ic-lg" id="view-icon" aria-hidden="true"><use href="#i-inbox-linear"/></svg><span id="view-title">To do</span></h1>
+        <button class="icon-btn" id="refresh" type="button" title="Reload cards" aria-label="Reload"><svg class="ic" aria-hidden="true"><use href="#i-refresh-linear"/></svg></button>
+      </div>
+      <p class="list-desc" id="view-desc">Opportunities waiting for your reply.</p>
+      <label class="search">
+        <svg class="ic ic-sm" aria-hidden="true"><use href="#i-magnifer-linear"/></svg>
+        <input id="q" type="search" placeholder="Search posts, sites, keywords" autocomplete="off" aria-label="Search">
+        <kbd>/</kbd>
       </label>
-      <label>Show
-        <select id="f-show">
-          <option value="open">To do</option><option value="all">All</option><option value="replied">Replied</option><option value="skipped">Skipped</option>
-        </select>
-      </label>
+      <div class="filters">
+        <label class="chip-select" title="Run"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-calendar-linear"/></svg><select id="f-run" aria-label="Run"></select><svg class="caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg></label>
+        <label class="chip-select" title="Platform"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-global-linear"/></svg><select id="f-platform" aria-label="Platform"></select><svg class="caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg></label>
+        <div class="seg" id="f-priority" role="group" aria-label="Priority">
+          <button type="button" data-p="all" class="is-active">All</button><button type="button" data-p="high">High</button><button type="button" data-p="medium">Med</button><button type="button" data-p="low">Low</button>
+        </div>
+      </div>
+      <div class="list-meta">
+        <span id="list-count"></span>
+        <label class="sort"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-sort-vertical-linear"/></svg><select id="f-sort" aria-label="Sort"><option value="best">Best match</option><option value="newest">Newest</option></select><svg class="caret" aria-hidden="true"><use href="#i-alt-arrow-down-linear"/></svg></label>
+      </div>
+    </header>
+    <div class="list" id="list" role="listbox" aria-label="Opportunities"></div>
+  </section>
+
+  <!-- ===== Detail ===== -->
+  <section class="detail-col" id="detail" aria-label="Opportunity details"></section>
+
+  <!-- ===== Analytics ===== -->
+  <section class="analytics" id="analytics" aria-label="Analytics"></section>
+</div>
+
+<!-- Shown until the first load finishes, or when there are no reports at all. -->
+<div class="boot" id="boot">
+  <div class="boot-card">
+    <div class="brand"><svg class="brand-mark" aria-hidden="true"><use href="#logo-mark"/></svg><svg class="brand-word" role="img" aria-label="marKit"><use href="#logo-word"/></svg></div>
+    <p class="muted" id="boot-msg">Loading…</p>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button type="button" id="toast-undo" hidden>Undo</button></div>
+
+<div class="modal-bg" id="keys" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="keys-title">
+    <h2 id="keys-title">Keyboard shortcuts <button class="icon-btn" id="keys-close" type="button" aria-label="Close"><svg class="ic" aria-hidden="true"><use href="#i-close-circle-linear"/></svg></button></h2>
+    <div class="keys">
+      <span class="k"><kbd>J</kbd><kbd>↓</kbd></span><span>Next opportunity</span>
+      <span class="k"><kbd>K</kbd><kbd>↑</kbd></span><span>Previous opportunity</span>
+      <span class="k"><kbd>R</kbd></span><span>Mark replied (again to undo)</span>
+      <span class="k"><kbd>S</kbd></span><span>Skip (again to undo)</span>
+      <span class="k"><kbd>C</kbd></span><span>Copy draft reply</span>
+      <span class="k"><kbd>O</kbd></span><span>Open the post</span>
+      <span class="k"><kbd>/</kbd></span><span>Search</span>
+      <span class="k"><kbd>?</kbd></span><span>Show these shortcuts</span>
     </div>
   </div>
-</header>
-<main class="wrap">
-  <section class="stats" id="stats" aria-live="polite"></section>
-  <section id="cards"></section>
-</main>
+</div>
 
 <script nonce="__NONCE__">
 "use strict";
-// --- tiny helpers ---------------------------------------------------------------
+// =============================================================================
+// Helpers
+// =============================================================================
 const $ = (sel) => document.querySelector(sel);
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 // Build an element. `text` is set with textContent, so it's ALWAYS shown as plain text.
 function el(tag, { cls, text, attrs } = {}, children = []) {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
-  if (text !== undefined) node.textContent = text;
+  if (text !== undefined && text !== null) node.textContent = String(text);
   for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
-  for (const child of children) if (child) node.appendChild(child);
+  for (const child of children) if (child) node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
   return node;
 }
 
-// Remember filter choices between visits (this browser only). Storage may be blocked,
-// so every access is wrapped.
+// An icon from the sprite at the top of the page, e.g. icon("i-copy-linear").
+function icon(id, cls = "ic") {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", cls);
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(SVG_NS, "use");
+  use.setAttribute("href", "#" + id);
+  svg.appendChild(use);
+  return svg;
+}
+
+// Remember choices between visits (this browser only). Storage may be blocked.
 const store = {
   get(key) { try { return localStorage.getItem("markit:" + key); } catch { return null; } },
   set(key, value) { try { localStorage.setItem("markit:" + key, value); } catch {} },
@@ -126,7 +514,7 @@ const store = {
 async function api(path, options) {
   const res = await fetch(path, options);
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || ("HTTP " + res.status));
+  if (!res.ok) throw new Error(body.error || "HTTP " + res.status);
   return body;
 }
 
@@ -140,76 +528,405 @@ function age(iso) {
   const d = Math.floor(h / 24);
   return d < 14 ? d + "d ago" : Math.floor(d / 7) + "w ago";
 }
+const fmtDate = (iso, withTime) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, withTime ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric" });
+};
+const compact = (n) => (n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "") + "k" : String(n));
+const isWebLink = (url) => /^https?:\/\//i.test(String(url || "")); // never javascript: or file:
 
-function runLabel(r) {
-  const d = new Date(r.ranAt);
-  const when = Number.isNaN(d.getTime()) ? r.run : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  return when + " · " + r.total + " (" + r.high + " high)";
+const INTENTS = {
+  asking_for_recommendation: "Asking for a recommendation",
+  competitor_complaint: "Competitor complaint",
+  problem_discussion: "Describes the problem",
+  direct_mention: "Mentions your app",
+};
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+
+// Which platform logo to show for a card.
+function platformOf(card) {
+  const label = String(card.platform || card.label || "");
+  if (card.source === "socialcrawl" || /^reddit/i.test(label)) return { cls: "plat-reddit", icon: "b-reddit" };
+  if (/^quora/i.test(label)) return { cls: "plat-quora", icon: "b-quora" };
+  const map = {
+    hackernews: { cls: "plat-hn", icon: "b-ycombinator" },
+    stackexchange: { cls: "plat-se", icon: "b-stackexchange" },
+    bluesky: { cls: "plat-bsky", icon: "b-bluesky" },
+    youtube: { cls: "plat-yt", icon: "b-youtube" },
+    threads: { cls: "plat-threads", icon: "b-threads" },
+    x: { cls: "plat-x", icon: "b-x" },
+  };
+  return map[card.source] || { cls: "", icon: "i-global-linear" };
+}
+function platBadge(card) {
+  const p = platformOf(card);
+  return el("span", { cls: "plat " + p.cls }, [icon(p.icon)]);
 }
 
-// Only real web links may be opened (never javascript: or file: links).
-const isWebLink = (url) => /^https?:\/\//i.test(String(url || ""));
+// Upvotes/likes and comments/replies/answers, whatever the platform provides.
+function engagementOf(card) {
+  const e = card.engagement || {};
+  const up = e.score ?? e.likes;
+  const comments = e.comments ?? e.replies ?? e.answers;
+  return { up: Number.isFinite(up) ? up : null, comments: Number.isFinite(comments) ? comments : null };
+}
+function engagementNodes(card) {
+  const { up, comments } = engagementOf(card);
+  const out = [];
+  if (up !== null) out.push(el("span", { cls: "eng", attrs: { title: "Upvotes / likes" } }, [icon("i-alt-arrow-up-linear", "ic ic-sm"), compact(up)]));
+  if (comments !== null) out.push(el("span", { cls: "eng", attrs: { title: "Comments / replies" } }, [icon("i-chat-round-line-linear", "ic ic-sm"), compact(comments)]));
+  return out;
+}
 
-// --- state ----------------------------------------------------------------------
-const state = { apps: [], runs: [], cards: [], stats: null };
-const filters = { app: "", run: "latest", platform: "all", priority: "all", show: store.get("show") || "open" };
+// =============================================================================
+// State
+// =============================================================================
+const state = {
+  apps: [], runs: [], cards: [], stats: null,
+  app: "", run: "latest", resolvedRun: "",
+  view: store.get("view") || "open", platform: "all", priority: "all", sort: store.get("sort") || "best", query: "",
+  selectedId: null,
+  allCards: null, // analytics: every run of the app
+};
 
+const VIEWS = {
+  open: { title: "To do", icon: "i-inbox-linear", desc: "Opportunities waiting for your reply." },
+  replied: { title: "Replied", icon: "i-check-circle-linear", desc: "Posts you've marked as replied." },
+  skipped: { title: "Skipped", icon: "i-archive-linear", desc: "Posts you decided not to reply to." },
+  all: { title: "All", icon: "i-layers-linear", desc: "Every opportunity in this run." },
+  analytics: { title: "Analytics", icon: "i-chart-2-linear", desc: "" },
+};
+
+function visibleCards() {
+  const q = state.query.trim().toLowerCase();
+  const list = state.cards.filter((c) =>
+    (state.view === "all" || c.status === state.view) &&
+    (state.platform === "all" || c.platform === state.platform) &&
+    (state.priority === "all" || c.priority === state.priority) &&
+    (!q || [c.title, c.excerpt, c.label, c.matchedKeyword, c.author].some((v) => String(v || "").toLowerCase().includes(q)))
+  );
+  return list.sort((a, b) =>
+    state.sort === "newest"
+      ? String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+      : PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || b.score - a.score || a.number - b.number
+  );
+}
+const selectedCard = () => state.cards.find((c) => c.id === state.selectedId) || null;
+
+// =============================================================================
+// Loading
+// =============================================================================
 function fillSelect(select, options, value) {
   select.replaceChildren(...options.map(([v, label]) => el("option", { text: label, attrs: { value: v } })));
-  select.value = options.some(([v]) => v === value) ? value : (options[0] ? options[0][0] : "");
+  select.value = options.some(([v]) => v === value) ? value : options[0] ? options[0][0] : "";
   return select.value;
 }
 
-// --- loading --------------------------------------------------------------------
 async function loadApps() {
   const { apps } = await api("/api/apps");
   state.apps = apps;
   if (!apps.length) {
-    $("#cards").replaceChildren(el("p", { cls: "empty", text: "No reports yet. Run /markit-find first, then press Refresh." }));
-    $("#stats").replaceChildren();
+    $("#boot").hidden = false;
+    $("#boot-msg").replaceChildren(
+      el("b", { text: "No reports yet." }), el("br"),
+      "Run ", el("code", { text: "/markit-find" }), " in your agent, then reload this page."
+    );
     return false;
   }
-  filters.app = fillSelect($("#f-app"), apps.map((a) => [a, a]), store.get("app") || apps[0]);
+  state.app = fillSelect($("#f-app"), apps.map((a) => [a, a]), store.get("app") || apps[0]);
+  $("#app-avatar").textContent = state.app.slice(0, 1);
   return true;
 }
 
 async function loadRuns() {
-  const { runs } = await api("/api/runs?app=" + encodeURIComponent(filters.app));
+  const { runs } = await api("/api/runs?app=" + encodeURIComponent(state.app));
   state.runs = runs;
-  const options = [["latest", "Latest run"], ["all", "All runs"], ...runs.map((r) => [r.run, runLabel(r)])];
-  filters.run = fillSelect($("#f-run"), options, filters.run);
+  const options = [["latest", "Latest run"], ["all", "All runs"], ...runs.map((r) => [r.run, fmtDate(r.ranAt, true) + " · " + r.total])];
+  state.run = fillSelect($("#f-run"), options, state.run);
+  const latest = runs[0];
+  $("#run-card").hidden = !latest;
+  if (latest) {
+    $("#run-when").textContent = fmtDate(latest.ranAt, true);
+    $("#run-sub").textContent = latest.total + " opportunities · " + latest.high + " high · last " + (latest.lookbackDays || "?") + " days";
+  }
 }
 
 async function loadCards() {
-  const q = "?app=" + encodeURIComponent(filters.app) + "&run=" + encodeURIComponent(filters.run);
-  const { cards, stats } = await api("/api/cards" + q);
+  const q = "?app=" + encodeURIComponent(state.app) + "&run=" + encodeURIComponent(state.run);
+  const { cards, stats, run } = await api("/api/cards" + q);
   state.cards = cards;
   state.stats = stats;
+  state.resolvedRun = run;
   const platforms = [...new Set(cards.map((c) => c.platform))].sort();
-  filters.platform = fillSelect($("#f-platform"), [["all", "All"], ...platforms.map((p) => [p, p])], filters.platform);
-  render();
+  state.platform = fillSelect($("#f-platform"), [["all", "All platforms"], ...platforms.map((p) => [p, p])], state.platform);
+}
+
+async function loadAllForAnalytics() {
+  const { cards, stats } = await api("/api/cards?app=" + encodeURIComponent(state.app) + "&run=all");
+  state.allCards = { cards, stats };
 }
 
 async function reloadAll() {
   try {
-    if (await loadApps()) { await loadRuns(); await loadCards(); }
+    if (!(await loadApps())) return;
+    await loadRuns();
+    await loadCards();
+    state.allCards = null;
+    $("#boot").hidden = true;
+    await render();
   } catch (err) {
-    $("#cards").replaceChildren(el("p", { cls: "empty error", text: "Couldn't load: " + err.message + ". Is the dashboard still running?" }));
+    $("#boot").hidden = false;
+    $("#boot-msg").textContent = "Couldn't load: " + err.message + ". Is the dashboard still running? Start it again with /markit-dashboard.";
   }
 }
 
-// --- actions --------------------------------------------------------------------
-async function setStatus(card, status) {
-  const next = card.status === status ? "open" : status; // clicking again clears it
-  try {
-    await api("/api/status", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: card.id, status: next }) });
-    await loadCards(); // refresh cards and stats together
-  } catch (err) {
-    alert("Couldn't save: " + err.message);
+// =============================================================================
+// Rendering
+// =============================================================================
+async function render() {
+  const app = $("#app");
+  app.classList.toggle("is-analytics", state.view === "analytics");
+  for (const b of document.querySelectorAll(".nav-btn")) b.classList.toggle("is-active", b.dataset.view === state.view);
+  renderCounts();
+  if (state.view === "analytics") {
+    if (!state.allCards) await loadAllForAnalytics();
+    renderAnalytics();
+    return;
   }
+  const v = VIEWS[state.view];
+  $("#view-title").textContent = v.title;
+  $("#view-icon").firstChild.setAttribute("href", "#" + v.icon);
+  $("#view-desc").textContent = v.desc;
+  for (const b of $("#f-priority").children) b.classList.toggle("is-active", b.dataset.p === state.priority);
+  $("#f-sort").value = state.sort;
+  renderList();
+  renderDetail();
 }
 
-async function copyDraft(text, button) {
+function renderCounts() {
+  const s = state.stats || { open: 0, replied: 0, skipped: 0, total: 0 };
+  const counts = { open: s.open, replied: s.replied, skipped: s.skipped, all: s.total };
+  for (const node of document.querySelectorAll("[data-count]")) node.textContent = String(counts[node.dataset.count] ?? 0);
+}
+
+function renderList() {
+  const list = visibleCards();
+  if (!list.some((c) => c.id === state.selectedId)) state.selectedId = list[0]?.id ?? null;
+  const n = list.length;
+  $("#list-count").replaceChildren(el("b", { text: String(n) }), n === 1 ? " opportunity" : " opportunities");
+
+  if (!n) {
+    const done = state.view === "open" && state.cards.length > 0 && !state.query && state.platform === "all" && state.priority === "all";
+    $("#list").replaceChildren(
+      el("div", { cls: "empty" }, [
+        icon(done ? "i-check-circle-linear" : "i-magnifer-linear"),
+        el("h3", { text: done ? "All caught up" : "Nothing here" }),
+        el("p", { text: done ? "You've handled every opportunity in this run. Run /markit-find in your agent to look for new ones." : state.cards.length ? "No opportunities match these filters." : "This run has no opportunities." }),
+      ])
+    );
+    return;
+  }
+
+  $("#list").replaceChildren(...list.map((c) => {
+    const done = c.status !== "open";
+    const tags = [el("span", { cls: "pill score " + c.priority, attrs: { title: "Fit score" } }, [icon("i-graph-up-linear", "ic ic-sm"), String(c.score)])];
+    if (c.matchedKeyword) tags.push(el("span", { cls: "pill", attrs: { title: "Found by keyword" } }, [icon("i-tag-linear", "ic ic-sm"), c.matchedKeyword]));
+    if (c.status === "replied") tags.push(el("span", { cls: "pill badge-ok" }, [icon("i-check-circle-linear", "ic ic-sm"), "Replied"]));
+    if (c.status === "skipped") tags.push(el("span", { cls: "pill badge-skip" }, [icon("i-close-circle-linear", "ic ic-sm"), "Skipped"]));
+    const item = el("button", { cls: "item" + (c.id === state.selectedId ? " is-active" : "") + (done ? " is-done" : ""), attrs: { type: "button", role: "option", "aria-selected": String(c.id === state.selectedId), "data-id": c.id } }, [
+      c.status === "open" ? el("span", { cls: "unread", attrs: { "aria-hidden": "true" } }) : null,
+      el("div", { cls: "item-top" }, [platBadge(c), el("span", { cls: "item-site", text: c.label }), el("span", { text: "·" }), el("span", { text: age(c.createdAt) }), el("span", { cls: "item-eng" }, engagementNodes(c))]),
+      el("div", { cls: "item-title" }, [el("span", { cls: "item-num", text: "#" + c.number }), c.title || (c.excerpt || "").slice(0, 90) || "(untitled)"]),
+      el("div", { cls: "item-tags" }, tags),
+    ]);
+    item.addEventListener("click", () => select(c.id, true));
+    return item;
+  }));
+}
+
+function renderDetail() {
+  const c = selectedCard();
+  const host = $("#detail");
+  if (!c) {
+    host.replaceChildren(el("div", { cls: "detail-empty" }, [el("div", { cls: "empty" }, [icon("i-widget-linear"), el("h3", { text: "Select an opportunity" }), el("p", { text: "Pick a post on the left to see why it fits and its draft reply." })])]));
+    return;
+  }
+  const back = el("button", { cls: "btn btn-ghost d-back", attrs: { type: "button" } }, [icon("i-undo-left-linear", "ic ic-sm"), "Back"]);
+  back.addEventListener("click", () => $("#app").classList.remove("show-detail"));
+
+  const meta = el("div", { cls: "d-meta" }, [
+    back,
+    platBadge(c), el("span", { cls: "site", text: c.label }), el("span", { text: "·" }), el("span", { text: age(c.createdAt) }),
+    c.author ? el("span", { text: "·" }) : null,
+    c.author ? el("span", { cls: "eng" }, [icon("i-user-linear", "ic ic-sm"), c.author]) : null,
+    ...engagementNodes(c),
+    el("span", { cls: "grow" }),
+    state.run === "all" ? el("span", { cls: "eng", attrs: { title: "Run" } }, [icon("i-calendar-linear", "ic ic-sm"), fmtDate(c.ranAt)]) : null,
+  ]);
+
+  const pct = Math.max(0, Math.min(100, Number(c.score) || 0));
+  const bar = el("span", { cls: "scorebar" }, [el("i")]);
+  bar.firstChild.style.width = pct + "%"; // set through the DOM (allowed by the CSP)
+  const panel = el("div", { cls: "d-panel" }, [
+    el("span", { cls: "d-score " + c.priority }, [icon("i-graph-up-linear"), "Score ", el("b", { text: String(c.score) }), el("span", { cls: "muted", text: "/100" }), bar]),
+    el("span", { cls: "pill score " + c.priority, text: c.priority.charAt(0).toUpperCase() + c.priority.slice(1) + " priority" }),
+    el("span", { cls: "d-sep" }),
+    el("span", { cls: "d-kv" }, [icon("i-target-linear", "ic ic-sm"), el("b", { text: INTENTS[c.intent] || c.intent || "—" })]),
+    c.matchedKeyword ? el("span", { cls: "d-kv" }, ["Found by", el("span", { cls: "pill" }, [icon("i-tag-linear", "ic ic-sm"), c.matchedKeyword])]) : null,
+  ]);
+
+  const blocks = [];
+  if (c.excerpt) blocks.push(el("section", { cls: "d-block" }, [el("div", { cls: "d-label" }, [icon("i-chat-round-line-linear", "ic ic-sm"), "The post"]), el("blockquote", { cls: "d-post", text: c.excerpt })]));
+  if (c.why) blocks.push(el("section", { cls: "d-block" }, [el("div", { cls: "d-label" }, [icon("i-lightbulb-bolt-linear", "ic ic-sm"), "Why it fits"]), el("p", { cls: "d-why", text: c.why })]));
+  if (c.caution) blocks.push(el("div", { cls: "d-note d-caution" }, [icon("i-danger-triangle-linear"), el("div", {}, [el("b", { text: "Caution" }), c.caution])]));
+  if (c.mention === "praise") blocks.push(el("div", { cls: "d-note d-praise" }, [icon("i-star-linear"), el("div", {}, [el("b", { text: "Praise" }), "Worth saving as a testimonial. Ask before quoting it publicly."])]));
+  if (c.mention === "bug") blocks.push(el("div", { cls: "d-note d-bug" }, [icon("i-bug-linear"), el("div", {}, [el("b", { text: "Bug report" }), "Someone hit a problem with your app. Worth following up."])]));
+
+  const rewrite = state.run === "all" ? "rewrite draft #" + c.number + " from the " + fmtDate(c.ranAt) + " run" : "rewrite draft #" + c.number;
+  const copyRewrite = el("button", { cls: "link-btn", attrs: { type: "button" } }, [icon("i-copy-linear", "ic ic-sm"), "Copy"]);
+  copyRewrite.addEventListener("click", () => copyText(rewrite, "Copied. Paste it in your agent's chat."));
+  if (c.draftReply) {
+    const copy = el("button", { cls: "link-btn", attrs: { type: "button" } }, [icon("i-copy-linear", "ic ic-sm"), "Copy"]);
+    copy.addEventListener("click", () => copyText(c.draftReply, "Draft copied"));
+    blocks.push(el("section", { cls: "d-block" }, [
+      el("div", { cls: "d-label" }, [icon("i-pen-linear", "ic ic-sm"), "Draft reply", el("span", { cls: "grow" }), copy]),
+      el("div", { cls: "d-draft", text: c.draftReply }),
+      el("div", { cls: "d-hint" }, [icon("i-info-circle-linear", "ic ic-sm"), "To change it, tell your agent", el("code", { text: rewrite }), copyRewrite]),
+    ]));
+  } else {
+    const ask = "write a reply for #" + c.number;
+    const copyAsk = el("button", { cls: "link-btn", attrs: { type: "button" } }, [icon("i-copy-linear", "ic ic-sm"), "Copy"]);
+    copyAsk.addEventListener("click", () => copyText(ask, "Copied. Paste it in your agent's chat."));
+    blocks.push(el("section", { cls: "d-block" }, [
+      el("div", { cls: "d-label" }, [icon("i-pen-linear", "ic ic-sm"), "Draft reply"]),
+      el("div", { cls: "d-hint" }, [icon("i-info-circle-linear", "ic ic-sm"), "No draft for low-priority posts. Ask your agent", el("code", { text: ask }), copyAsk]),
+    ]));
+  }
+
+  // Action bar
+  const replied = el("button", { cls: "btn btn-ghost" + (c.status === "replied" ? " is-on" : ""), attrs: { type: "button" } }, [icon("i-check-circle-linear"), c.status === "replied" ? "Replied" : "Mark replied", el("kbd", { text: "R" })]);
+  replied.addEventListener("click", () => setStatus(c, "replied"));
+  const skip = el("button", { cls: "btn btn-ghost" + (c.status === "skipped" ? " is-on-skip" : ""), attrs: { type: "button" } }, [icon("i-close-circle-linear"), c.status === "skipped" ? "Skipped" : "Skip", el("kbd", { text: "S" })]);
+  skip.addEventListener("click", () => setStatus(c, "skipped"));
+  const actions = [replied, skip, el("span", { cls: "grow" })];
+  if (c.draftReply) {
+    const copyBtn = el("button", { cls: "btn", attrs: { type: "button" } }, [icon("i-copy-linear"), "Copy draft", el("kbd", { text: "C" })]);
+    copyBtn.addEventListener("click", () => copyText(c.draftReply, "Draft copied"));
+    actions.push(copyBtn);
+  }
+  if (isWebLink(c.url)) {
+    actions.push(el("a", { cls: "btn btn-primary", attrs: { href: c.url, target: "_blank", rel: "noopener noreferrer" } }, ["Open post", icon("i-square-arrow-right-up-linear"), el("kbd", { text: "O" })]));
+  }
+
+  host.replaceChildren(
+    el("div", { cls: "d-scroll" }, [el("div", { cls: "d-inner" }, [meta, el("h2", { cls: "d-title" }, [el("span", { cls: "d-num", text: "#" + c.number }), c.title || (c.excerpt || "").slice(0, 120) || "(untitled)"]), panel, ...blocks])]),
+    el("div", { cls: "d-actions" }, actions)
+  );
+}
+
+// ---------- Analytics ----------
+function hbars(entries, total, iconFor, colorCls) {
+  const max = Math.max(1, ...entries.map(([, n]) => n));
+  return el("div", { cls: "hbars" }, entries.map(([name, n]) => {
+    const fill = el("div", { cls: "hbar-fill" + (colorCls ? " " + colorCls(name) : "") });
+    fill.style.width = Math.round((n / max) * 100) + "%";
+    return el("div", { cls: "hbar" }, [
+      el("span", { cls: "hbar-name" }, [iconFor ? iconFor(name) : null, el("span", { text: name, attrs: { title: name } })]),
+      el("div", { cls: "hbar-track" }, [fill]),
+      el("span", { cls: "hbar-num", text: String(n) }),
+    ]);
+  }));
+}
+
+function renderAnalytics() {
+  const { cards, stats } = state.allCards || { cards: [], stats: null };
+  const total = cards.length;
+  const avg = total ? Math.round(cards.reduce((s, c) => s + (Number(c.score) || 0), 0) / total) : 0;
+  const kpi = (iconId, label, num, sub) => el("div", { cls: "kpi" }, [el("div", { cls: "kpi-top" }, [icon(iconId, "ic ic-sm"), label]), el("div", { cls: "kpi-num", text: String(num) }), el("div", { cls: "kpi-sub", text: sub })]);
+  const countBy = (fn) => {
+    const m = new Map();
+    for (const c of cards) { const k = fn(c); if (k) m.set(k, (m.get(k) || 0) + 1); }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  };
+
+  const byPlatform = countBy((c) => c.platform);
+  const byPriority = ["high", "medium", "low"].map((p) => [p, cards.filter((c) => c.priority === p).length]);
+  const byKeyword = countBy((c) => c.matchedKeyword).slice(0, 8);
+  const byIntent = countBy((c) => INTENTS[c.intent] || c.intent);
+
+  // Priority split as one stacked bar.
+  const stack = el("div", { cls: "stack" }, byPriority.map(([p, n]) => { const i = el("i", { cls: "bg-" + p }); i.style.width = (total ? (n / total) * 100 : 0) + "%"; return i; }));
+  const legend = el("div", { cls: "legend" }, byPriority.map(([p, n]) => el("span", {}, [el("i", { cls: "dot bg-" + p }), p.charAt(0).toUpperCase() + p.slice(1), el("b", { text: String(n) })])));
+  const statusStack = el("div", { cls: "stack" }, [["ok", stats?.replied || 0], ["low", stats?.skipped || 0]].map(([cls, n]) => { const i = el("i", { cls: "bg-" + cls }); i.style.width = (total ? (n / total) * 100 : 0) + "%"; return i; }));
+  const statusLegend = el("div", { cls: "legend" }, [
+    el("span", {}, [el("i", { cls: "dot bg-ok" }), "Replied", el("b", { text: String(stats?.replied || 0) })]),
+    el("span", {}, [el("i", { cls: "dot bg-low" }), "Skipped", el("b", { text: String(stats?.skipped || 0) })]),
+    el("span", {}, [el("i", { cls: "dot bg-todo" }), "To do", el("b", { text: String(stats?.open || 0) })]),
+  ]);
+
+  // Runs over time (oldest → newest, last 12), stacked by priority.
+  const runs = state.runs.slice(0, 12).reverse();
+  const maxRun = Math.max(1, ...runs.map((r) => r.total));
+  const cols = el("div", { cls: "cols" }, runs.length ? runs.map((r) => {
+    const barEl = el("div", { cls: "col-bar" }, [["high", r.high], ["medium", r.medium], ["low", r.low]].map(([p, n]) => { const i = el("i", { cls: "bg-" + p }); i.style.height = (n / maxRun) * 130 + "px"; return i; }));
+    return el("div", { cls: "col", attrs: { title: fmtDate(r.ranAt, true) + ": " + r.total } }, [barEl, el("div", { cls: "col-num", text: String(r.total) }), el("div", { cls: "col-lbl", text: fmtDate(r.ranAt) })]);
+  }) : [el("p", { cls: "muted", text: "No runs yet." })]);
+
+  const platIcon = (name) => platBadge(cards.find((c) => c.platform === name) || { platform: name });
+  $("#analytics").replaceChildren(el("div", { cls: "an-inner" }, [
+    el("div", { cls: "an-head" }, [el("h1", {}, [icon("i-chart-2-linear", "ic ic-lg"), "Analytics"]), el("p", { text: "Across all " + state.runs.length + " run" + (state.runs.length === 1 ? "" : "s") + " of " + state.app + "." })]),
+    el("div", { cls: "kpis" }, [
+      kpi("i-layers-linear", "Opportunities", total, (stats?.open || 0) + " still to do"),
+      kpi("i-check-circle-linear", "Replies this week", stats?.repliesThisWeek || 0, "marked replied in the last 7 days"),
+      kpi("i-graph-up-linear", "Average score", avg, "out of 100"),
+      kpi("i-history-linear", "Runs", state.runs.length, state.runs[0] ? "latest " + fmtDate(state.runs[0].ranAt, true) : "none yet"),
+    ]),
+    el("div", { cls: "an-grid" }, [
+      el("div", { cls: "card" }, [el("h2", {}, [icon("i-global-linear", "ic ic-sm"), "By platform"]), byPlatform.length ? hbars(byPlatform, total, platIcon) : el("p", { cls: "muted", text: "No data yet." })]),
+      el("div", { cls: "card" }, [el("h2", {}, [icon("i-graph-up-linear", "ic ic-sm"), "Runs over time"]), cols, legend.cloneNode(true)]),
+      el("div", { cls: "card" }, [el("h2", {}, [icon("i-bolt-linear", "ic ic-sm"), "Priority"]), stack, legend, el("h2", {}, [icon("i-check-circle-linear", "ic ic-sm"), "Progress"]), statusStack, statusLegend]),
+      el("div", { cls: "card" }, [el("h2", {}, [icon("i-tag-linear", "ic ic-sm"), "Top keywords"]), byKeyword.length ? hbars(byKeyword, total) : el("p", { cls: "muted", text: "No data yet." })]),
+      el("div", { cls: "card" }, [el("h2", {}, [icon("i-target-linear", "ic ic-sm"), "What people are asking"]), byIntent.length ? hbars(byIntent, total) : el("p", { cls: "muted", text: "No data yet." })]),
+    ]),
+  ]));
+}
+
+// =============================================================================
+// Actions
+// =============================================================================
+function select(id, openOnMobile) {
+  state.selectedId = id;
+  for (const node of document.querySelectorAll(".item")) {
+    const on = node.dataset.id === id;
+    node.classList.toggle("is-active", on);
+    node.setAttribute("aria-selected", String(on));
+    if (on) node.scrollIntoView({ block: "nearest" });
+  }
+  renderDetail();
+  if (openOnMobile) $("#app").classList.add("show-detail");
+}
+
+function move(delta) {
+  const list = visibleCards();
+  if (!list.length) return;
+  const i = Math.max(0, list.findIndex((c) => c.id === state.selectedId));
+  select(list[Math.min(list.length - 1, Math.max(0, i + delta))].id, false);
+}
+
+let toastTimer = null;
+function toast(message, undo) {
+  $("#toast-msg").textContent = message;
+  const btn = $("#toast-undo");
+  btn.hidden = !undo;
+  btn.onclick = undo ? () => { hideToast(); undo(); } : null;
+  $("#toast").classList.add("is-on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, undo ? 5000 : 2200);
+}
+function hideToast() { $("#toast").classList.remove("is-on"); }
+
+async function copyText(text, message) {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
@@ -221,89 +938,98 @@ async function copyDraft(text, button) {
     document.execCommand("copy");
     area.remove();
   }
-  button.textContent = "Copied ✓";
-  setTimeout(() => { button.textContent = "Copy"; }, 1500);
+  toast(message);
 }
 
-// --- rendering ------------------------------------------------------------------
-function renderStats(visibleCount) {
-  const s = state.stats;
-  if (!s) return;
-  const max = Math.max(1, ...Object.values(s.perPlatform));
-  const bars = Object.entries(s.perPlatform).sort((a, b) => b[1] - a[1]).map(([name, n]) => {
-    const fill = el("div", { cls: "bar-fill" });
-    fill.style.width = Math.round((n / max) * 100) + "%"; // set via the DOM (allowed by the CSP)
-    return el("div", { cls: "bar-row" }, [el("span", { text: name }), el("div", { cls: "bar-track" }, [fill]), el("span", { text: String(n) })]);
+async function saveStatus(card, status) {
+  await api("/api/status", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: card.id, status }) });
+}
+
+// Replied / Skipped toggle. Pressing it again returns the card to "To do".
+async function setStatus(card, status) {
+  const before = card.status;
+  const next = before === status ? "open" : status;
+  const list = visibleCards();
+  const index = list.findIndex((c) => c.id === card.id);
+  try {
+    await saveStatus(card, next);
+  } catch (err) {
+    toast("Couldn't save: " + err.message);
+    return;
+  }
+  card.status = next;
+  // Refresh counts (and replies-this-week) from the server, keep the card list in place.
+  const fresh = await api("/api/cards?app=" + encodeURIComponent(state.app) + "&run=" + encodeURIComponent(state.run)).catch(() => null);
+  if (fresh) state.stats = fresh.stats;
+  state.allCards = null;
+  // If the card left the current view, select the next one in its place.
+  const after = visibleCards();
+  if (!after.some((c) => c.id === card.id)) state.selectedId = (after[index] || after[after.length - 1] || {}).id ?? null;
+  renderCounts();
+  renderList();
+  renderDetail();
+  const label = next === "open" ? "Moved #" + card.number + " back to To do" : "Marked #" + card.number + " as " + next;
+  toast(label, async () => {
+    await saveStatus(card, before).catch(() => {});
+    card.status = before;
+    const again = await api("/api/cards?app=" + encodeURIComponent(state.app) + "&run=" + encodeURIComponent(state.run)).catch(() => null);
+    if (again) state.stats = again.stats;
+    state.selectedId = card.id;
+    renderCounts(); renderList(); renderDetail();
   });
-  $("#stats").replaceChildren(
-    el("div", {}, [el("div", { cls: "stat-num", text: String(s.total) }), el("div", { cls: "stat-label", text: "opportunities (" + visibleCount + " shown) · " + s.open + " to do · " + s.replied + " replied · " + s.skipped + " skipped" })]),
-    el("div", {}, [el("div", { cls: "stat-num", text: String(s.repliesThisWeek) }), el("div", { cls: "stat-label", text: "replies marked this week" })]),
-    el("div", { cls: "bars" }, bars.length ? bars : [el("span", { cls: "stat-label", text: "No opportunities in this run." })])
-  );
 }
 
-function renderCard(c) {
-  const done = c.status !== "open";
-  const title = c.title || (c.excerpt || "").slice(0, 80) || "(untitled)";
-  const meta = el("div", { cls: "meta" }, [
-    el("span", { cls: "num", text: "#" + c.number }),
-    el("span", { cls: "pri " + c.priority, text: c.priority }),
-    el("span", { text: c.label }),
-    el("span", { text: age(c.createdAt) }),
-    el("span", { text: "score " + c.score }),
-    filters.run === "all" ? el("span", { text: "run " + c.run }) : null,
-    done ? el("span", { cls: "badge", text: c.status === "replied" ? "Replied" : "Skipped" }) : null,
-  ]);
-
-  const parts = [meta, el("h2", { text: title })];
-  if (c.excerpt) parts.push(el("div", { cls: "excerpt", text: c.excerpt }));
-  if (c.why) parts.push(el("div", { cls: "row" }, [el("b", { text: "Why it fits: " }), document.createTextNode(c.why)]));
-  if (c.caution) parts.push(el("div", { cls: "caution", text: "⚠ " + c.caution }));
-  if (c.mention === "praise") parts.push(el("div", { cls: "row", text: "⭐ Praise: worth saving as a testimonial (ask before quoting it)." }));
-  if (c.mention === "bug") parts.push(el("div", { cls: "row", text: "🐞 Bug report: someone hit a problem with your app." }));
-
-  if (c.draftReply) {
-    const copy = el("button", { text: "Copy", attrs: { type: "button" } });
-    copy.addEventListener("click", () => copyDraft(c.draftReply, copy));
-    parts.push(el("div", { cls: "draft-head" }, [el("b", { text: "Draft reply" }), copy]));
-    parts.push(el("div", { cls: "draft", text: c.draftReply }));
-  } else {
-    parts.push(el("div", { cls: "row stat-label", text: 'No draft for low priority. Ask in chat: "write a reply for #' + c.number + '".' }));
-  }
-
-  const actions = el("div", { cls: "actions" });
-  if (isWebLink(c.url)) {
-    actions.appendChild(el("a", { cls: "btn", text: "Open post ↗", attrs: { href: c.url, target: "_blank", rel: "noopener noreferrer" } }));
-  }
-  for (const [status, label] of [["replied", "Replied"], ["skipped", "Skip"]]) {
-    const b = el("button", { cls: c.status === status ? "on" : "", text: (c.status === status ? "✓ " : "") + label, attrs: { type: "button" } });
-    b.addEventListener("click", () => setStatus(c, status));
-    actions.appendChild(b);
-  }
-  parts.push(actions);
-  return el("article", { cls: "card" + (done ? " done" : "") }, parts);
+// =============================================================================
+// Wiring
+// =============================================================================
+for (const b of document.querySelectorAll(".nav-btn")) {
+  b.addEventListener("click", async () => {
+    state.view = b.dataset.view;
+    store.set("view", state.view);
+    $("#app").classList.remove("show-detail");
+    await render();
+  });
 }
+$("#f-app").addEventListener("change", async (e) => {
+  state.app = e.target.value; store.set("app", state.app); $("#app-avatar").textContent = state.app.slice(0, 1);
+  state.run = "latest"; state.platform = "all"; state.selectedId = null; state.allCards = null;
+  await loadRuns(); await loadCards(); await render();
+});
+$("#f-run").addEventListener("change", async (e) => { state.run = e.target.value; state.selectedId = null; await loadCards(); await render(); });
+$("#f-platform").addEventListener("change", (e) => { state.platform = e.target.value; render(); });
+$("#f-sort").addEventListener("change", (e) => { state.sort = e.target.value; store.set("sort", state.sort); render(); });
+for (const b of $("#f-priority").children) b.addEventListener("click", () => { state.priority = b.dataset.p; render(); });
+$("#q").addEventListener("input", (e) => { state.query = e.target.value; renderList(); renderDetail(); });
+$("#refresh").addEventListener("click", async () => { await reloadAll(); toast("Reloaded"); });
+$("#kbd-btn").addEventListener("click", () => { $("#keys").hidden = false; });
+$("#keys-close").addEventListener("click", () => { $("#keys").hidden = true; });
+$("#keys").addEventListener("click", (e) => { if (e.target === $("#keys")) $("#keys").hidden = true; });
 
-function render() {
-  const visible = state.cards.filter((c) =>
-    (filters.platform === "all" || c.platform === filters.platform) &&
-    (filters.priority === "all" || c.priority === filters.priority) &&
-    (filters.show === "all" || c.status === filters.show)
-  );
-  renderStats(visible.length);
-  $("#cards").replaceChildren(
-    ...(visible.length ? visible.map(renderCard) : [el("p", { cls: "empty", text: state.cards.length ? "Nothing matches these filters." : "No opportunities in this run." })])
-  );
-}
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
+  if (e.key === "Escape") {
+    if (!$("#keys").hidden) $("#keys").hidden = true;
+    else if (typing) document.activeElement.blur();
+    else $("#app").classList.remove("show-detail");
+    return;
+  }
+  if (typing) return;
+  if (e.key === "?") { $("#keys").hidden = !$("#keys").hidden; return; }
+  if (state.view === "analytics") return;
+  const c = selectedCard();
+  switch (e.key) {
+    case "j": case "ArrowDown": e.preventDefault(); move(1); break;
+    case "k": case "ArrowUp": e.preventDefault(); move(-1); break;
+    case "/": e.preventDefault(); $("#q").focus(); break;
+    case "r": if (c) setStatus(c, "replied"); break;
+    case "s": if (c) setStatus(c, "skipped"); break;
+    case "c": if (c?.draftReply) copyText(c.draftReply, "Draft copied"); break;
+    case "o": if (c && isWebLink(c.url)) window.open(c.url, "_blank", "noopener,noreferrer"); break;
+  }
+});
 
-// --- wiring ---------------------------------------------------------------------
-$("#f-app").addEventListener("change", async (e) => { filters.app = e.target.value; store.set("app", filters.app); filters.run = "latest"; await loadRuns(); await loadCards(); });
-$("#f-run").addEventListener("change", async (e) => { filters.run = e.target.value; await loadCards(); });
-$("#f-platform").addEventListener("change", (e) => { filters.platform = e.target.value; render(); });
-$("#f-priority").addEventListener("change", (e) => { filters.priority = e.target.value; render(); });
-$("#f-show").addEventListener("change", (e) => { filters.show = e.target.value; store.set("show", filters.show); render(); });
-$("#f-show").value = filters.show;
-$("#refresh").addEventListener("click", reloadAll);
+if (!VIEWS[state.view]) state.view = "open";
 reloadAll();
 </script>
 </body>

@@ -1,4 +1,9 @@
-# marKit
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.svg">
+    <img alt="marKit" src="docs/brand/logo-light.svg" height="56">
+  </picture>
+</p>
 
 **Find the people already asking for your app.** marKit is a free, open-source agent skill for [Claude Code](https://claude.com/claude-code) and Codex that helps indie founders market their apps honestly.
 
@@ -33,6 +38,14 @@ For each match, marKit explains **why it fits**, scores it, and **drafts an hone
 ```
 
 Everything runs on your machine. There's no marKit server, no account, and no telemetry.
+
+### The dashboard
+
+`/markit-dashboard` opens a local page for working through the results: filter, read why each post fits, copy the draft, open the post, and mark it Replied or Skipped. Keyboard shortcuts: <kbd>J</kbd>/<kbd>K</kbd> to move, <kbd>R</kbd> replied, <kbd>S</kbd> skip, <kbd>C</kbd> copy, <kbd>O</kbd> open. It also has an Analytics view.
+
+![marKit dashboard](docs/dashboard.png)
+
+<sub>Fictional example data.</sub>
 
 ## Requirements
 
@@ -193,6 +206,12 @@ npm test          # node:test, no dependencies; tests never touch the network or
 - **Never run `npx skills add` or `npx skills remove` without `-g` inside this repo.** The installer treats the repo's `skills/` folder (marKit's source code) as an install location, so a project-scope remove deletes `skills/markit-*`. If that happens, restore it with `git restore skills/`. For development, use `./install.sh --link`.
 
 **Maintainers:** enable GitHub **secret scanning** and **push protection** for this repository (Settings → Code security), so a key can never be pushed by accident.
+
+## Credits
+
+- Icons: [Solar](https://www.figma.com/community/file/1166831539721848736) by 480 Design ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) and [Simple Icons](https://simpleicons.org) for platform logos (CC0), embedded as SVG.
+- Dashboard font: [Poppins](https://github.com/itfoundry/Poppins) by Indian Type Foundry ([SIL Open Font License 1.1](skills/markit-dashboard/scripts/fonts/OFL.txt)), bundled so the page loads nothing from the internet.
+- The marKit logo's wordmark is set in Satoshi (Indian Type Foundry) and converted to outlines. No Satoshi font files are included.
 
 ## License
 
