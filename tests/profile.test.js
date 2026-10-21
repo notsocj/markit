@@ -87,3 +87,10 @@ test("features are optional, cleaned, and limited", () => {
   assert.throws(() => validateProfile({ ...good(), features: "timers" }, "gridpeek"), /"features" must be a list/);
   assert.throws(() => validateProfile({ ...good(), features: Array.from({ length: 11 }, (_, i) => `feature ${i}`) }, "gridpeek"), /10 most important/);
 });
+
+test("languages defaults to English and validates codes", () => {
+  assert.deepEqual(validateProfile(good(), "gridpeek").profile.languages, ["en"]);
+  assert.deepEqual(validateProfile({ ...good(), languages: ["EN", "pt-BR"] }, "gridpeek").profile.languages, ["en", "pt-br"]);
+  assert.throws(() => validateProfile({ ...good(), languages: ["english!"] }, "gridpeek"), /Invalid language code/);
+  assert.throws(() => validateProfile({ ...good(), languages: [] }, "gridpeek"), /"languages" must be a list/);
+});

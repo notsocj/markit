@@ -20,6 +20,7 @@
 
 import { safeFetch } from "../lib/safe-fetch.js";
 import { makePost, stripHtml, searchQuery } from "../lib/normalize.js";
+import { buildContext } from "../lib/context.js";
 
 const BASE = "https://www.googleapis.com/youtube/v3";
 
@@ -48,8 +49,9 @@ export default {
   // /markit-usage shows "8 / 100 searches today". marKit counts days in UTC; YouTube resets
   // at midnight Pacific, so near the day boundary marKit's count is an approximation.
   quota: { unit: "requests", label: "searches", period: "day", limit: 100 },
-  // check() uses a 1-unit call from the OTHER pool, so it doesn't eat search quota.
+  // check() and context() use the OTHER pool (10,000 units), so they don't eat search quota.
   checkUsesQuota: false,
+  contextUsesQuota: false,
 
   isEnabled(env = {}) {
     return Boolean(env.YOUTUBE_API_KEY);
@@ -73,6 +75,41 @@ export default {
       .filter((item) => item.id?.videoId)
       .map((item) => toPost(item, keyword))
       .slice(0, limit);
+  },
+
+  /**
+   * Thread context (free; 2 units from the 10,000-unit pool, NOT the 100 searches/day):
+   * commentThreads.list (order=relevance, plainText) for the top comments, and
+   * videos.list part=statistics for the total comment count (checked 2026-10-22).
+   * These are counted as `context` in usage.json, so the search quota shown stays honest.
+   * A 403 on commentThreads usually means the owner turned comments off ("commentsDisabled";
+   * we can't read the reason, it isn't passed through), so we treat that as locked.
+   */
+  async context(post, { env = {}, meter = {}, http = {}, appNames = [] } = {}) {
+    const videoId = String(post.id).replace(/^yt-/, "");
+    meter.context = (meter.context ?? 0) + 1;
+    let threads;
+    try {
+      const params = new URLSearchParams({ part: "snippet", videoId, order: "relevance", maxResults: "20", textFormat: "plainText", key: env.YOUTUBE_API_KEY ?? "" });
+      threads = await safeFetch("youtube", `${BASE}/commentThreads?${params}`, { retries: 0, ...http });
+    } catch (err) {
+      if (err.status === 403) return buildContext({ commentCount: 0, locked: true }, { post, appNames });
+      throw err;
+    }
+    meter.context++;
+    const stats = await safeFetch("youtube", `${BASE}/videos?${new URLSearchParams({ part: "statistics", id: videoId, key: env.YOUTUBE_API_KEY ?? "" })}`, { retries: 0, ...http }).catch(() => null);
+    const items = threads.items ?? [];
+    const total = Number(stats?.items?.[0]?.statistics?.commentCount);
+    return buildContext(
+      {
+        commentCount: Number.isFinite(total) ? total : items.length,
+        comments: items.map((t) => {
+          const c = t.snippet?.topLevelComment?.snippet ?? {};
+          return { author: c.authorDisplayName, text: c.textOriginal ?? c.textDisplay, score: c.likeCount ?? 0 };
+        }),
+      },
+      { post, appNames }
+    );
   },
 
   /**

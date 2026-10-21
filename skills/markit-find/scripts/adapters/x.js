@@ -22,6 +22,7 @@
 
 import { safeFetch } from "../lib/safe-fetch.js";
 import { makePost, searchQuery } from "../lib/normalize.js";
+import { buildContext } from "../lib/context.js";
 
 const BASE = "https://api.x.com/2";
 const MIN_RESULTS = 10;
@@ -45,6 +46,7 @@ export function toPost(t, matchedKeyword) {
     createdAt: t.created_at,
     engagement: { likes: m.like_count ?? 0, replies: m.reply_count ?? 0, reposts: m.retweet_count ?? 0 },
     matchedKeyword,
+    lang: t.lang, // BCP47 tag X detected, e.g. "en" (used by the language filter)
   });
 }
 
@@ -76,7 +78,7 @@ export default {
         query,
         max_results: String(allowed),
         start_time: start.toISOString(),
-        [param]: "created_at,public_metrics",
+        [param]: "created_at,public_metrics,lang",
       });
       meter.requests = (meter.requests ?? 0) + 1;
       return safeFetch("x", `${BASE}/tweets/search/recent?${params}`, {
@@ -95,6 +97,33 @@ export default {
     }
 
     return (data.data ?? []).filter((t) => t.id).map((t) => toPost(t, keyword)).slice(0, allowed);
+  },
+
+  /**
+   * Thread context (PAID: every reply returned is a billed post read). Only called when the
+   * user enabled settings.contextForPaidSources, and candidates.js passes `budget.posts`
+   * (what's left under the per-run and monthly caps). X's minimum is 10 posts per search, so
+   * we skip when fewer than 10 are left. Replies come from recent search with
+   * `conversation_id:<id>` (last 7 days only; checked 2026-10-22).
+   */
+  async context(post, { env = {}, meter = {}, http = {}, budget, appNames = [] } = {}) {
+    const allowed = Math.min(budget?.posts ?? 0, 10);
+    if (allowed < MIN_RESULTS) return null;
+    const id = String(post.id).replace(/^x-/, "");
+    const params = new URLSearchParams({ query: `conversation_id:${id} -is:retweet`, max_results: String(allowed), [fieldsParam]: "created_at,public_metrics" });
+    meter.requests = (meter.requests ?? 0) + 1;
+    const data = await safeFetch("x", `${BASE}/tweets/search/recent?${params}`, { ...http, headers: { authorization: `Bearer ${env.X_BEARER_TOKEN}` } });
+    const replies = (data.data ?? []).filter((t) => t.id !== id);
+    meter.posts = (meter.posts ?? 0) + (data.data ?? []).length; // billed per post returned
+    return buildContext(
+      {
+        commentCount: post.engagement?.replies ?? replies.length,
+        comments: replies
+          .sort((a, b) => (b.public_metrics?.like_count ?? 0) - (a.public_metrics?.like_count ?? 0))
+          .map((t) => ({ author: "", text: t.text, score: t.public_metrics?.like_count ?? 0 })),
+      },
+      { post, appNames }
+    );
   },
 
   /** Key check with the usage endpoint (doesn't read posts, so it doesn't bill post reads). */

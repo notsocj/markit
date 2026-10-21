@@ -16,6 +16,9 @@
 //     Errors for bad/expired tokens: HTTP 400 with OAuthException code 190.
 //   - debug_token (with the same token as both input and access token) returns expires_at
 //     and scopes, which /markit-usage uses to warn before the token expires.
+//   - NO thread context: Meta documents reading replies (/{media-id}/replies, needs
+//     threads_read_replies) only for "replies to users' own Threads" (checked 2026-10-22),
+//     not for posts found by search. So this adapter has no context() method.
 //
 // See hackernews.js for the shared adapter shape and search() options.
 

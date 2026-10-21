@@ -11,6 +11,8 @@
 
 import { SOURCE_LABELS } from "./profile.js";
 import { relativeTime } from "./normalize.js";
+import { contextLine } from "./context.js";
+import { prefilterLine } from "./filters.js";
 
 /** Escape untrusted text so markdown shows it literally, on a single line. */
 export function escapeMd(text) {
@@ -77,6 +79,19 @@ function blockquote(text) {
     .join("\n");
 }
 
+/** Only valid http(s) links, as their normalized form, at most 5. */
+function safeUrls(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const value of list.slice(0, 5)) {
+    try {
+      const u = new URL(String(value));
+      if (u.protocol === "https:" || u.protocol === "http:") out.push(u.href);
+    } catch {}
+  }
+  return out;
+}
+
 /** One full card for a high or medium post. */
 function card(post, number, now) {
   const age = post.createdAt ? relativeTime(post.createdAt, now) : "date unknown";
@@ -87,6 +102,12 @@ function card(post, number, now) {
     "",
   ];
   if (post.excerpt?.trim()) lines.push(`> ${escapeMd(post.excerpt)}`, "");
+  // One line about the comments, e.g. "12 comments · 2 apps already suggested · not solved".
+  const thread = contextLine(post.context);
+  if (thread) lines.push(`**Thread:** ${escapeMd(thread.replace(/^Thread: /, ""))}`, "");
+  // Other places the same question was posted (merged by the prefilter).
+  const also = safeUrls(post.alsoPostedAt);
+  if (also.length) lines.push(`**Also posted at:** ${also.map((u) => `<${u}>`).join(", ")}`, "");
   lines.push(`**Why it fits:** ${softEscape(post.why).replace(/\s+/g, " ").trim()}`, "");
   if (post.caution?.trim()) lines.push(`**Caution:** ${softEscape(post.caution).replace(/\s+/g, " ").trim()}`, "");
   if (post.mention === "praise") lines.push("**Testimonial:** praise worth saving (ask before quoting it publicly).", "");
@@ -140,9 +161,10 @@ function sourceRows(rawSources, reported) {
  * @param {object[]} args.posts - validated scored posts (irrelevant ones are left out here)
  * @param {Date} [args.now] - for "2h ago"
  * @param {string} [args.timeZone] - for the header date (defaults to this computer's)
+ * @param {object} [args.prefilter] - candidates.json's prefilter summary (counts only)
  * @returns {{ markdown: string, numbered: { number: number, post: object }[] }}
  */
-export function renderReport({ raw, posts, now = new Date(), timeZone }) {
+export function renderReport({ raw, posts, now = new Date(), timeZone, prefilter }) {
   const reported = sortPosts(posts.filter((p) => p.intent !== "irrelevant"));
   const numbered = reported.map((post, i) => ({ number: i + 1, post }));
   const high = numbered.filter((n) => n.post.priority === "high");
@@ -162,6 +184,8 @@ export function renderReport({ raw, posts, now = new Date(), timeZone }) {
       : "**No new opportunities this run.** Try again in a few days, or add keywords with /markit-setup.",
     ""
   );
+  const filterLine = prefilterLine(prefilter);
+  if (filterLine) out.push(`_${escapeMd(filterLine)}_`, "");
 
   out.push("| Source | Found | Status |", "|---|---|---|");
   for (const [label, found, status] of sourceRows(raw.sources ?? [], reported)) out.push(`| ${label} | ${found} | ${status} |`);

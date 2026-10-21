@@ -20,6 +20,7 @@
 
 import { safeFetch } from "../lib/safe-fetch.js";
 import { makePost, stripHtml, searchQuery } from "../lib/normalize.js";
+import { buildContext } from "../lib/context.js";
 
 const BASE = "https://api.stackexchange.com/2.3";
 // Each site costs one request per keyword. Capping sites keeps a run well inside the
@@ -113,6 +114,31 @@ export default {
 
     // Newest first across all sites, then cap.
     return posts.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  },
+
+  /**
+   * Thread context (free, 2 requests of the daily quota): the question (answer_count, and
+   * accepted_answer_id / closed_date / locked_date, which the API only includes when they
+   * apply; checked 2026-10-22) plus its top answers by votes. Answers stand in for
+   * "comments". A closed or locked question can't get new answers, so it counts as locked.
+   */
+  async context(post, { limit = 5, env = {}, meter = {}, http = {}, appNames = [] } = {}) {
+    // Our ids look like "se-<site>-<question id>", e.g. "se-travel-93387".
+    const match = String(post.id).match(/^se-(.+)-(\d+)$/);
+    if (!match) return null;
+    const [, site, questionId] = match;
+    const question = (await call(`/questions/${questionId}`, new URLSearchParams({ site }), { env, meter, http })).items?.[0];
+    if (!question) return null;
+    const answers = (await call(`/questions/${questionId}/answers`, new URLSearchParams({ site, sort: "votes", order: "desc", pagesize: String(Math.max(limit, 10)), filter: "withbody" }), { env, meter, http })).items ?? [];
+    return buildContext(
+      {
+        commentCount: question.answer_count ?? answers.length,
+        solved: Boolean(question.accepted_answer_id) || answers.some((a) => a.is_accepted),
+        locked: Boolean(question.closed_date || question.locked_date),
+        comments: answers.map((a) => ({ author: stripHtml(a.owner?.display_name ?? ""), text: a.body, score: a.score })),
+      },
+      { post, appNames }
+    );
   },
 
   /**

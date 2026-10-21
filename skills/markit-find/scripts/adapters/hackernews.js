@@ -22,6 +22,7 @@
 
 import { safeFetch } from "../lib/safe-fetch.js";
 import { makePost, stripHtml, searchQuery } from "../lib/normalize.js";
+import { buildContext } from "../lib/context.js";
 
 const BASE = "https://hn.algolia.com/api/v1";
 // Algolia returns at most 1000 hits per page; we never want anywhere near that many.
@@ -76,6 +77,34 @@ export default {
       .filter((hit) => hit.objectID && (hit.title || hit.story_title || hit.comment_text || hit.story_text))
       .map((hit) => toPost(hit, keyword))
       .slice(0, limit);
+  },
+
+  /**
+   * Thread context (free): GET /items/:id returns the whole comment tree (checked
+   * 2026-10-21). Comments have no score on HN (`points` is null), and HN has no
+   * "accepted answer", so `solved` only comes from the author's own words (see context.js).
+   * Top-level comments come first (in HN's order), then deeper replies.
+   */
+  async context(post, { limit = 5, meter = {}, http = {}, appNames = [] } = {}) {
+    const id = String(post.id).replace(/^hn-/, "");
+    meter.requests = (meter.requests ?? 0) + 1;
+    const item = await safeFetch("hackernews", `${BASE}/items/${encodeURIComponent(id)}`, http);
+    const topLevel = item.children ?? [];
+    let total = 0;
+    const deeper = [];
+    // Walk the tree to count every comment and collect replies below the top level.
+    const walk = (nodes, depth) => {
+      for (const node of nodes ?? []) {
+        if (node.text) total++;
+        if (depth > 0 && node.text) deeper.push(node);
+        walk(node.children, depth + 1);
+      }
+    };
+    walk(topLevel, 0);
+    const comments = [...topLevel, ...deeper]
+      .filter((c) => c.text)
+      .map((c) => ({ author: c.author, text: c.text, score: null }));
+    return buildContext({ commentCount: total, comments }, { post, appNames });
   },
 
   /** Tiny test call. HN has no key, so the only possible problems are rate limits or outages. */

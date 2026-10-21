@@ -324,3 +324,35 @@ test("a post's `site` label (e.g. SocialCrawl's subreddit) is shown instead of t
   assert.ok(r.markdown.includes('### 1. "Title sc-1" · Reddit r/formula1 ·'));
   assert.ok(r.markdown.includes("| SocialCrawl | 1 | ✓ |"));
 });
+
+// --- candidates.json (prefilter + thread context) --------------------------------------
+
+test("report takes context, alsoPostedAt, and preScore from candidates.json (not the agent's copy)", () => {
+  const candidates = {
+    prefilter: { found: 120, candidates: 4, dropped: { duplicate: 30, tooOld: 12 } },
+    candidates: [
+      { id: "hn-1", context: { commentCount: 12, appsAlreadySuggested: 2, solved: false, locked: false, topComments: [] }, alsoPostedAt: ["https://forum.example/t/1"], preScore: 77 },
+      { id: "web-abc123def456", source: "web" },
+    ],
+  };
+  const s = scored();
+  s.posts[0].context = { commentCount: 999, solved: true }; // the agent's (wrong) copy is ignored
+  const r = buildReport({ raw: raw(), scored: s, now: NOW, timeZone: "UTC", candidates });
+  const card = r.numbered.find((n) => n.post.id === "hn-1").post;
+  assert.equal(card.context.commentCount, 12);
+  assert.equal(card.preScore, 77);
+  assert.ok(r.markdown.includes("**Thread:** 12 comments · 2 apps already suggested · not solved"));
+  assert.ok(r.markdown.includes("**Also posted at:** <https://forum.example/t/1>"));
+  assert.ok(r.markdown.includes("_Prefilter: 120 found → 4 candidates · dropped 30 duplicates · 12 too old_"));
+  assert.equal(r.unscored, 1, "with candidates.json, unscored counts candidates the agent skipped");
+});
+
+test("cards.json carries context, alsoPostedAt, preScore, and the prefilter summary", async () => {
+  const { buildCards } = await import("../skills/markit-find/scripts/report.js");
+  const numbered = [{ number: 1, post: { id: "hn-1", source: "hackernews", url: "https://x.com", score: 90, priority: "high", context: { commentCount: 3 }, alsoPostedAt: ["https://y.com"], preScore: 60, nothing: null } }];
+  const cards = buildCards(raw(), numbered, { found: 10, candidates: 1, dropped: {} });
+  assert.equal(cards.prefilter.found, 10);
+  assert.deepEqual(cards.cards[0].context, { commentCount: 3 });
+  assert.deepEqual(cards.cards[0].alsoPostedAt, ["https://y.com"]);
+  assert.equal(cards.cards[0].preScore, 60);
+});

@@ -7,8 +7,8 @@
 //
 // usage.json stores COUNTS ONLY: never keys, never post text. Its shape:
 //   {
-//     "months":  { "2026-10":    { "x": { "requests": 3, "posts": 30, "credits": 0 } } },
-//     "days":    { "2026-10-21": { "x": { "requests": 3, "posts": 30, "credits": 0 } } },
+//     "months":  { "2026-10":    { "x": { "requests": 3, "posts": 30, "credits": 0, "context": 0 } } },
+//     "days":    { "2026-10-21": { "x": { "requests": 3, "posts": 30, "credits": 0, "context": 0 } } },
 //     "lastRun": { "app": "gridpeek", "ranAt": "2026-10-21T21:00:00Z", "opportunities": 12 }
 //   }
 //
@@ -23,7 +23,11 @@ import { getPaths } from "./config.js";
 
 export const KEEP_DAYS = 35;
 
-const EMPTY = () => ({ requests: 0, posts: 0, credits: 0 });
+// "context" counts thread-context calls that DON'T draw from the quota marKit shows for
+// that source (e.g. YouTube comment calls use a different pool than its 100 searches/day).
+// Context calls that do share the quota (e.g. Stack Exchange) are counted as "requests".
+const FIELDS = ["requests", "posts", "credits", "context"];
+const EMPTY = () => ({ requests: 0, posts: 0, credits: 0, context: 0 });
 
 /** "2026-10" for a date, in UTC. */
 export function monthKey(date = new Date()) {
@@ -43,7 +47,7 @@ export function loadUsage(file = getPaths().usageFile) {
 
 // Add one set of counts onto another: target.requests += counts.requests, etc.
 function addCounts(target, counts) {
-  for (const field of ["requests", "posts", "credits"]) {
+  for (const field of FIELDS) {
     // Number(...) || 0 guards against undefined or garbage being passed in.
     target[field] = (Number(target[field]) || 0) + (Number(counts[field]) || 0);
   }
@@ -58,7 +62,7 @@ function addInto(bucket, source, counts) {
 /**
  * Record what one source used during a run.
  * @param {string} source - adapter name
- * @param {{ requests?: number, posts?: number, credits?: number }} counts
+ * @param {{ requests?: number, posts?: number, credits?: number, context?: number }} counts
  */
 export function recordUsage(source, counts, file = getPaths().usageFile, now = new Date()) {
   const usage = loadUsage(file);

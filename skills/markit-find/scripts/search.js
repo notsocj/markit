@@ -160,6 +160,9 @@ async function runSource(adapter, { keywords, since, perKeywordLimit, maxPosts, 
   if (capped) reasons.push(`stopped at ${budget.limitedBy}`);
   if (reasons.length) status.reason = reasons.join("; ");
   if (typeof meter.quotaRemaining === "number") status.quotaRemaining = meter.quotaRemaining;
+  // What this source spent during the search (counts only). candidates.js uses it so the
+  // per-run cap of a paid source covers search AND thread context together.
+  status.used = { requests: meter.requests, posts: meter.posts, credits: meter.credits };
 
   return { status, posts: kept, meter };
 }

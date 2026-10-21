@@ -345,3 +345,23 @@ test("the page credits its icons and fonts, and has no top-left logo icon", asyn
   }
   assert.match(page, /aria-haspopup="listbox"/);
 });
+
+test("dashboard cards carry the thread line, also-posted links, and the run's prefilter summary", async () => {
+  const f = fixture();
+  const cardsFile = join(f.reportsDir, "gridpeek", "2026-10-21-2100", "cards.json");
+  const data = JSON.parse(readFileSync(cardsFile, "utf8"));
+  data.prefilter = { found: 50, candidates: 2, dropped: { duplicate: 8 } };
+  data.cards[0].context = { commentCount: 7, appsAlreadySuggested: 3, solved: false, locked: false, topComments: [{ author: "a", excerpt: "<b>hi</b>", score: 1, email: "x@y" }] };
+  data.cards[0].alsoPostedAt = ["https://forum.example/t/1", "javascript:alert(1)"];
+  writeFileSync(cardsFile, JSON.stringify(data));
+  const dash = createDashboard({ reportsDir: f.reportsDir, statusFile: f.statusFile });
+  servers.push(dash);
+  const { port } = await dash.start({ port: 0 });
+  const r = (await request(port, { path: "/api/cards?app=gridpeek&run=latest" })).json();
+  assert.equal(r.prefilter, "Prefilter: 50 found → 2 candidates · dropped 8 duplicates");
+  const c = r.cards[0];
+  assert.equal(c.contextLine, "Thread: 7 comments · 3 apps already suggested · not solved");
+  assert.deepEqual(c.alsoPostedAt, ["https://forum.example/t/1"], "only http(s) links pass");
+  assert.ok(!JSON.stringify(c.context).includes("x@y"), "only author/excerpt/score are kept per comment");
+  assert.equal((await request(port, { path: "/api/cards?app=gridpeek&run=all" })).json().prefilter, "", "no single summary for all runs");
+});

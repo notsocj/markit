@@ -24,6 +24,8 @@ import path from "node:path";
 import { readJsonFile, writeJsonFile } from "../../markit-find/scripts/lib/files.js";
 import { validateScored } from "../../markit-find/scripts/lib/scored.js";
 import { sortPosts, sourceLabel } from "../../markit-find/scripts/lib/render-report.js";
+import { cleanContext, contextLine } from "../../markit-find/scripts/lib/context.js";
+import { prefilterLine } from "../../markit-find/scripts/lib/filters.js";
 
 // App names follow the same rule as profiles (lib/config.js validateAppName).
 export const APP_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
@@ -80,10 +82,29 @@ function cleanEngagement(engagement) {
   return out;
 }
 
+/** Only valid http(s) links, at most 5 (for "also posted at"). */
+function cleanUrls(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 5).filter((v) => {
+    try {
+      const u = new URL(String(v));
+      return u.protocol === "https:" || u.protocol === "http:";
+    } catch {
+      return false;
+    }
+  });
+}
+
 function pick(card) {
   const out = {};
   for (const field of CARD_FIELDS) if (card[field] !== undefined) out[field] = card[field];
   out.engagement = cleanEngagement(card.engagement);
+  // Thread context: re-checked field by field (comment text is untrusted), plus the
+  // one-line summary the page shows ("Thread: 12 comments · … · not solved").
+  out.context = cleanContext(card.context);
+  out.contextLine = contextLine(out.context);
+  out.alsoPostedAt = cleanUrls(card.alsoPostedAt);
+  if (Number.isFinite(card.preScore)) out.preScore = card.preScore;
   out.platform = sourceLabel(card).replace(/ r\/.*$/, ""); // "Reddit r/formula1" → "Reddit" for filtering
   out.label = sourceLabel(card); // full display name
   return out;
@@ -100,7 +121,7 @@ export function loadRun(reportsDir, app, run) {
   try {
     const cardsFile = readJsonFile(path.join(dir, "cards.json"), null);
     if (cardsFile && Array.isArray(cardsFile.cards)) {
-      return { app, run, ranAt: cardsFile.ranAt ?? "", lookbackDays: cardsFile.lookbackDays, cards: cardsFile.cards.map(pick) };
+      return { app, run, ranAt: cardsFile.ranAt ?? "", lookbackDays: cardsFile.lookbackDays, prefilter: prefilterLine(cardsFile.prefilter), cards: cardsFile.cards.map(pick) };
     }
     const raw = readJsonFile(path.join(dir, "raw.json"), {});
     const scored = readJsonFile(path.join(dir, "scored.json"), null);
@@ -110,6 +131,11 @@ export function loadRun(reportsDir, app, run) {
   } catch {
     return null; // a broken or half-written run is just skipped
   }
+}
+
+/** The prefilter summary line for one run ("" for runs made before candidates.js). */
+export function runPrefilter(reportsDir, app, run) {
+  return loadRun(reportsDir, app, run)?.prefilter ?? "";
 }
 
 /** The newest run that can actually be read ("" if none). Stops at the first good one. */

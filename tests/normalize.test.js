@@ -87,3 +87,10 @@ test("searchQuery keeps the topic and drops filler/intent words", async () => {
   assert.equal(searchQuery("alternative to TripIt"), "TripIt");
   assert.equal(searchQuery("What app do you use?"), "What app do you use?", "all filler → keep the original");
 });
+
+test("makePost keeps platform-reported languages, normalized", async () => {
+  const { makePost, normalizeLangs } = await import("../skills/markit-find/scripts/lib/normalize.js");
+  assert.deepEqual(makePost({ source: "x", platformId: 1, url: "u", lang: "en-US" }).lang, ["en-us"]);
+  assert.equal(makePost({ source: "x", platformId: 1, url: "u" }).lang, undefined, "unknown language → no field");
+  assert.deepEqual(normalizeLangs(["EN", "not a code!", 5, "pt"]), ["en", "pt"]);
+});

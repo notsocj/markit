@@ -177,7 +177,8 @@ export function createDashboard({ reportsDir, statusFile, idleMs = IDLE_MS, onSt
         if (run === "latest") run = data.latestRun(reportsDir, app);
         const statusMap = data.readStatus(statusFile);
         const cards = run ? data.loadCards(reportsDir, app, run, statusMap) : [];
-        return sendJson(req, res, 200, { app, run, cards, stats: data.computeStats(cards, statusMap) });
+        const prefilter = run && run !== "all" ? data.runPrefilter(reportsDir, app, run) : "";
+        return sendJson(req, res, 200, { app, run, cards, prefilter, stats: data.computeStats(cards, statusMap) });
       }
       return sendJson(req, res, 404, { error: "not found" });
     }

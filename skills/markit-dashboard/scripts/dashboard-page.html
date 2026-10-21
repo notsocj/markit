@@ -121,6 +121,13 @@
   .title-row h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; flex: 1; display: flex; align-items: center; gap: 10px; }
   .title-row h1 .ic { color: var(--accent-2); }
   .list-desc { margin: -6px 0 0; color: var(--muted); font-size: 13px; }
+  .list-prefilter { margin: -8px 0 0; color: var(--faint); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .item-thread { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--faint); }
+  .d-thread { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .d-thread .warn { color: var(--medium); font-weight: 500; }
+  .d-also { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12.5px; }
+  .d-also a { color: var(--accent-2); text-decoration: none; overflow-wrap: anywhere; }
+  .d-also a:hover { text-decoration: underline; }
   .search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-2); background: var(--panel); border-radius: 10px; padding: 0 10px; }
   .search:focus-within { border-color: var(--accent); }
   .search .ic { color: var(--faint); }
@@ -429,6 +436,7 @@
         <button class="icon-btn" id="refresh" type="button" title="Reload cards" aria-label="Reload"><svg class="ic" aria-hidden="true"><use href="#i-refresh-linear"/></svg></button>
       </div>
       <p class="list-desc" id="view-desc">Opportunities waiting for your reply.</p>
+      <p class="list-prefilter" id="list-prefilter" hidden></p>
       <label class="search">
         <svg class="ic ic-sm" aria-hidden="true"><use href="#i-magnifer-linear"/></svg>
         <input id="q" type="search" placeholder="Search posts, sites, keywords" autocomplete="off" aria-label="Search">
@@ -803,9 +811,10 @@ async function loadRuns(token) {
 const cardsUrl = (run = state.run) => "/api/cards?app=" + encodeURIComponent(state.app) + "&run=" + encodeURIComponent(run);
 
 async function loadCards(token) {
-  const { cards, stats, run } = await api(cardsUrl());
+  const { cards, stats, run, prefilter } = await api(cardsUrl());
   if (token !== navToken) return false;
   state.cards = cards;
+  state.prefilter = prefilter || "";
   state.stats = stats;
   state.resolvedRun = run;
   const platforms = [...new Set(cards.map((c) => c.platform))].sort();
@@ -864,6 +873,9 @@ async function render() {
   $("#view-title").textContent = v.title;
   $("#view-icon").firstChild.setAttribute("href", "#" + v.icon);
   $("#view-desc").textContent = v.desc;
+  const pf = $("#list-prefilter");
+  pf.hidden = !state.prefilter;
+  pf.replaceChildren(icon("i-graph-up-linear", "ic ic-sm"), state.prefilter || "");
   for (const b of $("#f-priority").children) b.classList.toggle("is-active", b.dataset.p === state.priority);
   menus.sort.setValue(state.sort);
   renderList();
@@ -905,6 +917,7 @@ function renderList() {
       el("div", { cls: "item-top" }, [platBadge(c), el("span", { cls: "item-site", text: c.label }), el("span", { text: "·" }), el("span", { text: age(c.createdAt) }), el("span", { cls: "item-eng" }, engagementNodes(c))]),
       el("div", { cls: "item-title" }, [el("span", { cls: "item-num", text: "#" + c.number }), c.title || (c.excerpt || "").slice(0, 90) || "(untitled)"]),
       el("div", { cls: "item-tags" }, tags),
+      c.contextLine ? el("div", { cls: "item-thread" }, [icon("i-chat-round-line-linear", "ic ic-sm"), c.contextLine.replace(/^Thread: /, "")]) : null,
     ]);
     item.addEventListener("click", () => select(c.id, true));
     return item;
@@ -943,6 +956,21 @@ function renderDetail() {
   ]);
 
   const blocks = [];
+  if (c.contextLine) {
+    const ctx = c.context || {};
+    const flags = [];
+    if (ctx.solved) flags.push(el("span", { cls: "warn", text: "Already solved" }));
+    if (ctx.locked) flags.push(el("span", { cls: "warn", text: "Locked" }));
+    if (ctx.appsAlreadySuggested >= 3) flags.push(el("span", { cls: "warn", text: "Crowded thread" }));
+    if (ctx.mentionsYourApp) flags.push(el("span", { cls: "warn", text: "Your app is already mentioned" }));
+    blocks.push(el("div", { cls: "d-thread" }, [icon("i-chat-round-line-linear", "ic ic-sm"), c.contextLine, ...flags]));
+  }
+  if (c.alsoPostedAt?.length) {
+    blocks.push(el("div", { cls: "d-also" }, [
+      el("span", { cls: "muted", text: "Also posted at:" }),
+      ...c.alsoPostedAt.filter(isWebLink).map((u) => el("a", { text: u.replace(/^https?:\/\//, "").slice(0, 70), attrs: { href: u, target: "_blank", rel: "noopener noreferrer" } })),
+    ]));
+  }
   if (c.excerpt) blocks.push(el("section", { cls: "d-block" }, [el("div", { cls: "d-label" }, [icon("i-chat-round-line-linear", "ic ic-sm"), "The post"]), el("blockquote", { cls: "d-post", text: c.excerpt })]));
   if (c.why) blocks.push(el("section", { cls: "d-block" }, [el("div", { cls: "d-label" }, [icon("i-lightbulb-bolt-linear", "ic ic-sm"), "Why it fits"]), el("p", { cls: "d-why", text: c.why })]));
   if (c.caution) blocks.push(el("div", { cls: "d-note d-caution" }, [icon("i-danger-triangle-linear"), el("div", {}, [el("b", { text: "Caution" }), c.caution])]));

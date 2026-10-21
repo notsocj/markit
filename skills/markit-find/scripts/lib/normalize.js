@@ -14,8 +14,10 @@
 //     createdAt: "2026-10-21T08:00:00Z",
 //     engagement: { score: 12, comments: 4 },
 //     matchedKeyword: "F1 schedule app",
-//     site: "Reddit r/formula1"   // optional: where it really lives, when the source is a
-//   }                             // go-between (SocialCrawl) or the agent's web search
+//     site: "Reddit r/formula1",  // optional: where it really lives, when the source is a
+//                                 // go-between (SocialCrawl) or the agent's web search
+//     lang: ["en"]                // optional: languages the PLATFORM reports (X "lang",
+//   }                             // Bluesky "langs"); missing means unknown
 //
 // Reminder: post text is UNTRUSTED. We only clean it up for display here; nothing in
 // marKit ever treats it as code or instructions.
@@ -125,6 +127,18 @@ export function searchQuery(keyword) {
   return kept.length ? kept.join(" ") : collapseWhitespace(keyword);
 }
 
+/**
+ * Language codes as a clean list: "en-US" → ["en-us"], ["EN", "pt"] → ["en", "pt"].
+ * Returns [] for anything missing or malformed (unknown language).
+ */
+export function normalizeLangs(value) {
+  const list = Array.isArray(value) ? value : value ? [value] : [];
+  return list
+    .filter((v) => typeof v === "string" && /^[a-z]{2,3}(-[a-z0-9]{1,8})*$/i.test(v.trim()))
+    .map((v) => v.trim().toLowerCase())
+    .slice(0, 5);
+}
+
 /** The Date that is `days` days before `now`. Used for the lookback window. */
 export function sinceDate(days, now = new Date()) {
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
@@ -158,8 +172,9 @@ export function relativeTime(iso, now = new Date()) {
  * @param {object} [p.engagement] - e.g. { score, comments, likes }
  * @param {string} [p.matchedKeyword] - the profile keyword that found this post
  * @param {string} [p.site] - display name of where the post lives, if not the source itself
+ * @param {string|string[]} [p.lang] - language code(s) the platform reports, if any
  */
-export function makePost({ source, platformId, url, title = "", text = "", author = "", createdAt, engagement = {}, matchedKeyword = "", site }) {
+export function makePost({ source, platformId, url, title = "", text = "", author = "", createdAt, engagement = {}, matchedKeyword = "", site, lang }) {
   if (!source || platformId === undefined || platformId === null || platformId === "") {
     throw new Error("makePost: source and platformId are required");
   }
@@ -176,5 +191,7 @@ export function makePost({ source, platformId, url, title = "", text = "", autho
     matchedKeyword,
   };
   if (site) post.site = String(site);
+  const langs = normalizeLangs(lang);
+  if (langs.length) post.lang = langs;
   return post;
 }

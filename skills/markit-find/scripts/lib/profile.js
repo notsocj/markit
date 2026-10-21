@@ -38,7 +38,7 @@ export const DEFAULT_STACKEXCHANGE_SITES = ["softwarerecs"];
 
 const KNOWN_FIELDS = new Set([
   "name", "url", "oneLiner", "description", "audience", "features", "keywords", "competitors",
-  "exclude", "sources", "replyTone", "lookbackDays", "stackexchangeSites",
+  "exclude", "sources", "replyTone", "lookbackDays", "stackexchangeSites", "languages",
 ]);
 
 /**
@@ -165,6 +165,17 @@ export function validateProfile(input, name = input?.name) {
     if (stackexchangeSites.length > 3) warnings.push(`Only the first 3 Stack Exchange sites are searched, to save quota: ${stackexchangeSites.slice(0, 3).join(", ")}.`);
   }
 
+  // --- languages (optional, default ["en"]): posts the platform reports in another language
+  //     are dropped by candidates.js. Posts with no language info are always kept. ---
+  let languages = input.languages === undefined ? ["en"] : cleanList(input.languages);
+  if (languages === null || languages.length === 0) {
+    errors.push(`"languages" must be a list of language codes, e.g. ["en"] or ["en", "es"].`);
+  } else {
+    languages = languages.map((l) => l.toLowerCase());
+    const badLangs = languages.filter((l) => !/^[a-z]{2,3}(-[a-z0-9]{1,8})*$/.test(l));
+    if (badLangs.length) errors.push(`Invalid language code(s): ${badLangs.join(", ")}. Use codes like "en", "es", "pt-br".`);
+  }
+
   // --- lookbackDays (optional: settings.json's value is used if it's missing) ---
   if (input.lookbackDays !== undefined && !(Number.isInteger(input.lookbackDays) && input.lookbackDays >= 1 && input.lookbackDays <= 30)) {
     errors.push(`"lookbackDays" must be a whole number from 1 to 30.`);
@@ -192,6 +203,7 @@ export function validateProfile(input, name = input?.name) {
     exclude,
     sources,
     stackexchangeSites,
+    languages,
     replyTone: isText(input.replyTone) ? input.replyTone.trim() : DEFAULT_REPLY_TONE,
   };
   if (input.lookbackDays !== undefined) profile.lookbackDays = input.lookbackDays;

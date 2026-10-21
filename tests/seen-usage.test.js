@@ -46,9 +46,11 @@ test("usage: records requests/posts/credits per month and per day", () => {
   recordUsage("x", { requests: 2, posts: 5, credits: 0 }, file, now);
   recordUsage("socialcrawl", { requests: 1, credits: 3 }, file, now);
   const usage = loadUsage(file);
-  assert.deepEqual(getMonthUsage("x", usage, now), { requests: 3, posts: 15, credits: 0 });
-  assert.deepEqual(getDayUsage("socialcrawl", usage, now), { requests: 1, posts: 0, credits: 3 });
-  assert.deepEqual(getMonthUsage("youtube", usage, now), { requests: 0, posts: 0, credits: 0 });
+  assert.deepEqual(getMonthUsage("x", usage, now), { requests: 3, posts: 15, credits: 0, context: 0 });
+  assert.deepEqual(getDayUsage("socialcrawl", usage, now), { requests: 1, posts: 0, credits: 3, context: 0 });
+  assert.deepEqual(getMonthUsage("youtube", usage, now), { requests: 0, posts: 0, credits: 0, context: 0 });
+  recordUsage("youtube", { context: 2 }, file, now);
+  assert.deepEqual(getDayUsage("youtube", loadUsage(file), now), { requests: 0, posts: 0, credits: 0, context: 2 }, "context calls are counted separately");
 });
 
 test("usage: rolling 7-day window and old days are pruned", () => {

@@ -23,6 +23,10 @@
 
 import { safeFetch } from "../lib/safe-fetch.js";
 import { makePost, searchQuery } from "../lib/normalize.js";
+import { buildContext } from "../lib/context.js";
+
+// Reddit comments cost 5 credits per page (checked 2026-10-22).
+export const COMMENTS_COST = 5;
 
 const BASE = "https://www.socialcrawl.dev/v1";
 
@@ -89,6 +93,27 @@ export default {
       })
       .filter((p) => p && p.url)
       .slice(0, limit);
+  },
+
+  /**
+   * Thread context (PAID: 5 credits per page of Reddit comments; cached pages are free).
+   * Only called when settings.contextForPaidSources is on, and only if `budget.credits`
+   * (what's left under the caps) covers a page. GET /v1/reddit/post/comments?url=…
+   * returns data.items[].comment with author.username, text, engagement.likes.
+   * The API has no locked/archived flag, so `locked` stays false.
+   */
+  async context(post, { env = {}, meter = {}, http = {}, budget, appNames = [] } = {}) {
+    if ((budget?.credits ?? 0) < COMMENTS_COST || !post.url) return null;
+    meter.requests = (meter.requests ?? 0) + 1;
+    const data = await safeFetch("socialcrawl", `${BASE}/reddit/post/comments?${new URLSearchParams({ url: post.url })}`, { ...http, headers: headers(env) });
+    meter.credits = (meter.credits ?? 0) + (typeof data.credits_used === "number" ? data.credits_used : COMMENTS_COST);
+    const items = Array.isArray(data.data?.items) ? data.data.items : [];
+    const comments = items
+      .map((raw) => raw.comment ?? raw)
+      .filter((c) => c && c.text)
+      .map((c) => ({ author: c.author?.username ?? "", text: c.text, score: c.engagement?.likes ?? 0 }));
+    const total = Number(data.data?.ext?.post_comment_count ?? data.ext?.post_comment_count ?? post.engagement?.comments);
+    return buildContext({ commentCount: Number.isFinite(total) ? total : comments.length, comments }, { post, appNames });
   },
 
   /** Key check via the free balance endpoint. */

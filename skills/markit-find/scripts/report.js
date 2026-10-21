@@ -24,6 +24,7 @@ import { pathToFileURL } from "node:url";
 import { getPaths } from "./lib/config.js";
 import { readJsonFile, writeTextFile, writeJsonFile } from "./lib/files.js";
 import { validateScored } from "./lib/scored.js";
+import { cleanContext } from "./lib/context.js";
 import { renderReport, sourceLabel } from "./lib/render-report.js";
 import { loadSeenDates, addSeen } from "./lib/seen.js";
 import { setLastRun } from "./lib/usage.js";
@@ -45,34 +46,51 @@ function plain(text, max = 45) {
  *   skippedSeen posts dropped because an earlier run already reported them
  *   unscored    raw.json posts the agent left out of scored.json
  */
-export function buildReport({ raw, scored, seenDates = {}, now = new Date(), timeZone }) {
-  const rawIds = new Set((raw.posts ?? []).map((p) => p.id));
+export function buildReport({ raw, scored, seenDates = {}, now = new Date(), timeZone, candidates = null }) {
+  // Ids the agent may use: everything search.js found, plus candidates.js's list (which
+  // includes the web results it gave ids to).
+  const pool = candidates?.candidates ?? [];
+  const rawIds = new Set([...(raw.posts ?? []), ...pool].map((p) => p.id));
   const posts = validateScored(scored, rawIds);
+
+  // Thread context, cross-posts, and pre-score come from candidates.js (the script), not
+  // from the agent's copy, so they can't be altered along the way.
+  const fromScript = new Map(pool.map((c) => [c.id, c]));
+  for (const post of posts) {
+    const c = fromScript.get(post.id);
+    post.context = cleanContext(c ? c.context : post.context);
+    if (c?.alsoPostedAt) post.alsoPostedAt = c.alsoPostedAt;
+    if (Number.isFinite(c?.preScore)) post.preScore = c.preScore;
+  }
 
   const ranAt = new Date(raw.ranAt).getTime();
   const reportedEarlier = (id) => seenDates[id] && new Date(seenDates[id]).getTime() < ranAt;
   const fresh = posts.filter((p) => !reportedEarlier(p.id));
 
+  // With candidates.json, the agent is meant to score exactly those; without it (older
+  // runs), every raw.json post.
   const scoredIds = new Set(posts.map((p) => p.id));
-  const unscored = (raw.posts ?? []).filter((p) => !scoredIds.has(p.id)).length;
+  const unscored = (candidates ? pool : raw.posts ?? []).filter((p) => !scoredIds.has(p.id)).length;
 
-  const { markdown, numbered } = renderReport({ raw, posts: fresh, now, timeZone });
-  return { markdown, numbered, fresh, skippedSeen: posts.length - fresh.length, unscored };
+  const prefilter = candidates?.prefilter;
+  const { markdown, numbered } = renderReport({ raw, posts: fresh, now, timeZone, prefilter });
+  return { markdown, numbered, fresh, skippedSeen: posts.length - fresh.length, unscored, prefilter };
 }
 
 // The fields a card needs, and nothing else (cards.json is read by the dashboard).
-const CARD_FIELDS = ["id", "source", "site", "url", "title", "excerpt", "author", "createdAt", "engagement", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention"];
+const CARD_FIELDS = ["id", "source", "site", "url", "title", "excerpt", "author", "createdAt", "engagement", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention", "context", "alsoPostedAt", "preScore"];
 
 /** cards.json content: run info plus the numbered cards exactly as report.md shows them. */
-export function buildCards(raw, numbered) {
+export function buildCards(raw, numbered, prefilter) {
   return {
     app: raw.app,
     ranAt: raw.ranAt,
     lookbackDays: raw.lookbackDays,
     sources: raw.sources ?? [],
+    prefilter: prefilter ?? null,
     cards: numbered.map(({ number, post }) => {
       const card = { number };
-      for (const field of CARD_FIELDS) if (post[field] !== undefined && post[field] !== "") card[field] = post[field];
+      for (const field of CARD_FIELDS) if (post[field] !== undefined && post[field] !== "" && post[field] !== null) card[field] = post[field];
       return card;
     }),
   };
@@ -110,15 +128,16 @@ function main() {
   if (!raw) throw new Error(`marKit: raw.json not found next to scored.json (${runDir}). Write scored.json into the same folder as raw.json.`);
 
   const paths = getPaths();
-  const { markdown, numbered, fresh, skippedSeen, unscored } = buildReport({
+  const { markdown, numbered, fresh, skippedSeen, unscored, prefilter } = buildReport({
     raw,
     scored: readJsonFile(scoredPath, null),
     seenDates: loadSeenDates(paths.seenFile),
+    candidates: readJsonFile(path.join(runDir, "candidates.json"), null),
   });
 
   const reportPath = path.join(runDir, "report.md");
   writeTextFile(reportPath, markdown);
-  writeJsonFile(path.join(runDir, "cards.json"), buildCards(raw, numbered));
+  writeJsonFile(path.join(runDir, "cards.json"), buildCards(raw, numbered, prefilter));
   addSeen(fresh.map((p) => p.id), paths.seenFile);
   setLastRun({ app: raw.app, ranAt: raw.ranAt, opportunities: numbered.length }, paths.usageFile);
 

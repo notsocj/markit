@@ -23,7 +23,7 @@ test("recent search: topic + -is:retweet, bearer header, no paid author expansio
   assert.equal(url.searchParams.get("query"), "TripIt -is:retweet");
   assert.equal(url.searchParams.get("max_results"), "25");
   assert.equal(url.searchParams.get("start_time"), since.toISOString());
-  assert.equal(url.searchParams.get("tweet.fields"), "created_at,public_metrics");
+  assert.equal(url.searchParams.get("tweet.fields"), "created_at,public_metrics,lang");
   assert.equal(url.searchParams.get("expansions"), null, "author expansion would be billed per user");
   assert.equal(init.headers.authorization, `Bearer ${TOKEN}`);
   assert.equal(meter.requests, 1);
@@ -85,4 +85,10 @@ test("shape: paid per post at ~$0.005", () => {
   assert.equal(x.costUnit, "posts");
   assert.equal(x.costPerUnit, 0.005);
   assert.equal(x.isEnabled({}), false);
+});
+
+test("search results keep X's detected language", async () => {
+  const fetchImpl = fakeFetch([json({ data: [{ ...tweet("5"), lang: "pt" }] })]);
+  const posts = await x.search("a b", { since: recent(), env, budget: { posts: 30 }, http: { fetchImpl } });
+  assert.deepEqual(posts[0].lang, ["pt"]);
 });

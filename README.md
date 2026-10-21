@@ -29,7 +29,11 @@ For each match, marKit explains **why it fits**, scores it, and **drafts an hone
    │
    ├─ search.js     searches Hacker News, Stack Exchange, Bluesky, YouTube, Threads, X, SocialCrawl (Reddit)
    │                with YOUR keys, removes posts you've already seen  → raw.json
-   ├─ your agent    runs web searches (forums, Q&A), scores every post, drafts replies
+   ├─ your agent    runs web searches (forums, Q&A)                    → web.json
+   ├─ candidates.js drops old, excluded, other-language and duplicate posts, pre-scores
+   │                the rest, keeps the top 40, and checks the top 15 threads
+   │                (solved? locked? apps already suggested?)          → candidates.json
+   ├─ your agent    scores only those candidates, drafts replies
    │                (rules in references/scoring.md and reply-guide.md) → scored.json
    └─ report.js     validates everything, writes the report               → report.md + cards.json
 
@@ -141,6 +145,8 @@ marKit works well with free sources only. If you enable a paid one, marKit stops
 | X | ~$0.005 per post (no free tier) | 30 posts per run, 900 per month | ~$0.15 per run, ~$4.50 per month |
 | SocialCrawl | 1 credit per keyword search; 100 free credits, then from £15 / 2,500 credits | 50 credits per run, 1,500 per month | a typical run uses 5–8 credits |
 
+Thread context (reading a post's replies) is **off for paid sources** by default. Set `"contextForPaidSources": true` in `settings.json` to allow it; it still stays inside the caps above (X: billed per reply returned; SocialCrawl: 5 credits per Reddit comment page). `maxCandidates` (40) and `maxContext` (15) in the same file control how many posts your agent judges and how many threads get checked.
+
 **Also set a spending limit in each platform's own console** (X: console.x.com). That's your hard safety net; marKit's caps are a second one. `/markit-usage` shows this month's spend estimate and warns near a cap.
 
 ## Privacy and security
@@ -154,7 +160,7 @@ marKit follows six hard rules:
    - Only marKit's scripts read that file. Every skill tells the agent never to open it or ask you to paste a key into chat, and lists the default path under `disallowed-tools`. For a guaranteed block in Claude Code, add the [deny rule below](#optional-a-claude-code-deny-rule-for-your-keys-file).
    - Keys never appear in output, logs, reports, errors, or JSON. Network errors say only `<source>: HTTP <status>`, never the URL or headers. Status checks show ✓ / ✗ only, never a key or part of one.
    - `.env` is the **only** place keys come from. A key exported in your shell (e.g. an `X_BEARER_TOKEN` for another project) is ignored, so marKit can't bill the wrong account.
-4. **Posts are untrusted data.** Text from posts and web pages is analyzed, never followed as instructions. Titles and excerpts are escaped in reports, so a post can't inject links or HTML, and control characters are stripped from terminal output.
+4. **Posts are untrusted data.** Text from posts, comments, and web pages is analyzed, never followed as instructions. Titles and excerpts are escaped in reports, so a post can't inject links or HTML, and control characters are stripped from terminal output.
 5. **Zero npm dependencies.** Only Node.js built-ins, so you can read every line before installing.
 6. **No remote server, no telemetry.** marKit only talks to the APIs you enable. (The dashboard is a server on your own computer, reachable only from it.)
 

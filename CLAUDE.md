@@ -29,6 +29,7 @@ The full design is in `MARKIT_SPEC.md`.
 - All network calls go through `lib/safe-fetch.js`. Errors say only `<source>: HTTP <status>`, never the URL or headers.
 - Check each API's current official docs before writing or changing its adapter.
 - Project scanning (`lib/project.js`) enforces its never-read rules in code: secrets, `.env*`, `node_modules`, build output, dot-folders, and lock files are never listed. Add tests when changing those rules.
+- Thread context (adapter `context()`) must go through `lib/context.js` `buildContext()`, which keeps only username + excerpt + score per comment. Paid sources only fetch context when `contextForPaidSources` is on, and always within `paidBudget` caps; record every call in usage.json.
 - Tests mock `fetch` (pass `fetchImpl`); they never hit the real network. Use `MARKIT_CONFIG_DIR` or temp folders, never the real `~/.config/markit`.
 
 ## Dashboard (`skills/markit-dashboard`)

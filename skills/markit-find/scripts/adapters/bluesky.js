@@ -21,6 +21,7 @@
 
 import { safeFetch } from "../lib/safe-fetch.js";
 import { makePost, searchQuery } from "../lib/normalize.js";
+import { buildContext } from "../lib/context.js";
 
 const PUBLIC_API = "https://api.bsky.app/xrpc";
 const PDS = "https://bsky.social/xrpc"; // the user's server, for logged-in requests
@@ -74,6 +75,7 @@ export function toPost(p, matchedKeyword) {
     createdAt: p.record?.createdAt ?? p.indexedAt,
     engagement: { likes: p.likeCount ?? 0, replies: p.replyCount ?? 0, reposts: p.repostCount ?? 0 },
     matchedKeyword,
+    lang: p.record?.langs, // e.g. ["en"], set by the author's app (used by the language filter)
   });
 }
 
@@ -119,6 +121,34 @@ export default {
       .filter((p) => p.uri && p.record?.text)
       .map((p) => toPost(p, keyword))
       .slice(0, limit);
+  },
+
+  /**
+   * Thread context (free): app.bsky.feed.getPostThread on the public API with depth=1
+   * returns the post and its direct replies (checked 2026-10-22, no login needed). We
+   * rebuild the post's at:// address from our id ("bsky-<did>-<post key>").
+   * Replies are ranked by likes. `locked` is only known when the API says replies are
+   * disabled for the viewer, which it doesn't say without a login, so it's usually false.
+   */
+  async context(post, { meter = {}, http = {}, appNames = [] } = {}) {
+    const match = String(post.id).match(/^bsky-(.+)-([^-]+)$/);
+    if (!match) return null;
+    const uri = `at://${match[1]}/app.bsky.feed.post/${match[2]}`;
+    meter.requests = (meter.requests ?? 0) + 1;
+    const params = new URLSearchParams({ uri, depth: "1", parentHeight: "0" });
+    const data = await safeFetch("bluesky", `${PUBLIC_API}/app.bsky.feed.getPostThread?${params}`, http);
+    const thread = data.thread ?? {};
+    const replies = (thread.replies ?? [])
+      .filter((r) => r?.post?.record?.text)
+      .sort((a, b) => (b.post.likeCount ?? 0) - (a.post.likeCount ?? 0));
+    return buildContext(
+      {
+        commentCount: thread.post?.replyCount ?? replies.length,
+        locked: Boolean(thread.post?.viewer?.replyDisabled),
+        comments: replies.map((r) => ({ author: r.post.author?.handle, text: r.post.record.text, score: r.post.likeCount ?? 0 })),
+      },
+      { post, appNames }
+    );
   },
 
   /**

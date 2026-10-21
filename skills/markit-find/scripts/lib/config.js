@@ -40,6 +40,13 @@ export const DEFAULT_SETTINGS = {
   reportsDir: "~/markit-reports",
   lookbackDays: 7,
   maxPostsPerSource: 25,
+  // candidates.js: how many posts survive the prefilter for the agent to judge, and how
+  // many of the best get thread context (comments) fetched.
+  maxCandidates: 40,
+  maxContext: 15,
+  // Thread context costs money on X and SocialCrawl, so it's off for them unless enabled
+  // (and then it still stays within the caps below).
+  contextForPaidSources: false,
   x: { maxPostsPerRun: 30, maxPostsPerMonth: 900 },
   socialcrawl: { maxCreditsPerRun: 50, maxCreditsPerMonth: 1500 },
 };

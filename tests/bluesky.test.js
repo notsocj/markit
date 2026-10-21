@@ -101,3 +101,10 @@ test("shape: free, enabled without any key", () => {
   assert.equal(bluesky.paid, false);
   assert.equal(bluesky.isEnabled({}), true);
 });
+
+test("search results keep Bluesky's language tags", async () => {
+  _resetSession();
+  const fetchImpl = fakeFetch([json({ posts: [{ ...apiPost, record: { ...apiPost.record, langs: ["en"] } }] })]);
+  const posts = await bluesky.search("a b", { since, http: { fetchImpl } });
+  assert.deepEqual(posts[0].lang, ["en"]);
+});
