@@ -388,8 +388,11 @@ export function formatSummary(raw, rawPath, pickedMessage) {
 
   let removedSeen = 0;
   let removedExcluded = 0;
+  // Column as wide as the longest label ("Threads (via SocialCrawl)"), plus two spaces, so a
+  // long name never runs into its count.
+  const width = Math.max(16, ...raw.sources.map((s) => s.label.length + 2));
   for (const s of raw.sources) {
-    const name = s.label.padEnd(16);
+    const name = s.label.padEnd(width);
     if (s.status === "ok") {
       lines.push(`  ✓ ${name}${s.count} new${s.reason ? `  (${s.reason})` : ""}`);
       removedSeen += s.removed?.seen ?? 0;
