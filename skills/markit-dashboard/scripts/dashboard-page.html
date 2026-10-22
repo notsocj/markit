@@ -21,7 +21,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>marKit</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22f-bg%22%20x1%3D%225%22%20y1%3D%220%22%20x2%3D%2227%22%20y2%3D%2232%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233D6BFF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231432C4%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22url(%23f-bg)%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%226%22%20width%3D%2216%22%20height%3D%224%22%20rx%3D%222%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.65%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%2212%22%20width%3D%2220%22%20height%3D%228%22%20rx%3D%221%22%20fill%3D%22%23FFDE45%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2214%22%20width%3D%2212%22%20height%3D%224%22%20rx%3D%222%22%20fill%3D%22%230F2496%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2222%22%20width%3D%2210%22%20height%3D%224%22%20rx%3D%222%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.65%22%2F%3E%3C%2Fsvg%3E">
+<!-- Tab icon: .ico for Safari (it ignores SVG favicons), SVG for everyone else, and a touch icon for bookmarks. -->
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22f-bg%22%20x1%3D%225%22%20y1%3D%220%22%20x2%3D%2227%22%20y2%3D%2232%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233D6BFF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231432C4%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22url(%23f-bg)%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%226%22%20width%3D%2216%22%20height%3D%224%22%20rx%3D%222%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.65%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%2212%22%20width%3D%2220%22%20height%3D%228%22%20rx%3D%221%22%20fill%3D%22%23FFDE45%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2214%22%20width%3D%2212%22%20height%3D%224%22%20rx%3D%222%22%20fill%3D%22%230F2496%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2222%22%20width%3D%2210%22%20height%3D%224%22%20rx%3D%222%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.65%22%2F%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style nonce="__NONCE__">
   @font-face { font-family: "Poppins"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/poppins-400.woff2") format("woff2"); }
   @font-face { font-family: "Poppins"; font-weight: 500; font-style: normal; font-display: swap; src: url("/fonts/poppins-500.woff2") format("woff2"); }
@@ -91,6 +94,7 @@
   .side { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 6px; min-height: 0; overflow-y: auto; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px 14px; color: var(--text); }
   .brand-word { height: 34px; width: 82px; }
+  .brand-mark { height: 32px; width: 32px; flex: none; }
   .app-switch { margin-bottom: 14px; }
   .app-trigger { display: flex; align-items: center; gap: 10px; width: 100%; border: 1px solid var(--line-2); background: var(--panel); border-radius: 10px; padding: 8px 10px; text-align: left; }
   .app-trigger:hover { border-color: var(--accent); }
@@ -262,6 +266,7 @@
   .boot-card { text-align: center; display: grid; gap: 12px; justify-items: center; max-width: 380px; padding: 24px; }
   .boot-card .brand { padding: 0; }
   .boot-card .brand-word { height: 40px; width: 96px; }
+  .boot-card .brand { justify-content: center; } .boot-card .brand-mark { height: 40px; width: 40px; }
 
   /* ---------- Analytics ---------- */
   .analytics, .settings { overflow-y: auto; min-height: 0; padding: 26px 32px 40px; }
@@ -415,7 +420,9 @@
 <body>
 <!-- Icons: Solar by 480 Design (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) and Simple Icons (CC0),
      embedded as SVG symbols so the page loads nothing from the internet. -->
-<svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+<svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs><linearGradient id="mk-bg" x1="7" y1="3" x2="25" y2="29" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3D6BFF"/><stop offset="1" stop-color="#1432C4"/></linearGradient></defs>
+<symbol id="logo-mark" viewBox="0 0 32 32"><rect x="3" y="3" width="26" height="26" rx="6.2" fill="url(#mk-bg)"/><g transform="translate(3 3) scale(.8125)"><rect x="8" y="6" width="16" height="4" rx="2" fill="#fff" fill-opacity=".6"/><path d="M6.5 12.3L26 11.8L25.3 19.8L5.8 20.2Z" fill="#FFDE45" stroke="#FFDE45" stroke-width=".8" stroke-linejoin="round"/><rect x="8" y="14" width="12" height="4" rx="2" fill="#0F2496"/><rect x="8" y="22" width="10" height="4" rx="2" fill="#fff" fill-opacity=".6"/></g></symbol>
+
 <symbol id="logo-word" viewBox="40 0 76.7 32"><g fill="currentColor"><path transform="translate(40 -0.35) scale(0.0245)" d="M185 1010V730C185 650 232 612 290 612C348 612 385 649 385 718V1010H507V730C507 649 552 611 611 611C669 611 707 648 707 719V1010H828V687C828 573 762 501 642 501C567 501 509 538 484 595C458 538 406 501 331 501C260 501 210 533 185 574L175 516H63V1010Z M1095 1023C1172 1023 1239 988 1260 937L1269 1010H1376V710C1376 573 1294 501 1161 501C1027 501 939 571 939 678H1043C1043 626 1083 596 1155 596C1217 596 1257 623 1257 690V701L1109 712C992 721 926 778 926 869C926 962 990 1023 1095 1023ZM1135 931C1080 931 1050 909 1050 864C1050 824 1079 799 1155 792L1258 784V810C1258 886 1210 931 1135 931Z M1806 514C1786 509 1769 507 1752 507C1686 507 1639 540 1618 589L1611 517H1496V1010H1618V770C1618 674 1673 627 1761 627H1806Z M2035 279H1907V1010H2035V854L2156 699L2337 1010H2485L2240 591L2482 279H2331L2035 663Z M2624 417C2664 417 2697 384 2697 343C2697 302 2664 270 2624 270C2582 270 2549 302 2549 343C2549 384 2582 417 2624 417ZM2563 1010H2685V516H2563Z M2979 1010V618H3075V516H2979V362H2857V516H2762V618H2857V1010Z"/></g></symbol>
 <symbol id="i-alt-arrow-down-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9L12 15L5 9"/></symbol>
 <symbol id="i-alt-arrow-up-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 15L12 9L5 15"/></symbol>
@@ -466,6 +473,7 @@
   <!-- ===== Sidebar ===== -->
   <aside class="side" aria-label="Navigation">
     <div class="brand">
+      <svg class="brand-mark" aria-hidden="true"><use href="#logo-mark"/></svg>
       <svg class="brand-word" role="img" aria-label="marKit"><use href="#logo-word"/></svg>
     </div>
 
@@ -546,7 +554,7 @@
 <!-- Shown until the first load finishes, or when there are no reports at all. -->
 <div class="boot" id="boot">
   <div class="boot-card">
-    <div class="brand"><svg class="brand-word" role="img" aria-label="marKit"><use href="#logo-word"/></svg></div>
+    <div class="brand"><svg class="brand-mark" aria-hidden="true"><use href="#logo-mark"/></svg><svg class="brand-word" role="img" aria-label="marKit"><use href="#logo-word"/></svg></div>
     <p class="muted" id="boot-msg">Loading…</p>
   </div>
 </div>

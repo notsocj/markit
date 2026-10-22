@@ -376,15 +376,17 @@ test("cards carry engagement as numbers only", () => {
   assert.deepEqual(card.engagement, { score: 524, comments: 278, hasReplies: true });
 });
 
-test("the page credits its icons and fonts, and has no top-left logo icon", async () => {
+test("the page credits its icons and fonts, and shows the current logo mark (not the old checkmark)", async () => {
   const { port } = await startDashboard();
   const page = (await request(port)).text;
   assert.match(page, /Solar by 480 Design \(CC BY 4\.0/);
   assert.match(page, /Simple Icons \(CC0\)/);
   assert.match(page, /Poppins \(SIL Open Font License 1\.1\)/);
   const sidebar = page.slice(page.indexOf('<aside class="side"'), page.indexOf("</aside>"));
-  assert.ok(!sidebar.includes("logo-mark"), "sidebar shows the wordmark only");
-  assert.ok(!page.includes('class="brand-mark"'), "no logo icon anywhere on the page (wordmark only)");
+  // The old violet speech-bubble checkmark was removed on request; the rebrand's highlighter
+  // mark (docs/brand/logo-mark.svg) sits next to the wordmark instead.
+  assert.ok(sidebar.includes('class="brand-mark"'), "sidebar shows the logo mark");
+  assert.ok(!page.includes("M10.6 13.6l3.7 3.7 7.3-7.3"), "the old checkmark path is gone");
   // All pickers use the custom dropdown (the native <select> popup ignores the page design).
   assert.ok(!/<select[\s>]/.test(page), "no native <select> elements");
   for (const id of ["dd-app", "dd-run", "dd-platform", "dd-sort"]) {
@@ -424,4 +426,18 @@ test("a broken feedback.json: the page gets a warning, saves fail with a clear m
   assert.match(r.json().error, /feedback\.json .* isn't valid JSON/);
   assert.ok(!r.text.includes(feedbackFile) && !r.text.includes(tmpdir()), "no file path in the error");
   assert.equal(readFileSync(feedbackFile, "utf8"), "{broken");
+});
+
+test("the app icon is served for Safari (/favicon.ico) and bookmarks; other icon paths are 404", async () => {
+  const { port } = await startDashboard();
+  const ico = await request(port, { path: "/favicon.ico" });
+  assert.equal(ico.status, 200);
+  assert.equal(ico.headers["content-type"], "image/x-icon");
+  const touch = await request(port, { path: "/apple-touch-icon.png" });
+  assert.equal(touch.status, 200);
+  assert.equal(touch.headers["content-type"], "image/png");
+  assert.equal((await request(port, { path: "/icons/favicon.ico" })).status, 404, "only the exact routes");
+  const page = (await request(port, { path: "/" })).text;
+  assert.match(page, /<link rel="icon" href="\/favicon\.ico"/);
+  assert.match(page, /<symbol id="logo-mark"/);
 });

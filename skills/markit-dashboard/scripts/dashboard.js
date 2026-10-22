@@ -8,6 +8,8 @@
 // What it serves:
 //   GET  /                 one self-contained HTML page (inline CSS + JS, no CDN, no frameworks)
 //   GET  /fonts/<file>     the bundled Poppins font files (exact names only; see FONT_FILES)
+//   GET  /favicon.ico, /apple-touch-icon.png   the app icon (bundled copies of docs/brand/app-icon;
+//                          Safari ignores the page's SVG favicon and needs one of these)
 //   GET  /api/apps         app names that have reports
 //   GET  /api/runs?app=    that app's runs, newest first
 //   GET  /api/cards?app=&run=latest|all|<run>   cards (with Replied/Skipped status) + stats
@@ -76,6 +78,12 @@ const PAGE_TEMPLATE = readFileSync(new URL("./dashboard-page.html", import.meta.
 // so a request can't name any other file.
 export const FONT_FILES = ["poppins-400.woff2", "poppins-500.woff2", "poppins-600.woff2", "poppins-700.woff2"];
 const FONTS = new Map(FONT_FILES.map((name) => [name, readFileSync(new URL(`./fonts/${name}`, import.meta.url))]));
+
+// The app icon, for browser tabs and bookmarks. Same idea as the fonts: read once, served only
+// by these exact paths. The page also has an SVG favicon (Chrome, Firefox); Safari doesn't
+// use SVG favicons, so it falls back to /favicon.ico.
+export const ICON_FILES = { "/favicon.ico": ["favicon.ico", "image/x-icon"], "/apple-touch-icon.png": ["apple-touch-icon.png", "image/png"] };
+const ICONS = new Map(Object.entries(ICON_FILES).map(([route, [file, type]]) => [route, { body: readFileSync(new URL(`./icons/${file}`, import.meta.url)), type }]));
 
 /** True only for Host headers that name this server on this computer. */
 export function isAllowedHost(hostHeader, port) {
@@ -209,6 +217,12 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, en
         if (!font) return sendJson(req, res, 404, { error: "not found" });
         res.writeHead(200, { ...baseHeaders, "content-type": "font/woff2", "content-length": font.length, "cache-control": "max-age=86400" });
         return res.end(req.method === "HEAD" ? undefined : font);
+      }
+
+      const iconFile = ICONS.get(url.pathname);
+      if (iconFile) {
+        res.writeHead(200, { ...baseHeaders, "content-type": iconFile.type, "content-length": iconFile.body.length, "cache-control": "max-age=86400" });
+        return res.end(req.method === "HEAD" ? undefined : iconFile.body);
       }
 
       if (url.pathname === "/api/apps") return sendJson(req, res, 200, { apps: data.listApps(reportsDir) });
