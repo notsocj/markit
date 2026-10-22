@@ -32,7 +32,8 @@
   :root {
     --bg: #0b0b0f; --side: #0f0f14; --panel: #14141a; --panel-2: #1a1a22; --hover: #1d1d26;
     --line: #23232d; --line-2: #2f2f3b; --text: #ececf1; --muted: #9d9daf; --faint: #6c6c7d;
-    --accent: #7c5cff; --accent-2: #9a86ff; --accent-ink: #ffffff; --accent-soft: rgba(124, 92, 255, 0.14);
+    --accent: #3361ff; --accent-2: #8ea8ff; --accent-ink: #ffffff; --accent-soft: rgba(51, 97, 255, 0.16);
+    --accent-hover: #2550e8; --mark: #ffde45; --mark-ink: #0f2496;
     --high: #ff6b4a; --high-soft: rgba(255, 107, 74, 0.13);
     --medium: #f5b83d; --medium-soft: rgba(245, 184, 61, 0.13);
     --low: #8e93a8; --low-soft: rgba(142, 147, 168, 0.14);
@@ -43,15 +44,16 @@
   }
   @media (prefers-color-scheme: light) {
     :root {
-      --bg: #f5f5f8; --side: #ffffff; --panel: #ffffff; --panel-2: #f3f2f8; --hover: #f0eff6;
-      --line: #e7e6ee; --line-2: #dad8e4; --text: #16141f; --muted: #62627a; --faint: #8d8da0;
-      --accent: #5b3cf0; --accent-2: #7c5cff; --accent-soft: rgba(91, 60, 240, 0.09);
+      --bg: #f4f6f9; --side: #ffffff; --panel: #ffffff; --panel-2: #f1f3f8; --hover: #edf0f6;
+      --line: #e4e8ef; --line-2: #d6dbe5; --text: #131722; --muted: #5d6477; --faint: #8a90a2;
+      --accent: #2550e8; --accent-2: #2d5bf5; --accent-soft: rgba(37, 80, 232, 0.09);
+      --accent-hover: #1d42c8;
       --high: #e2482a; --high-soft: rgba(226, 72, 42, 0.09);
       --medium: #b7790b; --medium-soft: rgba(214, 150, 20, 0.12);
       --low: #6b7088; --low-soft: rgba(107, 112, 136, 0.1);
       --ok: #12935a; --ok-soft: rgba(18, 147, 90, 0.1);
       --warn-bg: #fff8e8; --warn-line: #f0d08a;
-      --shadow: 0 12px 40px rgba(22, 20, 31, 0.12);
+      --shadow: 0 12px 40px rgba(19, 23, 34, 0.12);
     }
   }
 
@@ -66,6 +68,7 @@
   button, input, select { font: inherit; color: inherit; }
   button { cursor: pointer; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  ::selection { background: var(--mark); color: var(--mark-ink); }
   [hidden] { display: none !important; }
   .ic { width: 18px; height: 18px; flex: none; display: block; }
   .ic-sm { width: 15px; height: 15px; }
@@ -245,7 +248,7 @@
   .btn-ghost.is-on { color: var(--ok); background: var(--ok-soft); }
   .btn-ghost.is-on-skip { color: var(--low); background: var(--low-soft); }
   .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  .btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
   .btn-primary kbd { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.25); color: #fff; }
 
   /* ---------- Empty states ---------- */
@@ -412,8 +415,7 @@
 <body>
 <!-- Icons: Solar by 480 Design (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/) and Simple Icons (CC0),
      embedded as SVG symbols so the page loads nothing from the internet. -->
-<svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><defs><linearGradient id="mk-g" x1="3" y1="3" x2="29" y2="29" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#9A86FF"/><stop offset="1" stop-color="#5B3CF0"/></linearGradient></defs>
-<symbol id="logo-mark" viewBox="0 0 32 32"><path fill="url(#mk-g)" d="M8 3h16a5 5 0 0 1 5 5v11a5 5 0 0 1-5 5h-8.3l-5.5 4.5c-.8.7-2.1.1-2.1-1V24H8a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5z"/><path fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M10.6 13.6l3.7 3.7 7.3-7.3"/></symbol>
+<svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
 <symbol id="logo-word" viewBox="40 0 76.7 32"><g fill="currentColor"><path transform="translate(40 -0.35) scale(0.0245)" d="M185 1010V730C185 650 232 612 290 612C348 612 385 649 385 718V1010H507V730C507 649 552 611 611 611C669 611 707 648 707 719V1010H828V687C828 573 762 501 642 501C567 501 509 538 484 595C458 538 406 501 331 501C260 501 210 533 185 574L175 516H63V1010Z M1095 1023C1172 1023 1239 988 1260 937L1269 1010H1376V710C1376 573 1294 501 1161 501C1027 501 939 571 939 678H1043C1043 626 1083 596 1155 596C1217 596 1257 623 1257 690V701L1109 712C992 721 926 778 926 869C926 962 990 1023 1095 1023ZM1135 931C1080 931 1050 909 1050 864C1050 824 1079 799 1155 792L1258 784V810C1258 886 1210 931 1135 931Z M1806 514C1786 509 1769 507 1752 507C1686 507 1639 540 1618 589L1611 517H1496V1010H1618V770C1618 674 1673 627 1761 627H1806Z M2035 279H1907V1010H2035V854L2156 699L2337 1010H2485L2240 591L2482 279H2331L2035 663Z M2624 417C2664 417 2697 384 2697 343C2697 302 2664 270 2624 270C2582 270 2549 302 2549 343C2549 384 2582 417 2624 417ZM2563 1010H2685V516H2563Z M2979 1010V618H3075V516H2979V362H2857V516H2762V618H2857V1010Z"/></g></symbol>
 <symbol id="i-alt-arrow-down-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9L12 15L5 9"/></symbol>
 <symbol id="i-alt-arrow-up-linear" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 15L12 9L5 15"/></symbol>

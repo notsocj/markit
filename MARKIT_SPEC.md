@@ -752,9 +752,9 @@ A 4th skill, installed with the other three and using the shared code. It gives 
 - **Assets, all local:**
   - Font: Poppins 400/500/600/700 woff2 (OFL, `scripts/fonts/`), served by `GET /fonts/<exact name>` from a fixed list, with CSP `font-src 'self'`.
   - Icons: Solar (CC BY 4.0) and Simple Icons platform logos (CC0), embedded as an SVG `<symbol>` sprite. Iconify aliases (e.g. `magnifer-linear` → `magnifier-linear`) are resolved when building the sprite.
-  - Favicon: the logo mark as a `data:` SVG.
+  - Favicon: `docs/brand/app-icon/favicon.svg` as a `data:` SVG.
   - Satoshi isn't bundled: its license forbids redistributing the font files, though it allows logos made from it, so the wordmark is outlined vector paths.
-- **Brand files:** `docs/brand/logo-mark.svg` (a violet speech bubble with a check, "mark it"), plus `logo-light.svg` and `logo-dark.svg` (mark + outlined Satoshi Bold wordmark).
+- **Brand files:** `docs/brand/logo-mark.svg` (a cobalt tile showing a short post with one line marked by a yellow highlighter, "mark it"), plus `logo-light.svg` and `logo-dark.svg` (mark + outlined Satoshi Bold wordmark). Colors: cobalt `#3D6BFF` → `#1432C4`, highlighter yellow `#FFDE45`, navy ink `#0F2496`. `docs/brand/app-icon/` holds the app icon: `app-icon.svg` (rounded, macOS grid), `app-icon-full-bleed.svg` (for platforms that mask the corners), `favicon.svg`/`favicon.ico` (simplified, pixel-snapped for 16px), `app-icon.icns`, and PNG sizes.
 - **Data:** cards also carry `engagement`, cleaned to numbers and booleans only.
 
 **SKILL.md:** starts `node ${CLAUDE_SKILL_DIR}/scripts/dashboard.js` in the background, tells the user the URL, explains it's local-only and stops by itself, and that rewriting drafts happens in chat by card number (then press Refresh). The agent never marks cards Replied itself.
