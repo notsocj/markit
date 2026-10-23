@@ -48,7 +48,11 @@ Step 0: run `node ${CLAUDE_SKILL_DIR}/scripts/setup.js status`. It prints JSON w
 6. Finish with: "Run /markit-find <app> to find your first opportunities." (In Codex: `$markit-find <app>`.)
 
 ## Already set up
-Ask what they want: add an app, edit an app, add or change a source key, change limits, or re-run the key check.
+First, skip the menu when the user's intent is clear:
+- **`/markit-setup add`** (Codex: `$markit-setup add`), or they asked to add an app: go straight to **Creating an app profile**. `add <name>` uses that name for the profile. If `<name>` is already in `apps`, edit that app instead.
+- **Otherwise, run `setup.js scan`.** If `isProject` is true and none of `metadata.names` matches an app in `apps`, the user is in a new app's folder. Say "Drafting a marKit profile for <name> from this folder (say so if you wanted something else)", then continue with **Creating an app profile**, reusing this scan.
+
+If neither applies, ask what they want: add an app, edit an app, add or change a source key, change limits, or re-run the key check.
 - **Add an app:** see **Creating an app profile**.
 - **Edit an app:** read `<configDir>/apps/<name>.json` (profiles are not secret), apply the changes, show the result, and save it with `--overwrite` (see **Saving a profile**).
 - **Add or change a key:** as in First-time setup step 3, then run the key check (step 5).
@@ -57,7 +61,7 @@ Ask what they want: add an app, edit an app, add or change a source key, change 
 - **Key check:** step 5.
 
 ## Creating an app profile
-1. Run `node ${CLAUDE_SKILL_DIR}/scripts/setup.js scan`. It looks at the current folder and prints JSON: `isProject`, `metadata` (names, description, homepage), a `readingList`, and `screens`.
+1. Run `node ${CLAUDE_SKILL_DIR}/scripts/setup.js scan` (skip this if you already ran it). It looks at the current folder and prints JSON: `isProject`, `metadata` (names, description, homepage), a `readingList`, and `screens`.
 2. **If `isProject` is true** (the user is in their app's project folder), draft the profile from the project instead of asking questions:
    - Read ONLY files listed in `readingList`: README first, then `docs`, `storeListing`, `landing`, `translations`, and only as much as you still need. Use `screens` (names only) as feature hints. Never open other files, even if they look useful. Never open `.env` files, keys, secrets, `node_modules`, build/dist folders, or lock files.
    - Draft: `name` (lowercase letters, numbers, hyphens; from `metadata.names`), `url` (`metadata.url`, or a store/website link found in the reading list), `oneLiner`, `description`, `audience`, `features` (the main features as short phrases), and 5–8 intent-style `keywords`.

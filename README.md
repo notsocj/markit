@@ -126,7 +126,7 @@ In Codex, use `$markit-setup`, `$markit-find`, `$markit-dashboard`, `$markit-usa
 
 | Command | What it does |
 |---|---|
-| `/markit-setup` | First run: config, keys, first app profile, key check. Later: add or edit an app, add or change a key, change limits |
+| `/markit-setup` | First run: config, keys, first app profile, key check. Later: add or edit an app, add or change a key, change limits. Run it in a new app's folder (or `/markit-setup add`) to go straight to its profile |
 | `/markit-find [app]` | Finds opportunities and drafts replies into a report. Say "rewrite draft #3" to change one |
 | `/markit-dashboard` | Local page: filter by app, run, platform, priority; copy drafts; open posts; mark Replied / Skipped (with a reason); stats and keyword health. Rewrite drafts in chat by card number |
 | `/markit-usage` | Sources ready (✓ / ✗), this month's usage against free quotas and paid caps, last run, command guide |
