@@ -68,7 +68,7 @@ If neither applies, ask what they want: add an app, edit an app, add or change a
    - Ask ONLY what the project can't answer: **competitors** (and optional words to exclude), and the **URL** if you found none.
    - Validate the draft with `--dry-run` (see **Saving a profile**), show the user the cleaned profile and any suggestions, and let them edit or confirm.
 3. **If `isProject` is false**, ask the questions instead: app name, URL, one-liner, who it's for, main features, 3–8 keywords, competitors, and words to exclude.
-4. Once the user confirms, save it (without `--dry-run`).
+4. Once the user confirms, save it (without `--dry-run`). Run from the app's own project folder, saving also copies the app's icon (the dry run's "App icon" line) for the dashboard's app picker. Without a PNG/JPEG/WebP/ICO icon, the dashboard shows the first letter instead.
 
 **Keywords:** intent phrases beat single words. Good: "best app for tracking F1 sessions", "alternative to <competitor>", "how do you organize your race weekend". Weak: "F1" (far too broad; wastes quota). marKit trims filler words itself when searching APIs, and uses the full phrase for web search.
 

@@ -10,6 +10,9 @@
 //                                       Add --overwrite to replace an existing profile (editing).
 //                                       Add --dry-run to check and print it without saving
 //                                       (used to show a drafted profile before confirming).
+//                                       Run from the app's project folder, it also copies the
+//                                       app's icon to apps/<name>.png (or .jpg/.webp/.ico) for
+//                                       the dashboard's app picker.
 //   node setup.js scan [--dir <path>]   Look at the current folder (or --dir) and print what
 //                                       it says about the app, plus a SAFE reading list the
 //                                       agent may open to draft a profile. Secrets, .env files,
@@ -28,6 +31,7 @@
 
 import { parseArgs } from "node:util";
 import { existsSync, mkdirSync, writeFileSync, statSync, chmodSync } from "node:fs";
+import path from "node:path";
 import { loadShared } from "./shared.js";
 
 // Load shared code from the sibling markit-find folder (exits with a clear message if missing).
@@ -35,7 +39,8 @@ const config = await loadShared("lib/config.js");
 const { writeJsonFile, readJsonFile } = await loadShared("lib/files.js");
 const { validateProfile } = await loadShared("lib/profile.js");
 const { REDDIT_PROVIDERS, PROVIDER_LABELS, redditProvider, redditLabel } = await loadShared("lib/reddit.js");
-const { scanProject } = await loadShared("lib/project.js");
+const { scanProject, projectNames, normalizeName } = await loadShared("lib/project.js");
+const { saveAppIcon } = await loadShared("lib/app-icon.js");
 
 // Windows doesn't use Unix-style permissions (chmod 600 does nothing useful there).
 // The %APPDATA% folder is already private to the user account.
@@ -149,6 +154,17 @@ async function readStdin() {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+/**
+ * The icon of app `name` from the current folder, or null. Only when the folder IS that app's
+ * project (folder or package name matches), so editing one app from another app's folder
+ * can't give it the wrong icon.
+ */
+function projectIcon(name) {
+  const cwd = process.cwd();
+  const names = [path.basename(cwd), ...projectNames(cwd)].map(normalizeName);
+  return names.includes(normalizeName(name)) ? scanProject(cwd).icon : null;
+}
+
 async function app({ name, overwrite, "dry-run": dryRun }) {
   if (!name) throw new Error("marKit: --name is required, e.g. node setup.js app --name gridpeek");
   const paths = config.getPaths();
@@ -173,10 +189,12 @@ async function app({ name, overwrite, "dry-run": dryRun }) {
   const file = config.appPath(name, paths);
 
   const exists = existsSync(file);
+  const icon = projectIcon(name);
 
   if (dryRun) {
     // Nothing is written. The agent shows this cleaned-up profile to the user to confirm.
     const out = [`✓ Profile "${name}" is valid (not saved yet${exists ? `; saving will need --overwrite` : ""})`];
+    if (icon) out.push(`  App icon: ${icon} (saved with the profile, for the dashboard)`);
     if (warnings.length) out.push("", "Suggestions:", ...warnings.map((w) => `  - ${w}`));
     out.push("", JSON.stringify(profile, null, 2));
     console.log(out.join("\n"));
@@ -190,6 +208,8 @@ async function app({ name, overwrite, "dry-run": dryRun }) {
   writeJsonFile(file, profile);
 
   const out = [`✓ Saved app profile "${name}"  ${file}`];
+  const savedIcon = icon && saveAppIcon(paths.appsDir, name, icon);
+  if (savedIcon) out.push(`✓ Saved app icon          ${savedIcon}  (from ${icon})`);
   if (warnings.length) out.push("", "Suggestions:", ...warnings.map((w) => `  - ${w}`));
   out.push("", JSON.stringify(profile, null, 2));
   console.log(out.join("\n"));

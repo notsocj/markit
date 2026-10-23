@@ -132,6 +132,27 @@ test("if the port is busy, it tries the next one", async () => {
 
 // --- Page and read-only API --------------------------------------------------------
 
+test("app icons: served from apps/ by validated name, real images only", async () => {
+  const f = fixture();
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(8)]);
+  writeFileSync(join(f.configDir, "apps", "gridpeek.png"), png);
+  writeFileSync(join(f.configDir, "apps", "keepr.png"), SECRET); // not really an image
+  const dash = createDashboard({ reportsDir: f.reportsDir, feedbackFile: f.feedbackFile, appsDir: join(f.configDir, "apps") });
+  servers.push(dash);
+  const { port } = await dash.start({ port: 0 });
+
+  assert.deepEqual((await request(port, { path: "/api/apps" })).json(), { apps: ["gridpeek"], icons: ["gridpeek"] });
+  const icon = await request(port, { path: "/app-icon/gridpeek" });
+  assert.equal(icon.status, 200);
+  assert.equal(icon.headers["content-type"], "image/png");
+  assert.equal(icon.headers["x-content-type-options"], "nosniff");
+  for (const path of ["/app-icon/keepr", "/app-icon/nope", "/app-icon/..%2F.env", "/app-icon/../.env", "/app-icon/gridpeek.json", "/app-icon/"]) {
+    const r = await request(port, { path });
+    assert.equal(r.status, 404, path);
+    assert.ok(!r.text.includes(SECRET), path);
+  }
+});
+
 test("GET / serves the self-contained page with a strict CSP and nonce", async () => {
   const { port } = await startDashboard();
   const r = await request(port);
@@ -148,7 +169,7 @@ test("GET / serves the self-contained page with a strict CSP and nonce", async (
 
 test("apps, runs, and cards come from the reports folder", async () => {
   const { port } = await startDashboard();
-  assert.deepEqual((await request(port, { path: "/api/apps" })).json(), { apps: ["gridpeek"] });
+  assert.deepEqual((await request(port, { path: "/api/apps" })).json(), { apps: ["gridpeek"], icons: [] });
 
   const { runs } = (await request(port, { path: "/api/runs?app=gridpeek" })).json();
   assert.deepEqual(runs.map((r) => [r.run, r.total, r.high]), [["2026-10-21-2100", 2, 1], ["2026-10-20-0900", 2, 1]]);

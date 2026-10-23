@@ -19,10 +19,13 @@
 //
 // The only files whose contents this module reads are package.json, app.json,
 // pubspec.yaml, Info.plist, and Android strings.xml, and only to pull out the app's name,
-// description, and homepage.
+// description, and homepage. findAppIcon() also opens image files at the usual icon spots,
+// but only to check they're real images (lib/app-icon.js); /markit-setup copies the one it
+// picks next to the profile for the dashboard.
 
-import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, existsSync, realpathSync } from "node:fs";
 import path from "node:path";
+import { readIconFile } from "./app-icon.js";
 
 // --- What to never touch ---------------------------------------------------
 
@@ -362,6 +365,7 @@ export function scanProject(dir = process.cwd()) {
     .slice(0, 60);
 
   const abs = (list) => list.map((rel) => path.join(root, rel));
+  const icon = isProject ? findAppIcon(root, { appDirs: [...appDirs], dirs }) : null;
 
   return {
     dir: root,
@@ -376,8 +380,82 @@ export function scanProject(dir = process.cwd()) {
       translations: abs(translations),
     },
     screens,
+    icon,
     truncated: files.length >= MAX_FILES,
   };
+}
+
+// --- The app's icon --------------------------------------------------------
+
+// Images are left out of the walk, so the usual icon spots are checked by exact path.
+const ICON_FOLDERS = ["", "assets", "assets/images", "src/assets", "public", "static", "app", "src/app", "web", "images"];
+// Best first: favicon.ico is often a framework's default, so it comes last.
+const ICON_NAMES = ["icon.png", "app-icon.png", "appicon.png", "apple-icon.png", "apple-touch-icon.png", "icon-512.png", "logo.png", "favicon.png", "icon.webp", "logo.webp", "icon.jpg", "favicon.ico"];
+
+/**
+ * Find the app's icon in a project: the full path of a real PNG/JPEG/WebP/ICO image inside
+ * `root`, or null. Best first: the icon Expo's app.json names, the biggest image in the iOS
+ * AppIcon set, Android's launcher icon, then common web/asset spots in each app folder.
+ *
+ * @param {string} root - the project folder (already resolved)
+ * @param {{ appDirs?: string[], dirs?: string[] }} where - app folders and walked folders (relative)
+ */
+export function findAppIcon(root, { appDirs = [""], dirs = [] } = {}) {
+  const shallow = ["", ...dirs.filter((d) => d.split("/").length <= 3)];
+  const candidates = [];
+
+  for (const dir of appDirs) {
+    const json = readJson(path.join(root, dir, "app.json"));
+    const named = json?.expo?.icon ?? json?.icon;
+    if (typeof named === "string") candidates.push(path.join(dir, named));
+  }
+  // Xcode asset catalogs aren't walked (isExcludedDir), so look inside AppIcon sets here.
+  for (const set of shallow.flatMap((dir) => ["Assets", "Images"].map((n) => path.join(dir, `${n}.xcassets`, "AppIcon.appiconset")))) {
+    let names;
+    try {
+      names = readdirSync(path.join(root, set)).filter((n) => /\.(png|jpe?g)$/i.test(n));
+    } catch {
+      continue;
+    }
+    const size = (n) => {
+      try {
+        return statSync(path.join(root, set, n)).size;
+      } catch {
+        return 0;
+      }
+    };
+    // The biggest file is the 1024px store icon.
+    const biggest = names.sort((a, b) => size(b) - size(a))[0];
+    if (biggest) candidates.push(path.join(set, biggest));
+  }
+  for (const res of dirs.filter((d) => /(^|\/)src\/main\/res$/.test(d))) {
+    for (const density of ["xxxhdpi", "xxhdpi"]) {
+      candidates.push(path.join(res, `mipmap-${density}`, "ic_launcher.png"), path.join(res, `mipmap-${density}`, "ic_launcher.webp"));
+    }
+  }
+  // Name first, then folder, so a real icon.png anywhere beats a favicon.ico.
+  for (const name of ICON_NAMES) {
+    for (const dir of appDirs) for (const folder of ICON_FOLDERS) candidates.push(path.join(dir, folder, name));
+  }
+
+  // realpath: a symlinked folder inside the project could point anywhere, so the real
+  // location must still be inside the project.
+  let realRoot;
+  try {
+    realRoot = realpathSync(root);
+  } catch {
+    return null;
+  }
+  for (const rel of candidates) {
+    const file = path.resolve(root, rel);
+    try {
+      if (!realpathSync(file).startsWith(realRoot + path.sep)) continue;
+    } catch {
+      continue; // doesn't exist
+    }
+    if (readIconFile(file)) return file;
+  }
+  return null;
 }
 
 // --- Picking an app for /markit-find ---------------------------------------

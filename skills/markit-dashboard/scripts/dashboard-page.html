@@ -170,6 +170,8 @@
   .dd-opt[aria-selected="true"] { font-weight: 600; }
   .dd-opt[aria-selected="true"] .dd-check { visibility: visible; }
   .dd-opt .app-avatar { width: 22px; height: 22px; font-size: 11px; border-radius: 6px; }
+  .app-avatar.has-icon { background: none; }
+  .app-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; display: block; }
   .dd-sep { height: 1px; background: var(--line); margin: 4px 6px; }
   .list { overflow-y: auto; flex: 1; min-height: 0; padding: 6px; }
 
@@ -718,7 +720,7 @@ function engagementNodes(card) {
 // State
 // =============================================================================
 const state = {
-  apps: [], runs: [], cards: [], stats: null,
+  apps: [], icons: [], runs: [], cards: [], stats: null,
   app: "", run: "latest", resolvedRun: "",
   view: store.get("view") || "open", platform: "all", priority: "all", sort: store.get("sort") || "best", query: "",
   selectedId: null,
@@ -761,6 +763,19 @@ const selectedCard = () => state.cards.find((c) => c.id === state.selectedId) ||
 // =============================================================================
 let openMenu = null;
 
+// An app's avatar: its own icon when /markit-setup saved one, else its first letter.
+function fillAvatar(node, app) {
+  if (node.dataset.app === app) return node; // already showing it: don't reload the image
+  node.dataset.app = app;
+  const letter = () => { node.classList.remove("has-icon"); node.textContent = (app || "?").slice(0, 1); };
+  if (!app || !state.icons.includes(app)) { letter(); return node; }
+  const img = el("img", { attrs: { src: "/app-icon/" + encodeURIComponent(app), alt: "" } });
+  img.addEventListener("error", letter);
+  node.classList.add("has-icon");
+  node.replaceChildren(img);
+  return node;
+}
+
 function makeDropdown(id, { onChange, align = "left", avatar = false } = {}) {
   const root = document.getElementById(id);
   const trigger = root.querySelector(".dd-trigger");
@@ -787,7 +802,7 @@ function makeDropdown(id, { onChange, align = "left", avatar = false } = {}) {
     paint() {
       const current = this.options.find((o) => o !== "-" && o[0] === this.value);
       label.textContent = current ? current[1] : "";
-      if (avatar) $("#app-avatar").textContent = (this.value || "?").slice(0, 1);
+      if (avatar) fillAvatar($("#app-avatar"), this.value);
     },
     open() {
       if (openMenu && openMenu !== dd) openMenu.close(false);
@@ -798,7 +813,7 @@ function makeDropdown(id, { onChange, align = "left", avatar = false } = {}) {
         const [v, text, detail] = o;
         const i = index++;
         const opt = el("button", { cls: "dd-opt", attrs: { type: "button", role: "option", tabindex: "-1", id: id + "-opt-" + i, "aria-selected": String(v === this.value), "data-i": String(i), "data-v": v } }, [
-          avatar ? el("span", { cls: "app-avatar", text: String(text).slice(0, 1) }) : null,
+          avatar ? fillAvatar(el("span", { cls: "app-avatar" }), v) : null,
           el("span", { cls: "opt-text", text }),
           detail ? el("span", { cls: "opt-sub", text: detail }) : null,
           icon("i-check-circle-bold", "ic ic-sm dd-check"),
@@ -890,8 +905,9 @@ document.addEventListener("scroll", (e) => { if (openMenu && !(e.target instance
 window.addEventListener("resize", () => openMenu?.close(false));
 
 async function loadApps() {
-  const { apps } = await api("/api/apps");
+  const { apps, icons = [] } = await api("/api/apps");
   state.apps = apps;
+  state.icons = icons;
   if (!apps.length) {
     $("#boot").hidden = false;
     // Keys can be added before the first run, so Settings is reachable from here.

@@ -10,7 +10,8 @@
 //   GET  /fonts/<file>     the bundled Poppins font files (exact names only; see FONT_FILES)
 //   GET  /favicon.ico, /apple-touch-icon.png   the app icon (bundled copies of docs/brand/app-icon;
 //                          Safari ignores the page's SVG favicon and needs one of these)
-//   GET  /api/apps         app names that have reports
+//   GET  /api/apps         app names that have reports, and which of them have an icon
+//   GET  /app-icon/<app>   that app's icon (apps/<app>.png etc., saved by /markit-setup)
 //   GET  /api/runs?app=    that app's runs, newest first
 //   GET  /api/cards?app=&run=latest|all|<run>   cards (with Replied/Skipped status) + stats
 //                          + prefilter line + keyword health (for the Keywords panel)
@@ -37,7 +38,8 @@
 //     back, logged, or printed (so it can't appear in an agent's chat or the task output).
 //     The Settings page only learns "set" / "not set" and test results.
 //   - Read-only everywhere else. Serves data from the REPORTS folder. From the config folder
-//     it touches feedback.json (Replied/Skipped), and through Settings: .env (write-only),
+//     it touches feedback.json (Replied/Skipped), app icons (read-only, real images only,
+//     looked up by validated app name), and through Settings: .env (write-only),
 //     app profiles (only "sources", validated like /markit-setup),
 //     and usage.json (counting key tests). It never serves .env or usage.
 //   - Strict Content-Security-Policy: only this page's own inline script/style (with a
@@ -61,6 +63,7 @@ import { loadShared } from "./shared.js";
 const config = await loadShared("lib/config.js");
 const data = await import("./dashboard-data.js");
 const settingsLib = await import("./dashboard-settings.js");
+const { readAppIcon } = await loadShared("lib/app-icon.js");
 
 export const DEFAULT_PORT = 4321;
 export const PORT_TRIES = 10; // 4321, 4322, ... 4330
@@ -225,7 +228,18 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, en
         return res.end(req.method === "HEAD" ? undefined : iconFile.body);
       }
 
-      if (url.pathname === "/api/apps") return sendJson(req, res, 200, { apps: data.listApps(reportsDir) });
+      if (url.pathname.startsWith("/app-icon/")) {
+        const app = url.pathname.slice("/app-icon/".length);
+        const appIcon = appsDir && data.APP_NAME.test(app) ? readAppIcon(appsDir, app) : null;
+        if (!appIcon) return sendJson(req, res, 404, { error: "not found" });
+        res.writeHead(200, { ...baseHeaders, "content-type": appIcon.type, "content-length": appIcon.body.length });
+        return res.end(req.method === "HEAD" ? undefined : appIcon.body);
+      }
+
+      if (url.pathname === "/api/apps") {
+        const apps = data.listApps(reportsDir);
+        return sendJson(req, res, 200, { apps, icons: appsDir ? apps.filter((app) => readAppIcon(appsDir, app)) : [] });
+      }
 
       if (url.pathname === "/api/settings") {
         if (!settingsOn) return sendJson(req, res, 404, { error: "not found" });

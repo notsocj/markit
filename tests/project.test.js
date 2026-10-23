@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, realpathSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -18,7 +18,9 @@ import {
   isSensitiveFile,
   isLockFile,
   projectNames,
+  findAppIcon,
 } from "../skills/markit-find/scripts/lib/project.js";
+import { iconType } from "../skills/markit-find/scripts/lib/app-icon.js";
 
 const SECRET = "sk_live_DO_NOT_LEAK_42";
 
@@ -235,6 +237,89 @@ test("setup.js app --dry-run validates and prints without saving", () => {
   assert.match(r.out, /is valid \(not saved yet\)/);
   assert.match(r.out, /"session timers"/);
   assert.ok(!existsSync(join(configDir, "apps", "gridpeek.json")));
+});
+
+// --- App icon ---------------------------------------------------------------
+
+// Smallest bytes that pass as each image type (the signature plus padding).
+const PNG = (pad = 8) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(pad)]);
+const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(12)]);
+const WEBP = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBPVP8 ")]);
+const ICO = Buffer.concat([Buffer.from([0, 0, 1, 0]), Buffer.alloc(12)]);
+
+test("iconType reads the image format from the bytes, never the name", () => {
+  assert.deepEqual([PNG(), JPG, WEBP, ICO].map(iconType), ["png", "jpg", "webp", "ico"]);
+  assert.equal(iconType(Buffer.from('<svg onload="alert(1)"></svg>')), null);
+  assert.equal(iconType(Buffer.from("not an image at all")), null);
+});
+
+test("findAppIcon: Expo's app.json icon first, real images only, never outside the project", () => {
+  const root = makeProject({
+    "package.json": "{}",
+    "app.json": JSON.stringify({ expo: { icon: "./assets/brand/app.png" } }),
+    "assets/brand/app.png": PNG(),
+    "public/favicon.ico": ICO,
+  });
+  assert.equal(findAppIcon(root), join(root, "assets/brand/app.png"));
+
+  // A .png that isn't really an image, an SVG, and a path that leaves the project are skipped.
+  const outside = join(dirname(root), "outside.png");
+  writeFileSync(outside, PNG());
+  const tricky = makeProject({
+    "package.json": "{}",
+    "app.json": JSON.stringify({ expo: { icon: "../outside.png" } }),
+    "assets/icon.png": SECRET,
+    "public/icon.svg": "<svg/>",
+    "public/favicon.ico": ICO,
+  });
+  assert.equal(findAppIcon(tricky), join(tricky, "public/favicon.ico"));
+
+  // A symlinked folder pointing outside the project doesn't count either.
+  const linked = makeProject({ "package.json": "{}" });
+  mkdirSync(join(dirname(linked), "elsewhere"));
+  writeFileSync(join(dirname(linked), "elsewhere", "icon.png"), PNG());
+  symlinkSync(join(dirname(linked), "elsewhere"), join(linked, "assets"));
+  assert.equal(findAppIcon(linked), null);
+});
+
+test("scan reports the icon: biggest iOS AppIcon, Android launcher, web icon over favicon.ico", () => {
+  const ios = makeProject({
+    "Package.swift": "",
+    "ios/Gridpeek/Images.xcassets/AppIcon.appiconset/Contents.json": "{}",
+    "ios/Gridpeek/Images.xcassets/AppIcon.appiconset/icon-60.png": PNG(10),
+    "ios/Gridpeek/Images.xcassets/AppIcon.appiconset/icon-1024.png": PNG(500),
+  });
+  assert.equal(scanProject(ios).icon, join(ios, "ios/Gridpeek/Images.xcassets/AppIcon.appiconset/icon-1024.png"));
+
+  const android = makeProject({ "build.gradle": "", "app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp": WEBP });
+  assert.equal(scanProject(android).icon, join(android, "app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp"));
+
+  const web = makeProject({ "package.json": "{}", "app/favicon.ico": ICO, "app/apple-icon.png": PNG() });
+  assert.equal(scanProject(web).icon, join(web, "app/apple-icon.png"));
+
+  assert.equal(scanProject(makeProject({ "icon.png": PNG() })).icon, null, "not a project: no icon");
+});
+
+test("setup.js app saves the icon only from that app's own project folder", () => {
+  const configDir = join(mkdtempSync(join(tmpdir(), "markit-cfg-")), "markit");
+  run(SETUP, ["init"], { cwd: tmpdir(), configDir });
+  const draft = JSON.stringify({ url: "https://x.app", oneLiner: "a", audience: "people", keywords: ["app for this thing", "best tool for that", "alternative to Foo"] });
+  const project = makeProject({ "package.json": JSON.stringify({ name: "gridpeek" }), "assets/icon.png": PNG() }, "gridpeek-app");
+
+  const preview = run(SETUP, ["app", "--name", "gridpeek", "--dry-run"], { cwd: project, configDir, input: draft });
+  assert.match(preview.out, /App icon: .*assets\/icon\.png/);
+  assert.ok(!existsSync(join(configDir, "apps", "gridpeek.png")), "a dry run saves nothing");
+
+  const saved = run(SETUP, ["app", "--name", "gridpeek"], { cwd: project, configDir, input: draft });
+  assert.equal(saved.code, 0, saved.err);
+  assert.match(saved.out, /Saved app icon/);
+  assert.deepEqual(readFileSync(join(configDir, "apps", "gridpeek.png")), PNG());
+
+  // Saving another app from this folder must not take gridpeek's icon.
+  const other = run(SETUP, ["app", "--name", "keepr"], { cwd: project, configDir, input: draft });
+  assert.equal(other.code, 0, other.err);
+  assert.doesNotMatch(other.out, /icon/i);
+  assert.ok(!existsSync(join(configDir, "apps", "keepr.png")));
 });
 
 test("pick-app.js prints the choice and a message", () => {
