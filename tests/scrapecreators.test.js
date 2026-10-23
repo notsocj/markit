@@ -39,7 +39,7 @@ test("search: quoted topic, newest first, lookback timeframe, key only in the x-
   assert.equal(url.searchParams.get("trim"), null, "never trimmed: trimmed results have no post body");
   assert.equal(init.headers["x-api-key"], KEY);
   assert.ok(!url.href.includes(KEY), "the key is never in the URL");
-  assert.deepEqual(meter, { requests: 1, credits: 1 });
+  assert.deepEqual(meter, { requests: 1, credits: 1, skipped: 1 }, "the result with no id was skipped and counted");
 
   assert.deepEqual(posts, [
     {
@@ -60,12 +60,75 @@ test("search: quoted topic, newest first, lookback timeframe, key only in the x-
 
 test("records what the API says it charged; no call when no credit is left", async () => {
   const meter = {};
-  await scrapecreators.search("a b", { since, now: NOW, env, meter, http: { fetchImpl: fakeFetch([json({ success: true, credits_charged: 0, posts: [] })]) } });
+  await scrapecreators.search("a b", { since, now: NOW, env, meter, http: { fetchImpl: fakeFetch([json({ success: true, credits_charged: 0, posts: [redditPost] })]) } });
   assert.equal(meter.credits, 0);
 
   const none = fakeFetch([json({ success: true, posts: [] })]);
   assert.deepEqual(await scrapecreators.search("a b", { since, now: NOW, env, budget: { credits: 0 }, http: { fetchImpl: none } }), []);
   assert.equal(none.calls.length, 0);
+});
+
+test("an empty search still counts a credit, even when the response says 0 or has no posts field", async () => {
+  for (const body of [{ success: true, credits_charged: 0, posts: [] }, { success: true, posts: [] }, { success: true }]) {
+    const meter = {};
+    assert.deepEqual(await scrapecreators.search("a b", { since, now: NOW, env, meter, http: { fetchImpl: fakeFetch([json(body)]) } }), []);
+    assert.deepEqual(meter, { requests: 1, credits: 1 }, JSON.stringify(body));
+  }
+});
+
+test("missing fields: no id or link → skipped and counted; other gaps get defaults; never retried", async () => {
+  const fetchImpl = fakeFetch([
+    json({
+      success: true,
+      credits_charged: 1,
+      posts: [
+        null,
+        "not an object",
+        { title: "no id, no link" },
+        { id: "1nolink", title: "only an external link", url: "https://example.com/x" },
+        { id: "bad id!", permalink: "/r/a/" },
+        // Bare minimum: the id comes from the link, everything else is missing.
+        { permalink: "/r/apps/comments/1minim/x/" },
+      ],
+    }),
+  ]);
+  const meter = {};
+  const posts = await scrapecreators.search("a b", { since, now: NOW, env, meter, http: { fetchImpl, ...fast } });
+  assert.equal(fetchImpl.calls.length, 1, "a 200 with incomplete posts is not retried");
+  assert.deepEqual(meter, { requests: 1, credits: 1, skipped: 5 });
+  assert.deepEqual(posts, [
+    {
+      id: "reddit-1minim",
+      source: "reddit",
+      url: "https://www.reddit.com/r/apps/comments/1minim/x/",
+      title: "",
+      excerpt: "",
+      author: "",
+      createdAt: "",
+      engagement: { score: 0, comments: 0 },
+      matchedKeyword: "a b",
+      site: "Reddit",
+      provider: "scrapecreators",
+    },
+  ]);
+});
+
+test("temporary errors (429/5xx) are retried once, other errors never", async () => {
+  const flaky = fakeFetch([json({}, 503), json({ success: true, credits_charged: 1, posts: [redditPost] })]);
+  assert.equal((await scrapecreators.search("a b", { since, now: NOW, env, http: { fetchImpl: flaky, ...fast } })).length, 1);
+  assert.equal(flaky.calls.length, 2);
+
+  const down = fakeFetch([json({}, 500)]);
+  await assert.rejects(scrapecreators.search("a b", { since, now: NOW, env, http: { fetchImpl: down, ...fast } }), /HTTP 500/);
+  assert.equal(down.calls.length, 2, "one retry, not two: each attempt may be billed");
+
+  const limited = fakeFetch([json({}, 429)]);
+  await assert.rejects(scrapecreators.context({ url: redditPost.url }, { env, budget: { credits: 5 }, http: { fetchImpl: limited, ...fast } }), /HTTP 429/);
+  assert.equal(limited.calls.length, 2, "context() retries once too");
+
+  const badKey = fakeFetch([json({}, 401)]);
+  await assert.rejects(scrapecreators.search("a b", { since, now: NOW, env, http: { fetchImpl: badKey, ...fast } }), /HTTP 401/);
+  assert.equal(badKey.calls.length, 1);
 });
 
 test("timeframe covers the lookback window", () => {

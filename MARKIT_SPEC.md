@@ -658,7 +658,7 @@ export default {
 ```
 
 - `profile`: the app profile (e.g. Stack Exchange reads `stackexchangeSites`).
-- `meter`: an object the adapter adds to: `requests` (+1 per API call), `credits` (paid sources), and optionally `quotaRemaining` (the platform's own count, a plain number). `search.js` writes these to `usage.json`.
+- `meter`: an object the adapter adds to: `requests` (+1 per API call), `credits` (paid sources), optionally `quotaRemaining` (the platform's own count, a plain number), and optionally `skipped` (results dropped for missing an id or link). `search.js` writes these to `usage.json`.
 - `http`: extra `safeFetch` options; tests pass a fake `fetchImpl` here.
 - `check()` returns `"error"` for network problems or outages (shown as "✗ unreachable").
 - Adapters are listed in `adapters/index.js`.
@@ -675,7 +675,7 @@ Details (as built in milestone 4):
 - Per source: drop posts outside the window, seen posts, and `exclude` matches (whole word, case-insensitive, simple plurals: "job" also catches "jobs" but "bet" doesn't catch "better"), then cap to `maxPostsPerSource`, taking one post per keyword in turn so one busy keyword can't crowd out the rest.
 - Paid sources declare `costUnit` (`"posts"` for X, `"credits"` for SocialCrawl and ScrapeCreators, `"results"` for Apify). Budget = min(per-run cap, monthly cap − this month's usage). Over the monthly cap → `skipped` with the reason; mid-run → stop calling and note `stopped at per-run cap (30 posts)`. Missing caps → don't spend. Adapters also receive `budget: { posts | credits: left }`.
 - Error reasons come only from `SourceError`s (key-safe); any other error is reported as `unexpected error (<type>)`.
-- Source statuses: `ok`, `skipped`, `error`, and `agent` for web (the agent runs it). Each status also has `label`, `count` (kept), `fetched`, `removed: { seen, excluded, outsideWindow }`, and optionally `quotaRemaining`.
+- Source statuses: `ok`, `skipped`, `error`, and `agent` for web (the agent runs it). Each status also has `label`, `count` (kept), `fetched`, `removed: { seen, excluded, outsideWindow }`, optionally `quotaRemaining`, and `skippedIncomplete` when an adapter dropped results that had no id or link.
 - raw.json also includes `since` (ISO date) so the agent can drop old web results.
 - `--days N` (1–30) overrides the lookback for one run. With no `--app`, search.js picks the app like pick-app.js and prints which one it used.
 - The run folder name uses local time; a second run in the same minute gets `-2`.

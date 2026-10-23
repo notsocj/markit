@@ -24,6 +24,11 @@
 //     Some errors come back as HTTP 200 with `success: false`, so we check that too.
 //   - No rate limit and no spending limit on their side: marKit's caps in settings.json
 //     (scrapecreators.maxCreditsPerRun / maxCreditsPerMonth) are what keep costs down.
+//   - Hardening (from user reports): results sometimes lack fields. A post without a usable
+//     Reddit id or link is skipped and counted (meter.skipped → raw.json `skippedIncomplete`);
+//     other missing fields get empty defaults. A search with no posts still counts at least
+//     1 credit, since it may have been billed. Temporary errors (429, 5xx, timeouts) are
+//     retried once by safeFetch; a 200 answer is never retried, however incomplete.
 //
 // See hackernews.js for the shared adapter shape and search() options.
 
@@ -73,9 +78,12 @@ function checked(data) {
   return data ?? {};
 }
 
-/** Add what a call actually cost (or our assumed price if the response doesn't say). */
-function charge(meter, data, assumed) {
-  meter.credits = (meter.credits ?? 0) + (typeof data.credits_charged === "number" ? data.credits_charged : assumed);
+/**
+ * Add what a call actually cost (or our assumed price if the response doesn't say),
+ * never less than `min`.
+ */
+function charge(meter, data, assumed, min = 0) {
+  meter.credits = (meter.credits ?? 0) + Math.max(min, typeof data.credits_charged === "number" ? data.credits_charged : assumed);
 }
 
 /** Convert one ScrapeCreators search result into a marKit Post. */
@@ -142,17 +150,24 @@ export default {
       timeframe: timeframeFor(since, now),
     });
     meter.requests = (meter.requests ?? 0) + 1;
-    const data = checked(await safeFetch(NAME, `${BASE}/reddit/search?${params}`, { ...http, headers: headers(env) }));
-    charge(meter, data, SEARCH_COST);
+    // retries: 1 — each attempt may be billed, so a temporary error gets one more try, not two.
+    const data = checked(await safeFetch(NAME, `${BASE}/reddit/search?${params}`, { retries: 1, ...http, headers: headers(env) }));
+    const items = Array.isArray(data.posts) ? data.posts : [];
+    // An empty search may still have cost a credit, so it always counts toward usage and caps.
+    charge(meter, data, SEARCH_COST, items.length ? 0 : SEARCH_COST);
     const posts = [];
-    for (const raw of Array.isArray(data.posts) ? data.posts : []) {
+    for (const raw of items) {
+      let post = null;
       try {
-        posts.push(toPost(raw, keyword));
+        post = toPost(raw, keyword);
       } catch {
-        // An item without a usable Reddit id is skipped instead of failing the search.
+        // No usable Reddit id (or not even an object): makePost throws.
       }
+      // Skip (and count) a result without an id or link instead of failing the search.
+      if (post?.url) posts.push(post);
+      else meter.skipped = (meter.skipped ?? 0) + 1;
     }
-    return posts.filter((p) => p.url).slice(0, limit);
+    return posts.slice(0, limit);
   },
 
   /**
@@ -163,7 +178,7 @@ export default {
   async context(post, { env = {}, meter = {}, http = {}, budget, appNames = [] } = {}) {
     if ((budget?.credits ?? 0) < COMMENTS_COST || !post.url) return null;
     meter.requests = (meter.requests ?? 0) + 1;
-    const data = checked(await safeFetch(NAME, `${BASE}/reddit/post/comments?${new URLSearchParams({ url: post.url })}`, { ...http, headers: headers(env) }));
+    const data = checked(await safeFetch(NAME, `${BASE}/reddit/post/comments?${new URLSearchParams({ url: post.url })}`, { retries: 1, ...http, headers: headers(env) }));
     charge(meter, data, COMMENTS_COST);
     const comments = flattenComments(data.comments).filter((c) => c.text && c.text !== "[deleted]" && c.text !== "[removed]");
     const total = Number(data.post?.num_comments ?? post.engagement?.comments);

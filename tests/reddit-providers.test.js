@@ -151,6 +151,22 @@ test("ScrapeCreators: stops at the per-run credit cap, and a spent monthly cap s
   assert.match(skipped.raw.sources[0].reason, /monthly cap reached \(1000 \/ 1000 credits\)/);
 });
 
+test("ScrapeCreators: skipped incomplete results show in raw.json; empty searches count toward the caps", async () => {
+  const incomplete = fakeFetch(() => json({ success: true, credits_charged: 1, posts: [{ title: "no id" }, { id: "1abcde", url: "https://example.com" }] }));
+  const { raw } = await runSearch({ profile: profile(), settings: settings("scrapecreators"), env: KEYS, now: NOW, http: { fetchImpl: incomplete } });
+  assert.equal(raw.sources[0].status, "ok");
+  assert.equal(raw.sources[0].skippedIncomplete, 4, "2 per keyword, 2 keywords");
+
+  // The API says 0 credits for an empty search, but we assume it was billed.
+  const empty = fakeFetch(() => json({ success: true, credits_charged: 0, posts: [] }));
+  const capped = settings("scrapecreators", { scrapecreators: { maxCreditsPerRun: 1, maxCreditsPerMonth: 1000 } });
+  const { raw: raw2, meters } = await runSearch({ profile: profile(), settings: capped, env: KEYS, now: NOW, http: { fetchImpl: empty } });
+  assert.equal(empty.calls.length, 1, "the empty search used the run's only credit");
+  assert.match(raw2.sources[0].reason, /stopped at per-run cap/);
+  assert.equal(raw2.sources[0].skippedIncomplete, undefined);
+  assert.equal(meters[0].meter.credits, 1);
+});
+
 test("Apify: per-run results cap and the monthly estimated-cost cap", async () => {
   const fetchImpl = providerFetch();
   const small = settings("apify", { apify: { ...DEFAULT_SETTINGS.apify, maxResultsPerRun: 4 } });

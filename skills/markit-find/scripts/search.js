@@ -225,6 +225,8 @@ async function runSource(job, { keywords, since, perKeywordLimit, maxPosts, env,
   if (capped) reasons.push(`stopped at ${budget.limitedBy}`);
   if (reasons.length) status.reason = reasons.join("; ");
   if (typeof meter.quotaRemaining === "number") status.quotaRemaining = meter.quotaRemaining;
+  // Results the adapter dropped for missing an id or link (ScrapeCreators counts these).
+  if (meter.skipped) status.skippedIncomplete = meter.skipped;
   // What this job spent during the search (counts only). candidates.js uses it so the
   // per-run cap of a paid source covers search AND thread context together.
   status.used = { requests: meter.requests, posts: meter.posts, credits: meter.credits };
