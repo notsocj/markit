@@ -38,7 +38,7 @@
 
 import { existsSync } from "node:fs";
 import { readJsonFile, writeJsonFile } from "./files.js";
-import { stripHtml, collapseWhitespace } from "./normalize.js";
+import { stripHtml, collapseWhitespace, cutAt } from "./normalize.js";
 import { SOURCE_LABELS } from "./profile.js";
 
 export const KEEP_DAYS = 180;
@@ -76,13 +76,13 @@ export function cleanText(text, max) {
       .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
   );
   // Cut long text with one "…" (and don't stack it on a "…" the text already ended with).
-  return plain.length > max ? plain.slice(0, max - 1).trimEnd().replace(/…+$/, "") + "…" : plain;
+  return plain.length > max ? cutAt(plain, max - 1).trimEnd().replace(/…+$/, "") + "…" : plain;
 }
 
 /** A user's note: plain text, trimmed, at most NOTE_MAX characters. */
 export function cleanNote(note) {
   const plain = cleanText(note, Number.MAX_SAFE_INTEGER);
-  return plain.slice(0, NOTE_MAX).trim();
+  return cutAt(plain, NOTE_MAX).trim();
 }
 
 /**

@@ -39,6 +39,16 @@ const ID_PREFIX = {
   web: "web",
 };
 
+/**
+ * text.slice(0, max) that never leaves half an emoji at the end. Emoji take two UTF-16
+ * "code units", and a cut between them leaves a broken character (shown as "�", and
+ * encodeURIComponent throws on it).
+ */
+export function cutAt(text, max) {
+  const cut = String(text).slice(0, max);
+  return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
+}
+
 /** Turn runs of spaces, tabs, and newlines into single spaces. */
 export function collapseWhitespace(text) {
   return String(text ?? "").replace(INVISIBLE, "").replace(/\s+/g, " ").trim();
@@ -80,7 +90,7 @@ export function stripHtml(html) {
 export function excerpt(text, max = EXCERPT_LENGTH) {
   const clean = collapseWhitespace(text);
   if (clean.length <= max) return clean;
-  const cut = clean.slice(0, max);
+  const cut = cutAt(clean, max);
   const lastSpace = cut.lastIndexOf(" ");
   // Only back up to the last space if it isn't too far back (very long "words" like URLs).
   return (lastSpace > max * 0.8 ? cut.slice(0, lastSpace) : cut) + "…";

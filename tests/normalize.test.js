@@ -94,3 +94,9 @@ test("makePost keeps platform-reported languages, normalized", async () => {
   assert.equal(makePost({ source: "x", platformId: 1, url: "u" }).lang, undefined, "unknown language → no field");
   assert.deepEqual(normalizeLangs(["EN", "not a code!", 5, "pt"]), ["en", "pt"]);
 });
+
+test("excerpt never cuts an emoji in half", () => {
+  const out = excerpt("a".repeat(9) + "😀😀 more", 10);
+  assert.equal(out, "a".repeat(9) + "…");
+  assert.doesNotThrow(() => encodeURIComponent(out));
+});

@@ -210,3 +210,11 @@ test("card numbers must be plain digits", () => {
   }
   assert.equal(prepareDecision({ runDir, card: "2", status: "replied" }).card.number, 2);
 });
+
+test("cutting a note or title never leaves half an emoji behind", () => {
+  const note = cleanNote("a".repeat(NOTE_MAX - 1) + "😀 tail");
+  assert.equal(note, "a".repeat(NOTE_MAX - 1), "the emoji that straddles the limit is dropped whole");
+  const title = entryFrom(card(1, { title: "b".repeat(TITLE_MAX - 2) + "😀😀" }), { app: "a", status: "replied", decidedAt: NOW.toISOString() }).title;
+  assert.ok(!/[\uD800-\uDFFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(title), "no lone surrogate in the title");
+  assert.doesNotThrow(() => encodeURIComponent(title));
+});
