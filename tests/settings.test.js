@@ -205,3 +205,38 @@ test("without envFile/appsDir the Settings endpoints don't exist", async () => {
   const { port } = await dash.start({ port: 0 });
   assert.equal((await request(port, { path: "/api/settings" })).status, 404);
 });
+
+test("every Settings POST endpoint enforces token, Origin, Host and JSON content-type, and changes nothing when refused", async () => {
+  const { port, envFile, configDir, token } = await start();
+  const appFile = join(configDir, "apps", "gridpeek.json");
+  const snapshot = () => [readFileSync(envFile, "utf8"), readFileSync(appFile, "utf8")];
+  const before = snapshot();
+
+  // One valid body per endpoint: each request below is valid except for the ONE thing we break.
+  const endpoints = {
+    "/api/settings/key": { name: "YOUTUBE_API_KEY", value: NEW_KEY },
+    "/api/settings/test": { source: "x" },
+    "/api/settings/app": { app: "gridpeek", sources: ["web"] },
+  };
+  const good = { origin: `http://127.0.0.1:${port}`, "content-type": "application/json", "x-markit-token": token };
+  const without = (name) => Object.fromEntries(Object.entries(good).filter(([k]) => k !== name));
+  const attacks = [
+    ["no token", { headers: without("x-markit-token"), status: 403 }],
+    ["wrong token", { headers: { ...good, "x-markit-token": "0".repeat(48) }, status: 403 }],
+    ["no Origin header", { headers: without("origin"), status: 403 }],
+    ["Origin 'null' (sandboxed pages)", { headers: { ...good, origin: "null" }, status: 403 }],
+    ["foreign Origin", { headers: { ...good, origin: "https://evil.example" }, status: 403 }],
+    ["right Origin, wrong port", { headers: { ...good, origin: `http://127.0.0.1:${port + 1}` }, status: 403 }],
+    ["DNS-rebinding Host", { headers: { ...good, host: "evil.example" }, status: 403 }],
+    ["form content-type", { headers: { ...good, "content-type": "text/plain" }, status: 415 }],
+  ];
+
+  for (const [path, body] of Object.entries(endpoints)) {
+    for (const [label, { headers, status }] of attacks) {
+      const r = await request(port, { method: "POST", path, body: JSON.stringify(body), headers });
+      assert.equal(r.status, status, `${path}: ${label}`);
+      assert.ok(!r.text.includes(NEW_KEY) && !r.text.includes(SECRET), `${path}: ${label} echoed a key`);
+    }
+  }
+  assert.deepEqual(snapshot(), before, "refused requests changed no files");
+});
