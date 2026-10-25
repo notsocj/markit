@@ -75,10 +75,10 @@ const sampleApp = () =>
   });
 
 test("isSensitiveFile flags secret-looking names but not normal ones", () => {
-  for (const name of [".env", ".env.production", "prod.env", "secrets.yml", "client_secret.json", "credentials.json", "keys.json", "api-key.txt", "apikey.js", "AuthKey_X.p8", "dist.p12", "release.keystore", "server.pem", "id_rsa", "google-services.json", "GoogleService-Info.plist", "firebase-adminsdk-abc.json", "service-account.json", ".npmrc", "tokens.json", "private.key"]) {
+  for (const name of [".env", ".env.production", "prod.env", "secrets.yml", "client_secret.json", "credentials.json", "keys.json", "api-key.txt", "apikey.js", "AuthKey_X.p8", "dist.p12", "release.keystore", "server.pem", "id_rsa", "google-services.json", "GoogleService-Info.plist", "firebase-adminsdk-abc.json", "service-account.json", ".npmrc", "tokens.json", "private.key", "prod.env.local", "app.env.production", ".ENV", "ID_RSA"]) {
     assert.equal(isSensitiveFile(name), true, name);
   }
-  for (const name of ["README.md", "package.json", "keywords.txt", "keyboard.tsx", "monkey.js", "description.txt", "en.json", "privacy.md"]) {
+  for (const name of ["README.md", "package.json", "keywords.txt", "keyboard.tsx", "monkey.js", "description.txt", "en.json", "privacy.md", "environment.ts", "app.environment.ts"]) {
     assert.equal(isSensitiveFile(name), false, name);
   }
 });
@@ -98,6 +98,27 @@ test("scan never lists or leaks secrets, deps, build output, or lock files", () 
   for (const bad of [".env", "production.env", "secrets.json", "credentials.ts", "keys.json", "api-key.txt", "google-services", "GoogleService-Info", ".p8", ".p12", ".npmrc", "node_modules", "dist/", "build/", ".git/", ".next", "package-lock", "yarn.lock", "Podfile.lock"]) {
     assert.ok(!text.includes(bad), `scan output mentions ${bad}`);
   }
+});
+
+test("folders are skipped whatever their casing, and secret-named folders are never walked", () => {
+  // Each folder holds a store-listing file, which the scan would otherwise list.
+  const listing = (dir) => `${dir}/fastlane/metadata/description.txt`;
+  const hidden = ["Build", "DIST", "Node_Modules", "NODE_MODULES", "Release", "Vendor", "secrets", "Credentials", "Private", "keys", "Tokens", "a/b/node_modules", "src/Secrets"];
+  const files = { "package.json": '{"name":"x"}', [listing("ok")]: "fine", [listing("password-manager")]: "a real app folder" };
+  for (const dir of hidden) files[listing(dir)] = SECRET;
+  const found = scanProject(makeProject(files)).readingList.storeListing.map((f) => f.split("/fastlane/")[0].replace(/^.*?gridpeek\//, ""));
+  assert.deepEqual(found.sort(), ["ok", "password-manager"], "only the harmless folders are listed");
+});
+
+test("symlinked files and folders are never followed out of the project", () => {
+  const root = makeProject({ "package.json": '{"name":"x"}', "README.md": "# x" });
+  const outside = makeProject({ "fastlane/metadata/description.txt": SECRET, "README.md": SECRET }, "outside");
+  symlinkSync(outside, join(root, "linked-folder"));
+  symlinkSync(join(outside, "README.md"), join(root, "docs.md"));
+  symlinkSync(join(outside, "fastlane"), join(root, "fastlane"));
+  const result = scanProject(root);
+  assert.ok(!JSON.stringify(result).includes("outside"), "scan mentions a path outside the project");
+  assert.deepEqual(result.readingList.storeListing, []);
 });
 
 test("scan detects the project and reads only name/description/homepage metadata", () => {

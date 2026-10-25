@@ -36,12 +36,17 @@ export const EXCLUDED_DIRS = new Set([
   "build", "dist", "out", "output", "target", "bin", "obj", "release", "debug",
   "coverage", "DerivedData", "tmp", "temp", "logs",
   "venv", "env", "__pycache__", "site-packages",
+  // Folders named for what they hold. Exact names only: "password-manager/" can be a real app.
+  "secrets", "secret", "credentials", "private", "keys", "keystore", "keystores", "tokens",
 ]);
+// Folder names are compared in lowercase, because macOS and Windows disks ignore case
+// ("Build/" and "NODE_MODULES/" are the same folders as "build/" and "node_modules/").
+const EXCLUDED_LOWER = new Set([...EXCLUDED_DIRS].map((name) => name.toLowerCase()));
 
 // File names that may hold secrets. Checked against the lowercase file name.
 const SENSITIVE_PATTERNS = [
   /^\.env/,                         // .env, .env.local, .env.production...
-  /\.env$/,                         // production.env
+  /\.env(\.|$)/,                    // production.env, prod.env.local
   /secret/, /credential/, /password/, /passwd/, /token/, /private/,
   /(^|[-_.])keys?([-_.]|$)/,        // keys.json, api-key.txt (but NOT keywords.txt)
   /apikey/, /auth\.json$/,
@@ -69,7 +74,8 @@ export function isLockFile(name) {
 
 /** True for folders we never enter. */
 export function isExcludedDir(name) {
-  return name.startsWith(".") || EXCLUDED_DIRS.has(name) || name.endsWith(".xcassets");
+  const lower = name.toLowerCase();
+  return lower.startsWith(".") || EXCLUDED_LOWER.has(lower) || lower.endsWith(".xcassets");
 }
 
 // Images, video, audio, fonts, archives: never read, so don't even count them. This keeps
