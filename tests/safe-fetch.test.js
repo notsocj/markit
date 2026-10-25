@@ -123,6 +123,14 @@ test("a 200 with a non-JSON body → '<source>: invalid response'", async () => 
   });
 });
 
+test("a 200 whose JSON is not an object or list (null, number, string) → invalid response", async () => {
+  for (const body of ["null", "42", '"hi"']) {
+    await assert.rejects(safeFetch("x", URL_WITH_KEY, { fetchImpl: fakeFetch(new Response(body, { status: 200 })), ...fast }), { message: "x: invalid response" }, body);
+  }
+  assert.deepEqual(await safeFetch("x", URL_WITH_KEY, { fetchImpl: fakeFetch(json([])), ...fast }), [], "an empty list is fine");
+  assert.deepEqual(await safeFetch("x", URL_WITH_KEY, { fetchImpl: fakeFetch(json({})), ...fast }), {}, "an empty object is fine");
+});
+
 test("responseType 'text' returns the raw body", async () => {
   const fetchImpl = fakeFetch(new Response("plain text", { status: 200 }));
   assert.equal(await safeFetch("web", "https://example.com", { fetchImpl, responseType: "text" }), "plain text");

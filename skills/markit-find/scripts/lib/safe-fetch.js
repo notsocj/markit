@@ -86,7 +86,12 @@ export async function safeFetch(source, url, options = {}) {
     }
 
     try {
-      return responseType === "text" ? await res.text() : await res.json();
+      if (responseType === "text") return await res.text();
+      const data = await res.json();
+      // Every API we call answers with a JSON object or list. A bare null/number/string
+      // (a broken proxy, say) would crash adapters that read data.something.
+      if (data === null || typeof data !== "object") throw new Error();
+      return data;
     } catch {
       // The API answered 200 but sent something that isn't JSON (e.g. an HTML error page).
       throw new SourceError(source, "invalid response", res.status);
