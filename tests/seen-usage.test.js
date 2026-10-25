@@ -74,3 +74,23 @@ test("usage: lastRun is stored and the file holds counts only", () => {
   assert.deepEqual(usage.lastRun, { app: "gridpeek", ranAt: "2026-10-21T21:00:00Z", opportunities: 12 });
   assert.equal(getMonthUsage("hackernews", usage).posts, 6, "setLastRun must not wipe counts");
 });
+
+test("usage: counts that can't be trusted stop paid sources instead of counting as zero", async () => {
+  const { paidBudget, quotaBudget } = await import("../skills/markit-find/scripts/search.js");
+  const { ADAPTERS } = await import("../skills/markit-find/scripts/adapters/index.js");
+  const { DEFAULT_SETTINGS } = await import("../skills/markit-find/scripts/lib/config.js");
+  const now = new Date("2026-10-15T12:00:00Z");
+  for (const adapter of ADAPTERS.filter((a) => a.paid)) {
+    for (const bad of ["abc", null, {}, -500]) {
+      const counts = { requests: bad, posts: bad, credits: bad, context: bad, results: bad, usd: bad };
+      const usage = { months: { "2026-10": { [adapter.name]: counts } }, days: {} };
+      assert.equal(paidBudget(adapter, DEFAULT_SETTINGS, usage, now).remaining, 0, `${adapter.name} with ${JSON.stringify(bad)}`);
+    }
+    // The same adapter with honest, small counts still gets to spend.
+    const fine = { months: { "2026-10": { [adapter.name]: { requests: 1, posts: 1, credits: 1, context: 0, results: 1, usd: 0.01 } } }, days: {} };
+    assert.ok(paidBudget(adapter, DEFAULT_SETTINGS, fine, now).remaining > 0, `${adapter.name} with small counts`);
+  }
+  const youtube = ADAPTERS.find((a) => a.name === "youtube");
+  const junk = { months: {}, days: { "2026-10-15": { youtube: { requests: "lots", posts: 0, credits: 0, context: 0 } } } };
+  assert.equal(quotaBudget(youtube, { YOUTUBE_API_KEY: "k" }, junk, now).remaining, 0, "free daily quota too");
+});

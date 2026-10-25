@@ -94,14 +94,23 @@ export function setLastRun({ app, ranAt, opportunities }, file = getPaths().usag
   writeJsonFile(file, usage);
 }
 
+/**
+ * Stored counts that can't be trusted (a hand-edited or damaged usage.json: "abc", null,
+ * a negative number) are read as Infinity, i.e. "used up". The caps then stop paid sources,
+ * instead of treating the garbage as zero and spending past the monthly cap.
+ */
+function trusted(counts) {
+  return Object.fromEntries(Object.entries(counts ?? {}).map(([field, n]) => [field, Number.isFinite(n) && n >= 0 ? n : Infinity]));
+}
+
 /** This month's counts for one source. */
 export function getMonthUsage(source, usage, now = new Date()) {
-  return { ...EMPTY(), ...(usage.months[monthKey(now)]?.[source] ?? {}) };
+  return { ...EMPTY(), ...trusted(usage.months[monthKey(now)]?.[source]) };
 }
 
 /** Today's counts for one source. */
 export function getDayUsage(source, usage, now = new Date()) {
-  return { ...EMPTY(), ...(usage.days[dayKey(now)]?.[source] ?? {}) };
+  return { ...EMPTY(), ...trusted(usage.days[dayKey(now)]?.[source]) };
 }
 
 /** Counts for one source over the last `days` days, including today (e.g. Threads' 7-day window). */
@@ -110,7 +119,7 @@ export function getRollingUsage(source, usage, days, now = new Date()) {
   for (let i = 0; i < days; i++) {
     const day = dayKey(new Date(now.getTime() - i * 24 * 60 * 60 * 1000));
     const counts = usage.days[day]?.[source];
-    if (counts) addCounts(total, counts);
+    if (counts) addCounts(total, trusted(counts));
   }
   return total;
 }
