@@ -23,6 +23,7 @@
 //   mention       optional, direct_mention only: "praise" | "bug" | "question"
 
 import { createHash } from "node:crypto";
+import { stripInvisible } from "./normalize.js";
 
 export const INTENTS = ["asking_for_recommendation", "competitor_complaint", "problem_discussion", "direct_mention", "irrelevant"];
 export const PRIORITIES = ["high", "medium", "low"];
@@ -131,12 +132,14 @@ export function validateScored(data, rawIds) {
     out.push({
       ...p,
       id,
-      title: p.title ?? "",
-      excerpt: p.excerpt ?? "",
+      // The agent may have copied text from a post, hidden characters included. The draft is
+      // what the user pastes into a public reply, so none of these may carry invisible ones.
+      title: stripInvisible(p.title),
+      excerpt: stripInvisible(p.excerpt),
       createdAt: p.createdAt ?? "",
-      why: p.why ?? "",
-      draftReply: p.draftReply ?? "",
-      caution: p.caution ?? "",
+      why: stripInvisible(p.why),
+      draftReply: stripInvisible(p.draftReply),
+      caution: stripInvisible(p.caution),
     });
   });
 

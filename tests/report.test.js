@@ -211,6 +211,22 @@ test("hostile post text can't break the report", () => {
   assert.ok(!/^## Fake/m.test(markdown));
 });
 
+test("hidden direction overrides and zero-width characters never reach the report or the draft", () => {
+  const sneaky = "safe\u202Egnp.exe\u200B ok\uFEFF";
+  const [post] = validateScored([
+    base("hn-1", "hackernews", {
+      title: sneaky, excerpt: sneaky, intent: "asking_for_recommendation", score: 90, priority: "high",
+      why: sneaky, caution: sneaky, draftReply: `Hi\u202E there\nsecond line ${sneaky}`,
+    }),
+  ]);
+  for (const field of ["title", "excerpt", "why", "caution", "draftReply"]) {
+    assert.ok(!/[\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/.test(post[field]), `${field} still has a hidden character`);
+  }
+  assert.equal(post.draftReply, "Hi there\nsecond line safegnp.exe ok", "line breaks are kept");
+  assert.equal(escapeMd(sneaky), "safegnp.exe ok");
+  assert.equal(softEscape(sneaky), "safegnp.exe ok");
+});
+
 test("sortPosts: priority, then score, then newest", () => {
   const p = (id, priority, score, createdAt) => ({ id, priority, score, createdAt });
   const sorted = sortPosts([p("a", "low", 40, ""), p("b", "high", 80, "2026-10-20"), p("c", "high", 80, "2026-10-21"), p("d", "high", 95, ""), p("e", "medium", 70, "")]);

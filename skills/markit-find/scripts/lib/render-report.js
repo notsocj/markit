@@ -12,14 +12,15 @@
 
 import { SOURCE_LABELS } from "./profile.js";
 import { PROVIDER_LABELS } from "./reddit.js";
-import { relativeTime } from "./normalize.js";
+import { relativeTime, stripInvisible } from "./normalize.js";
 import { contextLine } from "./context.js";
 import { prefilterLine } from "./filters.js";
 import { healthDetail } from "./learn.js";
 
 /** Escape untrusted text so markdown shows it literally, on a single line. */
 export function escapeMd(text) {
-  return String(text ?? "")
+  // Direction overrides and zero-width characters can make text read differently than it is.
+  return stripInvisible(text)
     // Control characters (except tab/newline) can hide text or confuse editors.
     .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "")
     .replace(/\s+/g, " ")
@@ -41,7 +42,7 @@ export function escapeMd(text) {
  * when copied from the raw file, but stop HTML tags and remove control characters.
  */
 export function softEscape(text) {
-  return String(text ?? "")
+  return stripInvisible(text)
     .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "")
     .replace(/<(?=[a-zA-Z/!?])/g, "&lt;");
 }

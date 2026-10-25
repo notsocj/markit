@@ -49,9 +49,14 @@ export function cutAt(text, max) {
   return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
 }
 
+/** Remove invisible look-alike characters (see INVISIBLE below), keeping line breaks. */
+export function stripInvisible(text) {
+  return String(text ?? "").replace(INVISIBLE, "");
+}
+
 /** Turn runs of spaces, tabs, and newlines into single spaces. */
 export function collapseWhitespace(text) {
-  return String(text ?? "").replace(INVISIBLE, "").replace(/\s+/g, " ").trim();
+  return stripInvisible(text).replace(/\s+/g, " ").trim();
 }
 
 // Invisible characters that can disguise text: zero-width space, left-to-right/right-to-left
