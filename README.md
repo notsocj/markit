@@ -207,7 +207,7 @@ Your config folder holds `apps/*.json` (profiles), `settings.json` (limits), `se
 
 **The dashboard** is a zero-dependency local server that:
 - binds to `127.0.0.1` only and rejects any request whose Host isn't `localhost:<port>` / `127.0.0.1:<port>`, which blocks DNS rebinding
-- reads the reports folder. From the config folder it touches `feedback.json` (your decisions) and, through Settings: `.env` (**write-only**: a key goes in, but the server never sends one back, logs it, or prints it), app profiles (only their `sources`, validated like `/markit-setup`), and `usage.json` (counting key tests)
+- reads the reports folder. From the config folder it touches `feedback.json` (your decisions) and, through Settings: `.env` (**write-only**: a key goes in, but the server never sends one back, logs it, or prints it), app profiles (only their `sources`, validated like `/markit-setup`), `usage.json` (counting key tests), and, read-only, `settings.json` (to show which Reddit provider you chose)
 - every save (Settings and Replied/Skipped marks) also needs a random token the server puts into its own page at startup, so no other page or program can change your keys, sources or decisions
 - accepts only `{ id, status, reason?, note? }` (same-origin JSON, under 1 KB) to save a decision: status and reason from fixed lists, the note stripped of HTML and cut to 140 characters, and the id must be a card in your reports
 - shows post text as plain text under a strict Content-Security-Policy

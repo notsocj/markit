@@ -1,5 +1,6 @@
 ---
 name: markit-setup
+argument-hint: "[add [name]]"
 description: Set up marKit, the app-marketing finder. Creates the config, guides the user through getting API keys for each source, and creates app profiles (drafted automatically from the app's project folder when possible). Use when the user runs /markit-setup, wants to add or edit an app in marKit, or add or change a marKit API source.
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/setup.js *), Bash(node ${CLAUDE_SKILL_DIR}/../markit-usage/scripts/usage.js *)
 disallowed-tools: Read(~/.config/markit/.env)
@@ -55,10 +56,10 @@ First, skip the menu when the user's intent is clear:
 If neither applies, ask what they want: add an app, edit an app, add or change a source key, change limits, or re-run the key check.
 - **Add an app:** see **Creating an app profile**.
 - **Edit an app:** read `<configDir>/apps/<name>.json` (profiles are not secret), apply the changes, show the result, and save it with `--overwrite` (see **Saving a profile**).
-- **Add or change a key:** as in First-time setup step 3, then run the key check (step 5).
+- **Add or change a key:** as in First-time setup step 3, then run the key check (First-time setup step 5).
 - **Choose or change the Reddit provider:** explain the options (First-time setup step 2), then run `setup.js reddit --provider <name>` once its key is in `.env`. `--provider none` turns paid Reddit search off.
 - **Change limits:** `<configDir>/settings.json` is not secret, so you may read and edit it: `reportsDir`, `lookbackDays`, `maxPostsPerSource`, and the paid caps `x.maxPostsPerRun`, `x.maxPostsPerMonth`, `scrapecreators.maxCreditsPerRun`, `scrapecreators.maxCreditsPerMonth`, `apify.maxResultsPerRun`, `apify.maxEstimatedCostPerMonth` (dollars, marKit's estimate), `socialcrawl.maxCreditsPerRun`, `socialcrawl.maxCreditsPerMonth`. Apify's cost estimate uses `apify.pricePerThousandResults` and `apify.pricePerRun`; the scraper is `apify.redditActor`.
-- **Key check:** step 5.
+- **Key check:** run the key check from First-time setup step 5.
 
 ## Creating an app profile
 1. Run `node ${CLAUDE_SKILL_DIR}/scripts/setup.js scan` (skip this if you already ran it). It looks at the current folder and prints JSON: `isProject`, `metadata` (names, description, homepage), a `readingList`, and `screens`.
