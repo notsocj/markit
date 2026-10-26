@@ -59,8 +59,12 @@ async function startDashboard(opts = {}) {
   const dash = createDashboard({ reportsDir: f.reportsDir, feedbackFile: f.feedbackFile, legacyStatusFile: f.statusFile, ...opts });
   servers.push(dash);
   const { port } = await dash.start({ port: 0 });
+  // The page carries a random token that POSTs must send back (x-markit-token).
+  const page = (await request(port, { path: "/" })).text;
+  tokens.set(port, /const PAGE_TOKEN = "([0-9a-f]{48})"/.exec(page)?.[1]);
   return { ...f, dash, port };
 }
+const tokens = new Map();
 
 /** Raw HTTP request so tests control every header (fetch won't let us fake Host). */
 function request(port, { method = "GET", path = "/", headers = {}, body } = {}) {
@@ -80,7 +84,7 @@ const post = (port, body, headers = {}) =>
   request(port, {
     method: "POST",
     path: "/api/status",
-    headers: { origin: `http://127.0.0.1:${port}`, "content-type": "application/json", ...headers },
+    headers: { origin: `http://127.0.0.1:${port}`, "content-type": "application/json", "x-markit-token": tokens.get(port), ...headers },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 
@@ -277,6 +281,8 @@ test("POST /api/status rejects everything else", async () => {
   const cases = [
     ["no Origin", post(port, { id: "sc-1", status: "replied" }, { origin: "" }), 403],
     ["foreign Origin", post(port, { id: "sc-1", status: "replied" }, { origin: "https://evil.example" }), 403],
+    ["no page token", post(port, { id: "sc-1", status: "replied" }, { "x-markit-token": "" }), 403],
+    ["wrong page token", post(port, { id: "sc-1", status: "replied" }, { "x-markit-token": "0".repeat(48) }), 403],
     ["wrong content type", post(port, { id: "sc-1", status: "replied" }, { "content-type": "text/plain" }), 415],
     ["form content type", post(port, "id=sc-1&status=replied", { "content-type": "application/x-www-form-urlencoded" }), 415],
     ["too large (declared)", post(port, { id: "sc-1", status: "replied", pad: "x".repeat(2000) }), 413],
@@ -303,7 +309,7 @@ test("POST /api/status rejects everything else", async () => {
 test("POST /api/status: a large chunked body (no Content-Length) is also refused", async () => {
   const { port } = await startDashboard();
   const r = await new Promise((resolve, reject) => {
-    const req = http.request({ host: "127.0.0.1", port, method: "POST", path: "/api/status", headers: { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, "content-type": "application/json", "transfer-encoding": "chunked" } }, (res) => {
+    const req = http.request({ host: "127.0.0.1", port, method: "POST", path: "/api/status", headers: { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, "content-type": "application/json", "x-markit-token": tokens.get(port), "transfer-encoding": "chunked" } }, (res) => {
       res.resume();
       res.on("end", () => resolve(res.statusCode));
     });

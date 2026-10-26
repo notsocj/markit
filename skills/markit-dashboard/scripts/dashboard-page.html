@@ -1269,8 +1269,8 @@ function keywordPanel(kh) {
 // API keys are WRITE-ONLY: the page sends a key to this computer's dashboard server, which
 // writes it into .env and only ever answers "set" / "not set". The page never asks for a
 // key back, never stores one (not even in localStorage), and clears the field after saving.
-// Settings requests carry PAGE_TOKEN, a random value the server put into this page when it
-// started, so no other page or program can call them.
+// Every POST (Settings and Replied/Skipped marks) carries PAGE_TOKEN, a random value the
+// server put into this page when it started, so no other page or program can call them.
 const PAGE_TOKEN = "__TOKEN__";
 const TEST_TEXT = { ok: "Working", invalid: "Invalid key", quota: "Quota or credits used up", error: "Couldn't reach it", "not-set": "No key yet" };
 const SOURCE_NOTES = {
@@ -1510,7 +1510,7 @@ async function saveStatus(id, status, { reason = "", note = "" } = {}) {
   const body = { id, status };
   if (status === "skipped" && reason) body.reason = reason;
   if (status !== "open" && note) body.note = note;
-  return api("/api/status", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  return api("/api/status", { method: "POST", headers: { "content-type": "application/json", "x-markit-token": PAGE_TOKEN }, body: JSON.stringify(body) });
 }
 
 /** Refresh counts (and replies-this-week) from the server, unless the user has moved on. */

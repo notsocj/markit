@@ -298,22 +298,11 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, en
     }
 
     if (req.method === "POST" && url.pathname === "/api/status") {
-      // 2. Only from this dashboard's own page (blocks other websites submitting here).
-      if (!isAllowedOrigin(req.headers.origin, port)) return sendJson(req, res, 403, { error: "forbidden origin" });
-      // 3. JSON only. (A JSON content type also forces browsers to ask permission first for
-      //    cross-site requests, which this server never grants.)
-      if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
-        return sendJson(req, res, 415, { error: "content-type must be application/json" });
-      }
-      if (Number(req.headers["content-length"] ?? 0) > MAX_BODY_BYTES) return sendJson(req, res, 413, { error: "body too large" });
-
-      let body;
-      try {
-        body = JSON.parse(await readBody(req, MAX_BODY_BYTES));
-      } catch (err) {
-        if (err.code === "TOO_LARGE") return sendJson(req, res, 413, { error: "body too large" });
-        return sendJson(req, res, 400, { error: "body must be valid JSON" });
-      }
+      // 2. Same-origin page + this page's token + JSON only + size limit (see readJsonPost).
+      //    A JSON content type also forces browsers to ask permission first for cross-site
+      //    requests, which this server never grants.
+      const body = await readJsonPost(req, res, MAX_BODY_BYTES, { token: pageToken });
+      if (body === undefined) return; // an error was already sent
       // 4. Only { id, status, reason?, note? }, with values from the fixed lists.
       const check = data.validateStatusUpdate(body);
       if (!check.ok) return sendJson(req, res, 400, { error: check.error });
