@@ -98,6 +98,19 @@ test("loadSettings merges nested caps instead of replacing them", () => {
   assert.equal(settings.x.maxPostsPerMonth, DEFAULT_SETTINGS.x.maxPostsPerMonth);
 });
 
+test("settings.json that is valid JSON but not an object, or has no usable reportsDir, gives a clear marKit message", () => {
+  for (const body of ["null", "[]", "42", '"x"']) {
+    const paths = tempPaths();
+    writeFileSync(paths.settingsFile, body);
+    assert.throws(() => loadSettings(paths, "/h"), /^Error: marKit: .*settings\.json should hold a JSON object/, body);
+  }
+  for (const reportsDir of [5, "", "  ", null, ["x"]]) {
+    const paths = tempPaths();
+    writeFileSync(paths.settingsFile, JSON.stringify({ reportsDir }));
+    assert.throws(() => loadSettings(paths, "/h"), /marKit: "reportsDir" .* must be a folder path/, JSON.stringify(reportsDir));
+  }
+});
+
 test("loadEnv returns only known keys, cleaned", () => {
   const paths = tempPaths();
   writeFileSync(paths.envFile, "SOCIALCRAWL_API_KEY=sc_test_123  # note\nSOMETHING_ELSE=nope\n");

@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadSeen, filterUnseen, addSeen } from "../skills/markit-find/scripts/lib/seen.js";
@@ -93,4 +93,20 @@ test("usage: counts that can't be trusted stop paid sources instead of counting 
   const youtube = ADAPTERS.find((a) => a.name === "youtube");
   const junk = { months: {}, days: { "2026-10-15": { youtube: { requests: "lots", posts: 0, credits: 0, context: 0 } } } };
   assert.equal(quotaBudget(youtube, { YOUTUBE_API_KEY: "k" }, junk, now).remaining, 0, "free daily quota too");
+});
+
+test("usage: recording never repairs a damaged count, and a non-object usage.json is a clear error", () => {
+  const file = tempFile("usage.json");
+  const now = new Date("2026-10-15T12:00:00Z");
+  writeFileSync(file, JSON.stringify({ months: { "2026-10": { x: { requests: "abc", posts: 5, credits: 0, context: 0 } } }, days: {} }));
+  recordUsage("x", { requests: 2, posts: 3 }, file, now);
+  const x = JSON.parse(readFileSync(file, "utf8")).months["2026-10"].x;
+  assert.equal(x.requests, "abc", "the damaged count is left as it was");
+  assert.equal(x.posts, 8, "healthy counts still add up");
+  assert.equal(getMonthUsage("x", loadUsage(file), now).requests, Infinity, "and it still reads as used up");
+
+  for (const body of ["null", "[]", "7"]) {
+    writeFileSync(file, body);
+    assert.throws(() => loadUsage(file), /marKit: .*usage\.json should hold a JSON object/, body);
+  }
 });

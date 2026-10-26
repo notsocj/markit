@@ -20,7 +20,7 @@
 // Dates are in UTC, because that's when most API quotas reset (e.g. Stack Exchange's
 // daily quota resets at midnight UTC).
 
-import { readJsonFile, writeJsonFile } from "./files.js";
+import { readJsonObject, writeJsonFile } from "./files.js";
 import { getPaths } from "./config.js";
 
 export const KEEP_DAYS = 35;
@@ -44,19 +44,22 @@ export function dayKey(date = new Date()) {
 
 /** Load usage.json, filling in any missing sections. */
 export function loadUsage(file = getPaths().usageFile) {
-  const data = readJsonFile(file, {});
+  const data = readJsonObject(file, {});
   return { months: data.months ?? {}, days: data.days ?? {}, lastRun: data.lastRun ?? null };
 }
 
 // Add one set of counts onto another: target.requests += counts.requests, etc.
 function addCounts(target, counts) {
   for (const field of FIELDS) {
+    // A damaged stored count ("abc", null, negative) is left alone, so it keeps counting as
+    // "used up" (see trusted()) until the user fixes the file, instead of quietly restarting at 0.
+    if (field in target && !(Number.isFinite(target[field]) && target[field] >= 0)) continue;
     // Number(...) || 0 guards against undefined or garbage being passed in.
     target[field] = (Number(target[field]) || 0) + (Number(counts[field]) || 0);
   }
   // Dollar estimates are fractions: round to 1/10,000 of a dollar so adding many small
   // amounts doesn't leave long tails like 0.30000000000000004 in the file.
-  target.usd = Math.round(target.usd * 1e4) / 1e4;
+  if (Number.isFinite(target.usd)) target.usd = Math.round(target.usd * 1e4) / 1e4;
   for (const field of ["results", "usd"]) {
     if (target[field] === 0) delete target[field]; // keep entries for other sources tidy
   }

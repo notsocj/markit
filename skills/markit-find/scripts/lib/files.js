@@ -27,6 +27,18 @@ export function readJsonFile(path, fallback) {
 }
 
 /**
+ * Like readJsonFile, but the file must hold a JSON object ({ ... }). A file that is valid
+ * JSON yet just `null`, a list, or a number would otherwise crash the caller with a TypeError.
+ */
+export function readJsonObject(path, fallback) {
+  const data = readJsonFile(path, fallback);
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error(`marKit: ${path} should hold a JSON object, like { ... }. Fix or delete it, then try again.`);
+  }
+  return data;
+}
+
+/**
  * Write a value as pretty-printed JSON, creating parent folders if needed.
  * @param {string} path - file to write
  * @param {*} value - anything JSON.stringify can handle

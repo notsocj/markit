@@ -21,7 +21,7 @@
 import { homedir } from "node:os";
 import path from "node:path";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { readJsonFile } from "./files.js";
+import { readJsonFile, readJsonObject } from "./files.js";
 
 // The only environment variables marKit reads from .env. Anything else in the file is
 // ignored, so a stray line can't change how marKit behaves.
@@ -189,7 +189,7 @@ export function loadEnv(envFile = getPaths().envFile) {
  * Load settings.json merged on top of DEFAULT_SETTINGS, with "~" expanded in reportsDir.
  */
 export function loadSettings(paths = getPaths(), home = homedir()) {
-  const saved = readJsonFile(paths.settingsFile, {});
+  const saved = readJsonObject(paths.settingsFile, {});
   const settings = {
     ...DEFAULT_SETTINGS,
     ...saved,
@@ -199,6 +199,9 @@ export function loadSettings(paths = getPaths(), home = homedir()) {
   for (const key of NESTED_SETTINGS) {
     const own = saved[key] && typeof saved[key] === "object" && !Array.isArray(saved[key]) ? saved[key] : {};
     settings[key] = { ...DEFAULT_SETTINGS[key], ...own };
+  }
+  if (typeof settings.reportsDir !== "string" || !settings.reportsDir.trim()) {
+    throw new Error(`marKit: "reportsDir" in ${paths.settingsFile} must be a folder path, like "~/markit-reports".`);
   }
   settings.reportsDir = expandHome(settings.reportsDir, home);
   return settings;
