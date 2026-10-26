@@ -44,6 +44,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * @param {number} [options.timeoutMs=15000] - give up on one attempt after this long
  * @param {number} [options.retries=2] - extra attempts after the first one fails
  * @param {number} [options.retryDelayMs=500] - first wait between attempts (doubles each time)
+ * @param {number[]} [options.noRetryStatuses] - statuses that must NOT be retried even though they
+ *   normally would be (e.g. Stack Exchange's 502, which means "you are being throttled")
  * @param {Function} [options.fetchImpl] - swap in a fake fetch for tests
  */
 export async function safeFetch(source, url, options = {}) {
@@ -55,6 +57,7 @@ export async function safeFetch(source, url, options = {}) {
     timeoutMs = 15000,
     retries = 2,
     retryDelayMs = 500,
+    noRetryStatuses = [],
     fetchImpl = globalThis.fetch,
   } = options;
 
@@ -81,7 +84,7 @@ export async function safeFetch(source, url, options = {}) {
       try {
         await res.body?.cancel();
       } catch {}
-      if (isRetryable(res.status) && attempt < retries) continue;
+      if (isRetryable(res.status) && !noRetryStatuses.includes(res.status) && attempt < retries) continue;
       throw lastError;
     }
 

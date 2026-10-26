@@ -104,6 +104,12 @@ test("429 and 5xx are retried, then succeed", async () => {
   assert.equal(fetchImpl.calls.length, 3);
 });
 
+test("noRetryStatuses: a status that is normally retried is tried only once", async () => {
+  const fetchImpl = fakeFetch(json({}, 502), json({ ok: true }));
+  await assert.rejects(safeFetch("stackexchange", URL_WITH_KEY, { fetchImpl, noRetryStatuses: [502], ...fast }), { message: "stackexchange: HTTP 502" });
+  assert.equal(fetchImpl.calls.length, 1);
+});
+
 test("gives up after the retries and reports the last status", async () => {
   const fetchImpl = fakeFetch(json({}, 500));
   await assert.rejects(safeFetch("socialcrawl", URL_WITH_KEY, { fetchImpl, retries: 1, ...fast }), (err) => {

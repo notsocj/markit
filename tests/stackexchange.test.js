@@ -111,6 +111,21 @@ test("respects the backoff Stack Exchange asks for", async () => {
   assert.ok(times[1] - times[0] >= 140, `second call came ${times[1] - times[0]}ms after the first`);
 });
 
+test("HTTP 502 (throttled): one request, no retries, no other sites, no more calls this run", async () => {
+  const fetchImpl = fakeFetch(() => json({ error_id: 502, error_name: "throttle_violation" }, 502));
+  const opts = { since, profile: { stackexchangeSites: ["a", "b", "c"] }, http: { fetchImpl, retryDelayMs: 0 } };
+  await assert.rejects(stackexchange.search("x y", opts), { message: "stackexchange: HTTP 502" });
+  await assert.rejects(stackexchange.search("z w", opts), { message: "stackexchange: HTTP 502" }, "the next keyword fails at once");
+  assert.equal(fetchImpl.urls.length, 1, "only the first request was ever sent");
+});
+
+test("a 502 after some sites worked keeps their posts", async () => {
+  const fetchImpl = fakeFetch((u) => (u.searchParams.get("site") === "a" ? json(wrap([question(1, "a", 1792500000)])) : json({}, 502)));
+  const posts = await stackexchange.search("x y", { since, profile: { stackexchangeSites: ["a", "b", "c"] }, http: { fetchImpl, retryDelayMs: 0 } });
+  assert.deepEqual(posts.map((p) => p.id), ["se-a-1"]);
+  assert.equal(fetchImpl.urls.length, 2, "stopped at the first 502");
+});
+
 test("respects the limit across sites", async () => {
   const items = Array.from({ length: 10 }, (_, i) => question(i, "s", 1792500000 + i));
   const posts = await stackexchange.search("x y", { since, limit: 4, profile: { stackexchangeSites: ["s", "t"] }, http: { fetchImpl: fakeFetch(() => json(wrap(items))) } });

@@ -18,7 +18,7 @@
 //
 // See hackernews.js for the shared adapter shape and search() options.
 
-import { safeFetch } from "../lib/safe-fetch.js";
+import { safeFetch, SourceError } from "../lib/safe-fetch.js";
 import { makePost, stripHtml, searchQuery } from "../lib/normalize.js";
 import { buildContext } from "../lib/context.js";
 
@@ -30,15 +30,20 @@ export const MAX_SITES = 3;
 // When Stack Exchange asks us to back off, this holds the time we may call again.
 // It lives at module level so it applies across keywords within the same run.
 let waitUntil = 0;
+// Set when Stack Exchange answers HTTP 502 ("throttle_violation": too many requests). It asks
+// clients to stop, so the rest of this run makes no more calls instead of piling on.
+let throttled = false;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Reset the backoff timer (tests only). */
 export function _resetBackoff() {
   waitUntil = 0;
+  throttled = false;
 }
 
 /** Make one API call, honoring any backoff, and remember the next backoff if given. */
 async function call(path, params, { env, meter, http }) {
+  if (throttled) throw new SourceError("stackexchange", "HTTP 502", 502);
   const delay = waitUntil - Date.now();
   if (delay > 0) await sleep(delay);
 
@@ -46,7 +51,14 @@ async function call(path, params, { env, meter, http }) {
   // returns URLs, so it can't leak from here.
   if (env?.STACKEXCHANGE_KEY) params.set("key", env.STACKEXCHANGE_KEY);
   meter.requests = (meter.requests ?? 0) + 1;
-  const data = await safeFetch("stackexchange", `${BASE}${path}?${params}`, http);
+  let data;
+  try {
+    // 502 is never retried: retrying while throttled only makes the throttling worse.
+    data = await safeFetch("stackexchange", `${BASE}${path}?${params}`, { noRetryStatuses: [502], ...http });
+  } catch (err) {
+    if (err.status === 502) throttled = true;
+    throw err;
+  }
 
   if (data.backoff) waitUntil = Date.now() + data.backoff * 1000;
   // Remember the platform's own quota count; it's just a number, safe to show.
@@ -108,9 +120,11 @@ export default {
         // One bad site name (HTTP 400) shouldn't throw away results from the others.
         failures++;
         firstError ??= err;
+        if (err.status === 502) break; // throttled: don't try the other sites
       }
     }
-    if (failures === sites.length && firstError) throw firstError;
+    // Report the error when nothing came back (and keep partial results when something did).
+    if (firstError && !posts.length && (failures === sites.length || firstError.status === 502)) throw firstError;
 
     // Newest first across all sites, then cap.
     return posts.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
