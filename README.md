@@ -213,6 +213,8 @@ Your config folder holds `apps/*.json` (profiles), `settings.json` (limits), `se
 - shows post text as plain text under a strict Content-Security-Policy
 - stops after 30 minutes without use
 
+Found a security problem? Please report it privately, as described in [SECURITY.md](SECURITY.md).
+
 ## Honest replies
 
 The drafts follow [`reply-guide.md`](skills/markit-find/references/reply-guide.md): help first, **always disclose that you made the app**, mention an alternative when natural, keep it short, no hype, and only claim what your app really does. Many communities ban self-promotion. marKit flags those with a caution, and you decide whether to reply at all.
