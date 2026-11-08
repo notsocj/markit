@@ -16,7 +16,7 @@ beforeEach(() => _resetFieldsParam());
 test("xQuery: a long keyword shortens only the topic, so the query stays valid and ≤ 512 chars", () => {
   const q = xQuery(`app for ${"very long topic words ".repeat(40)}`);
   assert.ok(q.length <= 512, String(q.length));
-  assert.ok(q.endsWith(") -is:retweet"));
+  assert.ok(q.endsWith(") -is:retweet -has:links"));
   assert.equal(q.split("(").length, q.split(")").length, "parentheses balanced");
 });
 
@@ -30,7 +30,7 @@ test("recent search: topic + asking words + -is:retweet, bearer header, no paid 
   const query = url.searchParams.get("query");
   assert.ok(query.startsWith("TripIt (app OR apps OR recommend OR "), query);
   assert.ok(query.includes(' OR "looking for" OR '), "multi-word asking phrases are quoted");
-  assert.ok(query.endsWith(' OR "what do you use") -is:retweet'), query);
+  assert.ok(query.endsWith(' OR "what do you use") -is:retweet -has:links'), query);
   assert.equal(url.searchParams.get("max_results"), "25");
   assert.equal(url.searchParams.get("start_time"), since.toISOString());
   assert.equal(url.searchParams.get("tweet.fields"), "created_at,public_metrics,lang");

@@ -85,6 +85,8 @@ test("searchQuery keeps the topic and drops filler/intent words", async () => {
   assert.equal(searchQuery("going to my first Grand Prix"), "first Grand Prix");
   assert.equal(searchQuery("how to organize Grand Prix trip"), "Grand Prix trip");
   assert.equal(searchQuery("alternative to TripIt"), "TripIt");
+  assert.equal(searchQuery("is there a free app like NotchNook"), "free NotchNook");
+  assert.equal(searchQuery("best job application tracker"), "job application tracker", "'application' can be the topic");
   assert.equal(searchQuery("What app do you use?"), "What app do you use?", "all filler → keep the original");
 });
 

@@ -257,6 +257,8 @@ test("setup.js app --dry-run validates and prints without saving", () => {
   assert.equal(r.code, 0, r.err);
   assert.match(r.out, /is valid \(not saved yet\)/);
   assert.match(r.out, /"session timers"/);
+  assert.match(r.out, /API search topics/);
+  assert.match(r.out, /"app to track F1 sessions" → F1 sessions/, "shows what the APIs will search");
   assert.ok(!existsSync(join(configDir, "apps", "gridpeek.json")));
 });
 

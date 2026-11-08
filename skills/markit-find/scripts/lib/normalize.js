@@ -128,10 +128,12 @@ const FILLER_WORDS = new Set([
   // grammar words
   "a", "an", "the", "for", "to", "of", "in", "on", "at", "with", "and", "or", "my", "your", "our",
   "i", "you", "we", "me", "do", "does", "is", "are", "can", "that", "this", "any", "some",
+  "there", "like", // "is there a free app like NotchNook" → "free NotchNook"
   // question words
   "how", "what", "which", "where", "who", "why",
-  // generic "looking for a tool" words: the intent we want, but not the topic
-  "app", "apps", "application", "tool", "tools", "software", "best", "good", "great", "top",
+  // generic "looking for a tool" words: the intent we want, but not the topic. Not
+  // "application": in "job application tracker" it IS the topic (it became "job tracker").
+  "app", "apps", "tool", "tools", "software", "best", "good", "great", "top",
   "alternative", "alternatives", "recommend", "recommendation", "recommendations", "suggestion",
   "suggestions", "advice", "tips", "help", "use", "using", "way", "ways", "need", "looking",
   "find", "get", "going", "keep", "track", "tracking", "plan", "planning", "organize", "organizing",

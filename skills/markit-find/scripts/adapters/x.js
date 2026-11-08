@@ -6,7 +6,8 @@
 //     (RFC 3339, within the last 7 days), tweet.fields
 //   - "-is:retweet" must sit next to a normal keyword (it does: we add it to the topic)
 //   - Checked 2026-11-08: OR and (grouping) are supported; words joined by spaces (AND)
-//     bind before OR, so the asking words go in parentheses.
+//     bind before OR, so the asking words go in parentheses. has:links ("Matches Posts with
+//     links", conjunction-required) can be negated like the other has: operators.
 //   - PRICE: $0.005 per post read, charged per resource returned. Users returned via
 //     expansions are billed too ($0.010 each), so we DON'T ask for author details: links
 //     use https://x.com/i/status/<id>, which works without the username.
@@ -36,9 +37,13 @@ const MIN_RESULTS = 10;
 const ASK_WORDS = ["app", "apps", "recommend", "recommendation", "recommendations", "suggest", "suggestions", "alternative", "alternatives", "tips", "advice", "anyone", "looking for", "how do you", "is there a", "is there an", "what do you use"];
 const ASK_GROUP = `(${ASK_WORDS.map((w) => (w.includes(" ") ? `"${w}"` : w)).join(" OR ")})`;
 
-/** The X query for one keyword: topic + asking words, no reposts, never over 512 chars. */
+/**
+ * The X query for one keyword: topic + asking words, no reposts, no links, never over 512
+ * chars. Why no links: in real runs up to 2026-11-08, 40 of 65 X posts had a link (promos,
+ * or a bare link matched through the linked page), and the one useful post had none.
+ */
 export function xQuery(keyword) {
-  const tail = ` ${ASK_GROUP} -is:retweet`;
+  const tail = ` ${ASK_GROUP} -is:retweet -has:links`;
   // Only the topic is shortened, so the parentheses always stay balanced.
   return `${searchQuery(keyword).slice(0, 512 - tail.length)}${tail}`;
 }

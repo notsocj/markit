@@ -6,7 +6,7 @@
 //   - candidates.js runs the full PREFILTER on raw.json + web.json, so the agent (the
 //     expensive part) only judges the best ~40 posts. Each step is its own function:
 //       dropTooOld → dropExcluded → dropSeen → dropLanguages → dedupeCrossPosts
-//       → preScoreAll → dropLowPreScore → penalizeCommunities → keepTop
+//       → preScoreAll → dropWeakMatches → penalizeCommunities → keepTop
 //     Every "drop" step returns { kept, dropped } so the run can report how many posts
 //     each rule removed (counts only, never post content).
 //
@@ -226,42 +226,56 @@ export const PRESCORE = {
   engagementMax: 10,
   jobOrSale: -30,
   selfPromo: -25,
-  // Posts from the APIs scoring under this are dropped (dropLowPreScore). Tested 2026-11-08
+  // Posts from the APIs scoring under this are dropped (dropWeakMatches). Tested 2026-11-08
   // on 351 posts the agent had judged in real runs: all 40 under 15 were irrelevant, while a
   // floor of 20 would have lost a post the agent rated medium.
   minimum: 15,
 };
 
 const INTENT_PHRASES = ["any app", "recommend", "recommendation", "looking for", "alternative to", "alternatives", "how do you", "is there a", "is there an", "what do you use", "which app", "best app", "suggestions"];
-const JOB_OR_SALE = ["hiring", "now hiring", "job opening", "job posting", "for sale", "on sale", "discount", "coupon", "promo code", "giveaway"];
-const SELF_PROMO = ["i built", "i made", "we built", "we launched", "just launched", "check out my", "my new app", "introducing", "show hn", "launching", "download my"];
+const JOB_OR_SALE = ["hiring", "now hiring", "job opening", "job posting", "for sale", "on sale", "discount", "coupon", "promo code", "giveaway", "giving away"];
+// Launch wording too: in real runs up to 2026-11-08, other developers' beta-tester calls and
+// launch posts ("Now Available", #BuildInPublic) were the top-scored noise for app keywords.
+const SELF_PROMO = ["i built", "i made", "we built", "we launched", "just launched", "check out my", "my new app", "introducing", "show hn", "launching", "download my", "testers", "beta tester", "now available", "just went live", "buildinpublic", "indiedev"];
 
 /** True if `phrase` (already normalized) appears as whole words in normalized `text`. */
 const hasPhrase = (text, phrase) => phrase && ` ${text} `.includes(` ${phrase} `);
+
+/** A post's title + excerpt, normalized for the phrase checks below. */
+const postText = (post) => normalizeText(`${post.title} ${post.excerpt}`);
+
+/** The best of the profile's keywords found in normalized `text`: { points, reason } (0 = none). */
+function keywordMatch(text, profile) {
+  let best = { points: 0, reason: "" };
+  for (const keyword of profile.keywords ?? []) {
+    if (hasPhrase(text, normalizeText(keyword))) return { points: PRESCORE.keywordExact, reason: `exact keyword "${keyword}"` };
+    const topic = normalizeText(searchQuery(keyword)).split(" ").filter(Boolean);
+    if (!topic.length) continue;
+    const hits = topic.filter((word) => hasPhrase(text, word)).length;
+    const share = hits / topic.length;
+    // One shared word isn't a match for a multi-word topic: "voice journal" matched
+    // trading-bot posts tagged VOICE, and "life log" any comment saying "life".
+    const points = share >= 0.5 && hits >= Math.min(2, topic.length) ? Math.round(PRESCORE.keywordPartialMax * share) : 0;
+    if (points > best.points) best = { points, reason: `partly matches "${keyword}"` };
+  }
+  return best;
+}
+
+/** The first profile competitor named in normalized `text`, or undefined. */
+const competitorIn = (text, profile) => (profile.competitors ?? []).find((name) => hasPhrase(text, normalizeText(name)));
 
 /**
  * 6. Pre-score one post. Returns { preScore, preScoreReasons } (reasons are short notes
  * for the agent and the report, e.g. 'exact keyword "F1 schedule app"').
  */
 export function preScore(post, profile, now = new Date()) {
-  const text = normalizeText(`${post.title} ${post.excerpt}`);
+  const text = postText(post);
   const raw = `${post.title} ${post.excerpt}`;
   let score = 0;
   const reasons = [];
 
   // Keywords: the best match among the profile's keywords.
-  let best = { points: 0, reason: "" };
-  for (const keyword of profile.keywords ?? []) {
-    if (hasPhrase(text, normalizeText(keyword))) {
-      best = { points: PRESCORE.keywordExact, reason: `exact keyword "${keyword}"` };
-      break;
-    }
-    const topic = normalizeText(searchQuery(keyword)).split(" ").filter(Boolean);
-    if (!topic.length) continue;
-    const share = topic.filter((word) => hasPhrase(text, word)).length / topic.length;
-    const points = share >= 0.5 ? Math.round(PRESCORE.keywordPartialMax * share) : 0;
-    if (points > best.points) best = { points, reason: `partly matches "${keyword}"` };
-  }
+  const best = keywordMatch(text, profile);
   if (best.points) {
     score += best.points;
     reasons.push(best.reason);
@@ -279,7 +293,7 @@ export function preScore(post, profile, now = new Date()) {
   }
 
   // A competitor named in the post.
-  const competitor = (profile.competitors ?? []).find((name) => hasPhrase(text, normalizeText(name)));
+  const competitor = competitorIn(text, profile);
   if (competitor) {
     score += PRESCORE.competitor;
     reasons.push(`names ${competitor}`);
@@ -325,12 +339,21 @@ export function preScoreAll(posts, profile, now = new Date()) {
 }
 
 /**
- * Drop API posts whose pre-score is under `min`: they barely match any keyword and show no
- * sign of someone asking. Web results are kept, since the agent already picked them by hand.
- * Runs BEFORE penalizeCommunities, so that penalty alone can never push a post out.
+ * Drop "weak matches" from the APIs: a pre-score under `min`, OR none of the profile's
+ * keywords (and no competitor) in the post's visible text. The API matched something we
+ * can't see, usually common words deep in a long comment or in a linked page: in the
+ * 2026-11-08 replay all 35 such posts were irrelevant, and 15 of them scored over the floor
+ * on "posted today" + a question mark alone.
+ * Web results are kept, since the agent already picked them by hand. Runs BEFORE
+ * penalizeCommunities, so that penalty alone can never push a post out.
  */
-export function dropLowPreScore(posts, min = PRESCORE.minimum) {
-  const kept = posts.filter((post) => post.source === "web" || post.preScore >= min);
+export function dropWeakMatches(posts, profile, min = PRESCORE.minimum) {
+  const kept = posts.filter((post) => {
+    if (post.source === "web") return true;
+    if (post.preScore < min) return false;
+    const text = postText(post);
+    return keywordMatch(text, profile).points > 0 || Boolean(competitorIn(text, profile));
+  });
   return { kept, dropped: posts.length - kept.length };
 }
 

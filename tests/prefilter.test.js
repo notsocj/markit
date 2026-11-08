@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, normalizeText, jaccard,
-  engagementTotal, preScore, preScoreAll, dropLowPreScore, keepTop, droppedSummary, prefilterLine, PRESCORE,
+  engagementTotal, preScore, preScoreAll, dropWeakMatches, keepTop, droppedSummary, prefilterLine, PRESCORE,
 } from "../skills/markit-find/scripts/lib/filters.js";
 import { readWebPosts, keywordForQuery, buildCandidates, paidContextBudget, formatSummary } from "../skills/markit-find/scripts/candidates.js";
 import { webIdFor } from "../skills/markit-find/scripts/lib/scored.js";
@@ -125,6 +125,22 @@ test("preScore: penalties for job/sale posts and self-promotion, clamped at 0", 
   assert.equal(preScore(job, profile, NOW).preScore, 0);
 });
 
+test("preScore: one shared word isn't a partial match for a multi-word topic", () => {
+  const voice = { name: "keepr", keywords: ["voice journal app"], competitors: [] };
+  const old = { createdAt: ago(24 * 10) }; // no recency points, so only the keyword counts
+  assert.equal(preScore(post("x-1", { excerpt: "[VOICE-0139] BTC/USDT 1D SHORT closed", ...old }), voice, NOW).preScore, 0);
+  assert.equal(preScore(post("x-2", { excerpt: "my voice journal keeps me sane", ...old }), voice, NOW).preScore, PRESCORE.keywordPartialMax);
+  // One-word topics still match on that word.
+  assert.equal(preScore(post("hn-1", { title: "TripIt lost my booking", ...old }), { ...profile, competitors: [] }, NOW).preScore, PRESCORE.keywordPartialMax);
+});
+
+test("preScore: beta-tester calls and launch posts count as self-promotion", () => {
+  const old = { createdAt: ago(24 * 10) };
+  for (const title of ["iOS testers for my F1 race weekend app?", "F1 race weekend planner, now available on iOS", "Just went live: F1 race weekend app #BuildInPublic"]) {
+    assert.ok(preScore(post("r-1", { title, ...old }), profile, NOW).preScoreReasons.includes("looks like self-promotion"), title);
+  }
+});
+
 test("preScore: engagement is capped so viral posts don't dominate", () => {
   const viral = post("hn-1", { title: "x", createdAt: "", engagement: { score: 1_000_000, comments: 50_000 } });
   assert.equal(preScore(viral, profile, NOW).preScore, PRESCORE.engagementMax + PRESCORE.unknownDate);
@@ -138,25 +154,27 @@ test("keepTop keeps the best N and counts the rest", () => {
   assert.equal(r.dropped, 1);
 });
 
-test("dropLowPreScore drops weak API posts but keeps every web result", () => {
+test("dropWeakMatches drops low scores and posts naming no keyword or competitor, keeps web results", () => {
   const posts = [
-    { id: "hn-1", source: "hackernews", preScore: PRESCORE.minimum },
-    { id: "hn-2", source: "hackernews", preScore: PRESCORE.minimum - 1 },
-    { id: "web-1", source: "web", preScore: 0 },
+    post("hn-1", { title: "F1 race weekend", preScore: PRESCORE.minimum }), // keyword topic, at the floor
+    post("hn-2", { title: "F1 race weekend", preScore: PRESCORE.minimum - 1 }), // under the floor
+    post("hn-3", { title: "Lisp curse, now in your ecosystem?", preScore: 40 }), // no keyword or competitor
+    post("hn-4", { title: "TripIt lost my booking", preScore: 40 }), // names a competitor
+    post("web-1", { title: "unrelated", preScore: 0 }), // the agent picked it
   ];
-  const r = dropLowPreScore(posts);
-  assert.deepEqual(r.kept.map((p) => p.id), ["hn-1", "web-1"]);
-  assert.equal(r.dropped, 1);
+  const r = dropWeakMatches(posts, profile);
+  assert.deepEqual(r.kept.map((p) => p.id), ["hn-1", "hn-4", "web-1"]);
+  assert.equal(r.dropped, 2);
 });
 
 test("buildCandidates counts weak matches separately from the top-N cutoff", async () => {
-  // "unrelated": no keyword, no question, only +12 for being recent → under the floor.
-  const raw = rawWith([post("hn-1", { title: "Any app for planning F1 race weekend?" }), post("hn-2", { title: "unrelated" })]);
+  // hn-2: only +12 for being recent → under the floor. hn-3: 20 points, but no keyword.
+  const raw = rawWith([post("hn-1", { title: "Any app for planning F1 race weekend?" }), post("hn-2", { title: "unrelated" }), post("hn-3", { title: "Lisp curse in your ecosystem?" })]);
   const { output } = await buildCandidates({ raw, profile, settings: settings(), adapters: [], now: NOW });
   assert.deepEqual(output.candidates.map((c) => c.id), ["hn-1"]);
-  assert.equal(output.prefilter.dropped.lowScore, 1);
+  assert.equal(output.prefilter.dropped.lowScore, 2);
   assert.equal(output.prefilter.dropped.belowCutoff, 0);
-  assert.match(droppedSummary(output.prefilter.dropped), /1 weak matches/);
+  assert.match(droppedSummary(output.prefilter.dropped), /2 weak matches/);
 });
 
 test("droppedSummary and prefilterLine show non-zero counts only", () => {
@@ -234,7 +252,7 @@ test("buildCandidates merges web.json, runs every step, and summarizes drops (in
 });
 
 test("buildCandidates caps to maxCandidates and fetches context for the top maxContext only", async () => {
-  const posts = Array.from({ length: 6 }, (_, i) => post(`hn-${i}`, { title: `question ${i}?`, engagement: { score: i * 10 } }));
+  const posts = Array.from({ length: 6 }, (_, i) => post(`hn-${i}`, { title: `F1 race weekend question ${i}?`, engagement: { score: i * 10 } }));
   const hn = fakeContextAdapter("hackernews");
   const { output } = await buildCandidates({ raw: rawWith(posts), profile, settings: settings({ maxCandidates: 4, maxContext: 2 }), adapters: [hn], now: NOW });
   assert.equal(output.candidates.length, 4);
@@ -246,7 +264,7 @@ test("buildCandidates caps to maxCandidates and fetches context for the top maxC
 
 test("paid context is OFF by default", async () => {
   const x = fakeContextAdapter("x", { paid: true, costUnit: "posts" });
-  const { output, meters } = await buildCandidates({ raw: rawWith([post("x-1", { source: "x", title: "any app?" })]), profile, settings: settings(), adapters: [x], now: NOW });
+  const { output, meters } = await buildCandidates({ raw: rawWith([post("x-1", { source: "x", title: "any app for an F1 race weekend?" })]), profile, settings: settings(), adapters: [x], now: NOW });
   assert.equal(x.calls.length, 0);
   assert.equal(output.prefilter.context.paidOff, 1);
   assert.equal(meters.x.posts, 0);
@@ -254,7 +272,7 @@ test("paid context is OFF by default", async () => {
 
 test("paid context, when enabled, stays within the per-run cap (after search's spend) and the monthly cap", async () => {
   const caps = settings({ contextForPaidSources: true, x: { maxPostsPerRun: 30, maxPostsPerMonth: 900 } });
-  const posts = [post("x-1", { source: "x", title: "any app? one" }), post("x-2", { source: "x", title: "any app? two" }), post("x-3", { source: "x", title: "any app? three" })];
+  const posts = [post("x-1", { source: "x", title: "any app for an F1 race weekend? one" }), post("x-2", { source: "x", title: "any app for an F1 race weekend? two" }), post("x-3", { source: "x", title: "any app for an F1 race weekend? three" })];
   const x = fakeContextAdapter("x", { paid: true, costUnit: "posts", spend: { posts: 10 } });
   // search.js already spent 15 of the 30 this run → 15 left → one 10-post call fits, then 5 left.
   const raw = rawWith(posts, [{ name: "x", status: "ok", fetched: 3, used: { requests: 2, posts: 15, credits: 0 } }]);
@@ -272,7 +290,7 @@ test("free daily quota shared with search is respected; YouTube's separate pool 
   const se = fakeContextAdapter("stackexchange", { quota: { unit: "requests", period: "day", limit: 300 }, spend: { requests: 2 } });
   const yt = fakeContextAdapter("youtube", { quota: { unit: "requests", period: "day", limit: 100 }, contextUsesQuota: false, spend: { context: 2 } });
   const usage = { months: {}, days: { "2026-10-22": { stackexchange: { requests: 299 }, youtube: { requests: 100 } } } };
-  const posts = [post("se-a-1", { source: "stackexchange", title: "q1?" }), post("yt-2", { source: "youtube", title: "q2?" })];
+  const posts = [post("se-a-1", { source: "stackexchange", title: "TripIt question 1?" }), post("yt-2", { source: "youtube", title: "TripIt question 2?" })];
   const { output, meters } = await buildCandidates({ raw: rawWith(posts), profile, settings: settings(), usage, adapters: [se, yt], now: NOW });
   assert.equal(se.calls.length, 0, "only 1 SE request left; context needs 2");
   assert.equal(yt.calls.length, 1, "YouTube context uses the 10,000-unit pool, not its search quota");
@@ -283,14 +301,14 @@ test("free daily quota shared with search is respected; YouTube's separate pool 
 test("a failing context call doesn't break the run and never leaks error details", async () => {
   const bad = fakeContextAdapter("hackernews");
   bad.context = async () => { throw new Error("secret-token-123 in some message"); };
-  const { output } = await buildCandidates({ raw: rawWith([post("hn-1", { title: "q?" })]), profile, settings: settings(), adapters: [bad], now: NOW });
+  const { output } = await buildCandidates({ raw: rawWith([post("hn-1", { title: "TripIt question?" })]), profile, settings: settings(), adapters: [bad], now: NOW });
   assert.equal(output.prefilter.context.failed, 1);
   assert.equal(output.candidates.length, 1);
   assert.ok(!JSON.stringify(output).includes("secret-token-123"));
 });
 
 test("formatSummary prints found / dropped / candidates", async () => {
-  const { output } = await buildCandidates({ raw: rawWith([post("hn-1", { title: "q?" })]), web: [], profile, settings: settings(), adapters: [], now: NOW });
+  const { output } = await buildCandidates({ raw: rawWith([post("hn-1", { title: "TripIt question?" })]), web: [], profile, settings: settings(), adapters: [], now: NOW });
   const text = formatSummary(output, "/run/candidates.json");
   assert.match(text, /^marKit candidates · gridpeek/);
   assert.match(text, /Found 1 posts \(1 from APIs, 0 from web search\)/);

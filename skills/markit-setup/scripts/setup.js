@@ -41,6 +41,7 @@ const { validateProfile } = await loadShared("lib/profile.js");
 const { REDDIT_PROVIDERS, PROVIDER_LABELS, redditProvider, redditLabel } = await loadShared("lib/reddit.js");
 const { scanProject, projectNames, normalizeName } = await loadShared("lib/project.js");
 const { saveAppIcon } = await loadShared("lib/app-icon.js");
+const { searchQuery } = await loadShared("lib/normalize.js");
 
 // Windows doesn't use Unix-style permissions (chmod 600 does nothing useful there).
 // The %APPDATA% folder is already private to the user account.
@@ -195,6 +196,10 @@ async function app({ name, overwrite, "dry-run": dryRun }) {
     // Nothing is written. The agent shows this cleaned-up profile to the user to confirm.
     const out = [`✓ Profile "${name}" is valid (not saved yet${exists ? `; saving will need --overwrite` : ""})`];
     if (icon) out.push(`  App icon: ${icon} (saved with the profile, for the dashboard)`);
+    // What the strict keyword APIs will actually search for. A topic of only common words
+    // ("everything one place") matches unrelated posts, so the agent can rewrite it now.
+    out.push("", "API search topics (filler words removed; each should still name the subject):",
+      ...profile.keywords.map((k) => `  "${k}" → ${searchQuery(k)}`));
     if (warnings.length) out.push("", "Suggestions:", ...warnings.map((w) => `  - ${w}`));
     out.push("", JSON.stringify(profile, null, 2));
     console.log(out.join("\n"));

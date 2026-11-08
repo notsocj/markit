@@ -22,7 +22,8 @@
 //   6. Merge cross-posts (same question posted twice): keep the most engaged copy and list
 //      the others in "alsoPostedAt".
 //   7. Pre-score every post 0–100 (a cheap, documented formula; no AI).
-//   8. Drop API posts with a pre-score under 15 ("weak matches"; web results are kept).
+//   8. Drop weak API matches: a pre-score under 15, or no keyword or competitor in the
+//      visible text (web results are kept).
 //   9. Lower the pre-score (−15) of communities you keep skipping for "Community bans
 //      promotion" or "Not my audience" (from feedback.json, see lib/learn.js). Never dropped.
 //  10. Keep the top maxCandidates (settings.json, default 40).
@@ -47,7 +48,7 @@ import { loadSeen } from "./lib/seen.js";
 import { loadUsage, recordUsage } from "./lib/usage.js";
 import { sinceDate, excerpt, stripHtml, collapseWhitespace, toIsoDate } from "./lib/normalize.js";
 import { webIdFor } from "./lib/scored.js";
-import { dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, preScoreAll, dropLowPreScore, penalizeCommunities, keepTop, droppedSummary } from "./lib/filters.js";
+import { dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, preScoreAll, dropWeakMatches, penalizeCommunities, keepTop, droppedSummary } from "./lib/filters.js";
 import { tryReadFeedback, BROKEN_FEEDBACK } from "./lib/feedback.js";
 import { communityPenalties, COMMUNITY_PENALTY } from "./lib/learn.js";
 import { paidBudget, paidCaps, quotaBudget, safeReason } from "./search.js";
@@ -173,7 +174,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
   step = dropLanguages(posts, profile.languages ?? ["en"]); posts = step.kept; dropped.language += step.dropped;
   step = dedupeCrossPosts(posts); posts = step.kept; dropped.duplicate += step.dropped;
   posts = preScoreAll(posts, profile, now);
-  step = dropLowPreScore(posts); posts = step.kept; dropped.lowScore += step.dropped;
+  step = dropWeakMatches(posts, profile); posts = step.kept; dropped.lowScore += step.dropped;
   const penalty = penalizeCommunities(posts, communityPenalties(feedback, raw.app), COMMUNITY_PENALTY);
   posts = penalty.posts;
   step = keepTop(posts, settings.maxCandidates ?? 40); posts = step.kept; dropped.belowCutoff += step.dropped;

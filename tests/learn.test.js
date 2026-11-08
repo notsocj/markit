@@ -183,7 +183,7 @@ test("communities skipped ≥ 3 times for promotion rules lose 15 pre-score poin
   const feedback = times(3, () => fb({ source: "socialcrawl", site: "Reddit r/formula1", status: "skipped", reason: "bans_promotion" }));
   const post = (id, site) => ({ id, source: "socialcrawl", site, url: `https://example.com/${id}`, title: `Any app for planning an F1 race weekend? (${site})`, excerpt: id === "sc-1" ? "first trip to Monza" : "going to Silverstone with friends", createdAt: daysAgo(0.1), engagement: {}, matchedKeyword: "alternative to TripIt" });
   const raw = { app: "gridpeek", ranAt: NOW.toISOString(), lookbackDays: 7, since: daysAgo(7), sources: [], webQueries: [], posts: [post("sc-1", "Reddit r/formula1"), post("sc-2", "Reddit r/travel")] };
-  const profile = { name: "gridpeek", keywords: ["alternative to TripIt"], competitors: ["TripIt"], exclude: [], languages: ["en"] };
+  const profile = { name: "gridpeek", keywords: ["alternative to TripIt", "app for planning F1 race weekend"], competitors: ["TripIt"], exclude: [], languages: ["en"] };
   const settings = { ...DEFAULT_SETTINGS, maxCandidates: 40 };
 
   const before = (await buildCandidates({ raw, profile, settings, adapters: [], now: NOW })).output.candidates;

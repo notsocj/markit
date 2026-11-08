@@ -68,6 +68,7 @@ If neither applies, ask what they want: add an app, edit an app, add or change a
    - Draft: `name` (lowercase letters, numbers, hyphens; from `metadata.names`), `url` (`metadata.url`, or a store/website link found in the reading list), `oneLiner`, `description`, `audience`, `features` (the main features as short phrases), and 5–8 intent-style `keywords`.
    - Ask ONLY what the project can't answer: **competitors** (and optional words to exclude), and the **URL** if you found none.
    - Validate the draft with `--dry-run` (see **Saving a profile**), show the user the cleaned profile and any suggestions, and let them edit or confirm.
+   - Check the dry run's **API search topics**: the words the APIs search after filler words are removed. Each must still name the subject. Rewrite any keyword whose topic is only common words ("app to track everything in one place" → `everything one place` matches random posts) so it names a specific thing: a category ("life tracker app"), a competitor ("Daylio alternative"), or a concrete problem.
 3. **If `isProject` is false**, ask the questions instead: app name, URL, one-liner, who it's for, main features, 3–8 keywords, competitors, and words to exclude.
 4. Once the user confirms, save it (without `--dry-run`). Run from the app's own project folder, saving also copies the app's icon (the dry run's "App icon" line) for the dashboard's app picker. Without a PNG/JPEG/WebP/ICO icon, the dashboard shows the first letter instead.
 
