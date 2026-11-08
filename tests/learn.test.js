@@ -199,6 +199,11 @@ test("communities skipped ≥ 3 times for promotion rules lose 15 pre-score poin
   // Another app's feedback doesn't penalize this app.
   const otherApp = times(3, () => fb({ source: "socialcrawl", site: "Reddit r/formula1", status: "skipped", reason: "bans_promotion", app: "otherapp" }));
   assert.equal((await buildCandidates({ raw, profile, settings, feedback: otherApp, adapters: [], now: NOW })).output.prefilter.oftenSkipped, 0);
+  // The weak-match floor runs BEFORE the penalty: a post at 27 drops to 12 but stays.
+  const weak = { ...post("sc-3", "Reddit r/formula1"), title: "F1 race weekend", excerpt: "" };
+  const weakProfile = { ...profile, keywords: ["app for planning F1 race weekend"], competitors: [] };
+  const kept = (await buildCandidates({ raw: { ...raw, posts: [weak] }, profile: weakProfile, settings, feedback, adapters: [], now: NOW })).output.candidates;
+  assert.deepEqual(kept.map((c) => [c.id, c.preScore]), [["sc-3", 27 - 15]]);
   // Never below 0.
   assert.equal(penalizeCommunities([{ source: "hackernews", preScore: 5 }], new Map([["Hacker News", "not_my_audience"]])).posts[0].preScore, 0);
 });

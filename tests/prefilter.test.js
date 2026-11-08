@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, normalizeText, jaccard,
-  engagementTotal, preScore, preScoreAll, keepTop, droppedSummary, prefilterLine, PRESCORE,
+  engagementTotal, preScore, preScoreAll, dropLowPreScore, keepTop, droppedSummary, prefilterLine, PRESCORE,
 } from "../skills/markit-find/scripts/lib/filters.js";
 import { readWebPosts, keywordForQuery, buildCandidates, paidContextBudget, formatSummary } from "../skills/markit-find/scripts/candidates.js";
 import { webIdFor } from "../skills/markit-find/scripts/lib/scored.js";
@@ -138,6 +138,27 @@ test("keepTop keeps the best N and counts the rest", () => {
   assert.equal(r.dropped, 1);
 });
 
+test("dropLowPreScore drops weak API posts but keeps every web result", () => {
+  const posts = [
+    { id: "hn-1", source: "hackernews", preScore: PRESCORE.minimum },
+    { id: "hn-2", source: "hackernews", preScore: PRESCORE.minimum - 1 },
+    { id: "web-1", source: "web", preScore: 0 },
+  ];
+  const r = dropLowPreScore(posts);
+  assert.deepEqual(r.kept.map((p) => p.id), ["hn-1", "web-1"]);
+  assert.equal(r.dropped, 1);
+});
+
+test("buildCandidates counts weak matches separately from the top-N cutoff", async () => {
+  // "unrelated": no keyword, no question, only +12 for being recent → under the floor.
+  const raw = rawWith([post("hn-1", { title: "Any app for planning F1 race weekend?" }), post("hn-2", { title: "unrelated" })]);
+  const { output } = await buildCandidates({ raw, profile, settings: settings(), adapters: [], now: NOW });
+  assert.deepEqual(output.candidates.map((c) => c.id), ["hn-1"]);
+  assert.equal(output.prefilter.dropped.lowScore, 1);
+  assert.equal(output.prefilter.dropped.belowCutoff, 0);
+  assert.match(droppedSummary(output.prefilter.dropped), /1 weak matches/);
+});
+
 test("droppedSummary and prefilterLine show non-zero counts only", () => {
   assert.equal(droppedSummary({ duplicate: 3, tooOld: 0, belowCutoff: 2 }), "3 duplicates · 2 below the cutoff");
   assert.equal(prefilterLine({ found: 50, candidates: 40, dropped: { duplicate: 10 } }), "Prefilter: 50 found → 40 candidates · dropped 10 duplicates");
@@ -207,13 +228,13 @@ test("buildCandidates merges web.json, runs every step, and summarizes drops (in
   assert.equal(p.fromApis, 9);
   assert.equal(p.fromWeb, 2);
   assert.equal(p.found, 11);
-  assert.deepEqual(p.dropped, { tooOld: 2, excluded: 2, alreadyReported: 3, language: 1, duplicate: 1, belowCutoff: 0 });
+  assert.deepEqual(p.dropped, { tooOld: 2, excluded: 2, alreadyReported: 3, language: 1, duplicate: 1, lowScore: 0, belowCutoff: 0 });
   assert.ok(output.candidates.every((c) => typeof c.preScore === "number" && Array.isArray(c.preScoreReasons)));
   assert.ok(!JSON.stringify(p).includes("hiring"), "the summary holds counts only, no post content");
 });
 
 test("buildCandidates caps to maxCandidates and fetches context for the top maxContext only", async () => {
-  const posts = Array.from({ length: 6 }, (_, i) => post(`hn-${i}`, { title: `question ${i}`, engagement: { score: i * 10 } }));
+  const posts = Array.from({ length: 6 }, (_, i) => post(`hn-${i}`, { title: `question ${i}?`, engagement: { score: i * 10 } }));
   const hn = fakeContextAdapter("hackernews");
   const { output } = await buildCandidates({ raw: rawWith(posts), profile, settings: settings({ maxCandidates: 4, maxContext: 2 }), adapters: [hn], now: NOW });
   assert.equal(output.candidates.length, 4);

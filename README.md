@@ -32,7 +32,7 @@ For each match, marKit explains **why it fits**, scores it, and **drafts an hone
    │                with YOUR keys, removes posts you've already seen  → raw.json
    ├─ your agent    runs web searches (forums, Q&A)                    → web.json
    ├─ candidates.js drops old, excluded, other-language and duplicate posts, pre-scores
-   │                the rest, keeps the top 40, and checks the top 15 threads
+   │                the rest, drops weak matches, keeps the top 40, and checks the top 15 threads
    │                (solved? locked? apps already suggested?)          → candidates.json
    ├─ your agent    scores only those candidates, drafts replies
    │                (rules in references/scoring.md and reply-guide.md) → scored.json

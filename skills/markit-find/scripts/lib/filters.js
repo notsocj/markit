@@ -6,7 +6,7 @@
 //   - candidates.js runs the full PREFILTER on raw.json + web.json, so the agent (the
 //     expensive part) only judges the best ~40 posts. Each step is its own function:
 //       dropTooOld → dropExcluded → dropSeen → dropLanguages → dedupeCrossPosts
-//       → preScoreAll → penalizeCommunities → keepTop
+//       → preScoreAll → dropLowPreScore → penalizeCommunities → keepTop
 //     Every "drop" step returns { kept, dropped } so the run can report how many posts
 //     each rule removed (counts only, never post content).
 //
@@ -226,6 +226,10 @@ export const PRESCORE = {
   engagementMax: 10,
   jobOrSale: -30,
   selfPromo: -25,
+  // Posts from the APIs scoring under this are dropped (dropLowPreScore). Tested 2026-11-08
+  // on 351 posts the agent had judged in real runs: all 40 under 15 were irrelevant, while a
+  // floor of 20 would have lost a post the agent rated medium.
+  minimum: 15,
 };
 
 const INTENT_PHRASES = ["any app", "recommend", "recommendation", "looking for", "alternative to", "alternatives", "how do you", "is there a", "is there an", "what do you use", "which app", "best app", "suggestions"];
@@ -321,6 +325,16 @@ export function preScoreAll(posts, profile, now = new Date()) {
 }
 
 /**
+ * Drop API posts whose pre-score is under `min`: they barely match any keyword and show no
+ * sign of someone asking. Web results are kept, since the agent already picked them by hand.
+ * Runs BEFORE penalizeCommunities, so that penalty alone can never push a post out.
+ */
+export function dropLowPreScore(posts, min = PRESCORE.minimum) {
+  const kept = posts.filter((post) => post.source === "web" || post.preScore >= min);
+  return { kept, dropped: posts.length - kept.length };
+}
+
+/**
  * Lower the pre-score of posts from communities you keep skipping (from your feedback, see
  * lib/learn.js communityPenalties). They are NEVER dropped here: a community you skip for
  * "bans promotion" can still have the one thread worth answering, so the agent decides.
@@ -360,6 +374,7 @@ const DROP_LABELS = {
   excluded: "excluded words",
   alreadyReported: "already reported",
   language: "other language",
+  lowScore: "weak matches",
   belowCutoff: "below the cutoff",
 };
 

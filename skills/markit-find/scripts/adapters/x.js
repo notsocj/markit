@@ -5,6 +5,8 @@
 //   - params: query (max 512 chars on pay-per-use), max_results (10–100), start_time
 //     (RFC 3339, within the last 7 days), tweet.fields
 //   - "-is:retweet" must sit next to a normal keyword (it does: we add it to the topic)
+//   - Checked 2026-11-08: OR and (grouping) are supported; words joined by spaces (AND)
+//     bind before OR, so the asking words go in parentheses.
 //   - PRICE: $0.005 per post read, charged per resource returned. Users returned via
 //     expansions are billed too ($0.010 each), so we DON'T ask for author details: links
 //     use https://x.com/i/status/<id>, which works without the username.
@@ -26,6 +28,20 @@ import { buildContext } from "../lib/context.js";
 
 const BASE = "https://api.x.com/2";
 const MIN_RESULTS = 10;
+
+// Words people use when they want a tool or advice. A post must contain the topic AND one
+// of these. Topic-only searches returned news and chatter: in real runs up to 2026-11-08,
+// 59 of 60 X posts (all paid for) were irrelevant, and 57 of them had none of these words.
+// X matches whole words ("app" doesn't match "apps"), so both forms are listed.
+const ASK_WORDS = ["app", "apps", "recommend", "recommendation", "recommendations", "suggest", "suggestions", "alternative", "alternatives", "tips", "advice", "anyone", "looking for", "how do you", "is there a", "is there an", "what do you use"];
+const ASK_GROUP = `(${ASK_WORDS.map((w) => (w.includes(" ") ? `"${w}"` : w)).join(" OR ")})`;
+
+/** The X query for one keyword: topic + asking words, no reposts, never over 512 chars. */
+export function xQuery(keyword) {
+  const tail = ` ${ASK_GROUP} -is:retweet`;
+  // Only the topic is shortened, so the parentheses always stay balanced.
+  return `${searchQuery(keyword).slice(0, 512 - tail.length)}${tail}`;
+}
 
 // Which field-parameter name the API accepts. Starts with the documented one; flips once.
 let fieldsParam = "tweet.fields";
@@ -72,7 +88,7 @@ export default {
     // X only searches the last 7 days.
     const weekAgo = new Date(Date.now() - 7 * 86400000 + 60000);
     const start = since > weekAgo ? since : weekAgo;
-    const query = `${searchQuery(keyword)} -is:retweet`.slice(0, 512);
+    const query = xQuery(keyword);
 
     const request = (param) => {
       const params = new URLSearchParams({

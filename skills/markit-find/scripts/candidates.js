@@ -22,13 +22,14 @@
 //   6. Merge cross-posts (same question posted twice): keep the most engaged copy and list
 //      the others in "alsoPostedAt".
 //   7. Pre-score every post 0–100 (a cheap, documented formula; no AI).
-//   8. Lower the pre-score (−15) of communities you keep skipping for "Community bans
+//   8. Drop API posts with a pre-score under 15 ("weak matches"; web results are kept).
+//   9. Lower the pre-score (−15) of communities you keep skipping for "Community bans
 //      promotion" or "Not my audience" (from feedback.json, see lib/learn.js). Never dropped.
-//   9. Keep the top maxCandidates (settings.json, default 40).
-//  10. Fetch thread context (comments, solved, locked…) for the top maxContext (default 15)
+//  10. Keep the top maxCandidates (settings.json, default 40).
+//  11. Fetch thread context (comments, solved, locked…) for the top maxContext (default 15)
 //      through each adapter's optional context() method. Paid sources only if
 //      settings.contextForPaidSources is true, and always within their caps.
-//  11. Write candidates.json (+ a summary of how many posts each step dropped: counts only)
+//  12. Write candidates.json (+ a summary of how many posts each step dropped: counts only)
 //      and record every API call in usage.json.
 //
 // The agent then scores ONLY candidates.json.
@@ -46,7 +47,7 @@ import { loadSeen } from "./lib/seen.js";
 import { loadUsage, recordUsage } from "./lib/usage.js";
 import { sinceDate, excerpt, stripHtml, collapseWhitespace, toIsoDate } from "./lib/normalize.js";
 import { webIdFor } from "./lib/scored.js";
-import { dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, preScoreAll, penalizeCommunities, keepTop, droppedSummary } from "./lib/filters.js";
+import { dropTooOld, dropExcluded, dropSeen, dropLanguages, dedupeCrossPosts, preScoreAll, dropLowPreScore, penalizeCommunities, keepTop, droppedSummary } from "./lib/filters.js";
 import { tryReadFeedback, BROKEN_FEEDBACK } from "./lib/feedback.js";
 import { communityPenalties, COMMUNITY_PENALTY } from "./lib/learn.js";
 import { paidBudget, paidCaps, quotaBudget, safeReason } from "./search.js";
@@ -163,8 +164,8 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
   let posts = [...byId.values()];
   const considered = posts.length;
 
-  // 2–9. The prefilter. Each step reports how many it dropped.
-  const dropped = { tooOld: 0, excluded: 0, alreadyReported: 0, language: 0, duplicate: 0, belowCutoff: 0 };
+  // 2–10. The prefilter. Each step reports how many it dropped.
+  const dropped = { tooOld: 0, excluded: 0, alreadyReported: 0, language: 0, duplicate: 0, lowScore: 0, belowCutoff: 0 };
   let step;
   step = dropTooOld(posts, since); posts = step.kept; dropped.tooOld += step.dropped;
   step = dropExcluded(posts, profile.exclude); posts = step.kept; dropped.excluded += step.dropped;
@@ -172,6 +173,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
   step = dropLanguages(posts, profile.languages ?? ["en"]); posts = step.kept; dropped.language += step.dropped;
   step = dedupeCrossPosts(posts); posts = step.kept; dropped.duplicate += step.dropped;
   posts = preScoreAll(posts, profile, now);
+  step = dropLowPreScore(posts); posts = step.kept; dropped.lowScore += step.dropped;
   const penalty = penalizeCommunities(posts, communityPenalties(feedback, raw.app), COMMUNITY_PENALTY);
   posts = penalty.posts;
   step = keepTop(posts, settings.maxCandidates ?? 40); posts = step.kept; dropped.belowCutoff += step.dropped;
@@ -187,7 +189,7 @@ export async function buildCandidates({ raw, web = null, profile, settings, env 
   // per-source "fetched" totals, so never report fewer than the posts actually in the file.
   const foundByApis = Math.max((raw.sources ?? []).reduce((sum, s) => sum + (s.fetched ?? 0), 0), (raw.posts ?? []).length);
 
-  // 10. Thread context for the best few.
+  // 11. Thread context for the best few.
   const meters = {};
   const contextStats = { fetched: 0, failed: 0, paidOff: 0, capped: 0, unsupported: 0 };
   const appNames = [profile.name];

@@ -2,7 +2,7 @@
 
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import x, { _resetFieldsParam } from "../skills/markit-find/scripts/adapters/x.js";
+import x, { _resetFieldsParam, xQuery } from "../skills/markit-find/scripts/adapters/x.js";
 import { fakeFetch, json, fast } from "./helpers/fake-fetch.js";
 
 const TOKEN = "AAAA_BEARER_SECRET_123";
@@ -13,14 +13,24 @@ const tweet = (id) => ({ id, text: "TripIt keeps losing my race weekend bookings
 
 beforeEach(() => _resetFieldsParam());
 
-test("recent search: topic + -is:retweet, bearer header, no paid author expansion", async () => {
+test("xQuery: a long keyword shortens only the topic, so the query stays valid and ≤ 512 chars", () => {
+  const q = xQuery(`app for ${"very long topic words ".repeat(40)}`);
+  assert.ok(q.length <= 512, String(q.length));
+  assert.ok(q.endsWith(") -is:retweet"));
+  assert.equal(q.split("(").length, q.split(")").length, "parentheses balanced");
+});
+
+test("recent search: topic + asking words + -is:retweet, bearer header, no paid author expansion", async () => {
   const fetchImpl = fakeFetch([json({ data: [tweet("1"), tweet("2")], meta: { result_count: 2 } })]);
   const since = recent();
   const meter = {};
   const posts = await x.search("alternative to TripIt", { since, limit: 25, env, meter, budget: { posts: 30 }, http: { fetchImpl } });
   const { url, init } = fetchImpl.calls[0];
   assert.equal(url.origin + url.pathname, "https://api.x.com/2/tweets/search/recent");
-  assert.equal(url.searchParams.get("query"), "TripIt -is:retweet");
+  const query = url.searchParams.get("query");
+  assert.ok(query.startsWith("TripIt (app OR apps OR recommend OR "), query);
+  assert.ok(query.includes(' OR "looking for" OR '), "multi-word asking phrases are quoted");
+  assert.ok(query.endsWith(' OR "what do you use") -is:retweet'), query);
   assert.equal(url.searchParams.get("max_results"), "25");
   assert.equal(url.searchParams.get("start_time"), since.toISOString());
   assert.equal(url.searchParams.get("tweet.fields"), "created_at,public_metrics,lang");
