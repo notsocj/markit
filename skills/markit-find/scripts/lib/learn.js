@@ -18,6 +18,14 @@
 //   2. Communities you keep skipping, with the main reason.
 //   3. Calibration: how often high-score cards (≥ 75) were still skipped, and why.
 //   4. Your 10 most recent notes.
+//   5. Source health (the last 5 runs' scored.json, plus your replies):
+//        dead        over ≥ 2 runs, ≥ 20 of its posts were judged and none scored medium or
+//                    high, you replied to none of them, AND the app's other sources did find
+//                    something: suggest removing the source. When nothing worked anywhere,
+//                    the keywords are the problem, not the sources, so nothing is flagged.
+//        ok          enough data (≥ 20 judged over ≥ 2 runs);  new  not enough data yet
+//      Medium is the bar, not low: in real runs up to 2026-11-08, YouTube gave 0 medium in
+//      ~115 judged posts across four apps, and nobody acted on its 5 lows.
 //
 // Every threshold is a named constant below, so a learner can read and tweak them.
 
@@ -40,6 +48,9 @@ export const PENALTY_REASONS = ["bans_promotion", "not_my_audience"];
 export const COMMUNITY_PENALTY = 15;
 export const MAX_NOTES = 10;
 export const MAX_COMMUNITIES = 5;
+export const SOURCE_DEAD_MIN_JUDGED = 20;
+export const SOURCE_DEAD_MIN_RUNS = 2;
+const USEFUL = ["high", "medium"];
 
 const RUN_NAME = /^\d{4}-\d{2}-\d{2}-\d{4}(-\d{1,3})?$/;
 const lower = (s) => String(s ?? "").trim().toLowerCase();
@@ -60,11 +71,13 @@ export function reasonsText(reasons = {}) {
 }
 
 /**
- * How many candidates each keyword produced in the app's most recent runs.
+ * How many candidates each keyword produced in the app's most recent runs, and (from
+ * scored.json, when the run got that far) how many posts per source the agent judged and how
+ * many of those scored medium or high.
  * Reads <reportsDir>/<app>/<run>/candidates.json (or raw.json for runs made before
- * candidates.js existed). Counts only; no post text is kept.
+ * candidates.js existed) and scored.json. Counts only; no post text is kept.
  *
- * @returns {{ run: string, counts: Record<string, number> }[]} newest first
+ * @returns {{ run: string, counts: Record<string, number>, sources: Record<string, { judged: number, useful: number }> | null }[]} newest first
  */
 export function loadRunHistory(appReportsDir, limit = RUNS_FOR_DEAD) {
   let names = [];
@@ -81,7 +94,19 @@ export function loadRunHistory(appReportsDir, limit = RUNS_FOR_DEAD) {
       const cand = readJsonFile(path.join(dir, "candidates.json"), null);
       const posts = Array.isArray(cand?.candidates) ? cand.candidates : readJsonFile(path.join(dir, "raw.json"), null)?.posts;
       if (!Array.isArray(posts)) continue; // a run that never got past search
-      runs.push({ run, counts: tally(posts.map((p) => lower(p?.matchedKeyword))) });
+      const scored = readJsonFile(path.join(dir, "scored.json"), null);
+      const judged = Array.isArray(scored?.posts) ? scored.posts : Array.isArray(scored) ? scored : null;
+      let sources = null;
+      if (judged) {
+        sources = {};
+        for (const p of judged) {
+          if (typeof p?.source !== "string") continue;
+          const s = (sources[p.source] ??= { judged: 0, useful: 0 });
+          s.judged++;
+          if (p.intent !== "irrelevant" && USEFUL.includes(p.priority)) s.useful++;
+        }
+      }
+      runs.push({ run, counts: tally(posts.map((p) => lower(p?.matchedKeyword))), sources });
     } catch {
       // a broken run folder is skipped
     }
@@ -132,6 +157,39 @@ export function keywordHealth({ entries, app, keywords = [], runs = [], now = ne
       candidatesRecent,
     };
   });
+}
+
+/**
+ * Source health for each of the profile's sources, over the last RUNS_FOR_DEAD runs that
+ * were scored. A source is "dead" when it keeps bringing posts and none were worth it.
+ *
+ * @param {object} args
+ * @param {object[]} args.entries - feedback entries (your Replied marks count as useful)
+ * @param {string} args.app
+ * @param {string[]} args.sources - the profile's sources
+ * @param {{ sources }[]} [args.runs] - from loadRunHistory, newest first
+ */
+export function sourceHealth({ entries, app, sources = [], runs = [], now = new Date() }) {
+  const since = now.getTime() - HEALTH_DAYS * 86400000;
+  const scoredRuns = runs.filter((r) => r.sources).slice(0, RUNS_FOR_DEAD);
+  const repliedFrom = (source) => entries.filter((e) => e.app === app && e.source === source && isUserEntry(e) && e.status === "replied" && new Date(e.decidedAt).getTime() >= since).length;
+  const health = sources.map((source) => {
+    const seen = scoredRuns.map((r) => r.sources[source]).filter((s) => s?.judged);
+    const judged = seen.reduce((sum, s) => sum + s.judged, 0);
+    const useful = seen.reduce((sum, s) => sum + s.useful, 0);
+    const enough = judged >= SOURCE_DEAD_MIN_JUDGED && seen.length >= SOURCE_DEAD_MIN_RUNS;
+    return { source, flag: enough ? "ok" : "new", runs: seen.length, judged, useful, replied: repliedFrom(source) };
+  });
+  // Dead only next to a source that worked (see the header): otherwise every source of an app
+  // with weak keywords would be flagged, the good ones included.
+  const somethingWorked = health.some((x) => x.useful || x.replied);
+  for (const x of health) if (x.flag === "ok" && somethingWorked && !x.useful && !x.replied) x.flag = "dead";
+  return health;
+}
+
+/** "46 judged in 3 runs · 0 medium or high · 0 replied". */
+export function sourceDetail(s) {
+  return `${s.judged} judged in ${s.runs} run${s.runs === 1 ? "" : "s"} · ${s.useful} medium or high · ${s.replied} replied`;
 }
 
 /** One line of detail: "6 shown · 3 replied · 2 skipped (wrong meaning 2) · 1 judged irrelevant". */
@@ -195,13 +253,14 @@ export function recentNotes(entries, app, max = MAX_NOTES) {
 }
 
 /** Everything learned for one app, as data. */
-export function buildLessons({ entries, app, keywords = [], runs = [], now = new Date() }) {
+export function buildLessons({ entries, app, keywords = [], sources = [], runs = [], now = new Date() }) {
   const mine = entries.filter((e) => e.app === app);
   return {
     app,
     decisions: mine.filter(isUserEntry).length,
     agentVerdicts: mine.length - mine.filter(isUserEntry).length,
     keywords: keywordHealth({ entries, app, keywords, runs, now }),
+    sources: sourceHealth({ entries, app, sources, runs, now }),
     communities: communitySkips(entries, app).slice(0, MAX_COMMUNITIES),
     penalties: communityPenalties(entries, app),
     calibration: calibration(entries, app),
@@ -229,6 +288,15 @@ export function formatLessons(lessons) {
     lines.push(`Keyword health (last ${HEALTH_DAYS} days):`);
     for (const k of keywords) if (!quiet.includes(k)) lines.push(`  - "${cleanText(k.keyword, 80)}": ${k.flag} · ${healthDetail(k)}`);
     if (quiet.length) lines.push(`  - no matches decided yet: ${quiet.map((k) => `"${cleanText(k.keyword, 60)}"`).join(", ")}`);
+  }
+
+  const sourcesSeen = (lessons.sources ?? []).filter((x) => x.judged);
+  if (sourcesSeen.length) {
+    lines.push(`Source health (last ${RUNS_FOR_DEAD} scored runs):`);
+    for (const x of sourcesSeen) {
+      const advice = x.flag === "dead" ? " → suggest removing it from the profile (only if the user says yes)" : "";
+      lines.push(`  - ${x.source}: ${x.flag} · ${sourceDetail(x)}${advice}`);
+    }
   }
 
   if (communities.length) {

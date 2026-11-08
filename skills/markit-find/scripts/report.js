@@ -21,7 +21,8 @@
 //   6. Add a "Keyword health" section (lib/learn.js) with any keyword replacements the agent
 //      proposed in scored.json → keywordSuggestions. Proposals only: the profile is never
 //      changed here.
-//   7. Print a 3-line summary.
+//   7. Print a 3-line summary, with a note naming any keyword or SOURCE that's dead (a source
+//      whose recent posts never scored medium or high while other sources did).
 
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
@@ -34,7 +35,7 @@ import { renderReport, sourceLabel } from "./lib/render-report.js";
 import { loadSeenDates, addSeen } from "./lib/seen.js";
 import { setLastRun } from "./lib/usage.js";
 import { tryReadFeedback, writeFeedback, mergeAgentVerdicts, BROKEN_FEEDBACK } from "./lib/feedback.js";
-import { keywordHealth, loadRunHistory } from "./lib/learn.js";
+import { keywordHealth, sourceHealth, loadRunHistory } from "./lib/learn.js";
 
 /**
  * Text for the TERMINAL. Post titles are untrusted, and a terminal interprets escape
@@ -51,15 +52,17 @@ function plain(text, max = 45) {
  * @param {object} args - raw, scored, seenDates, candidates, now, timeZone, plus:
  * @param {object[]} [args.feedback] - feedback.json entries (before this run)
  * @param {string[]} [args.keywords] - the profile's keywords, for the Keyword health section
- * @param {{ counts }[]} [args.runs] - recent runs' keyword counts (lib/learn.js loadRunHistory)
- * @returns {{ markdown, numbered, fresh, skippedSeen, unscored, prefilter, feedback, keywordHealth }}
+ * @param {string[]} [args.sources] - the profile's sources, for Source health
+ * @param {{ counts, sources }[]} [args.runs] - recent runs' counts (lib/learn.js loadRunHistory)
+ * @returns {{ markdown, numbered, fresh, skippedSeen, unscored, prefilter, feedback, keywordHealth, sourceHealth }}
  *   fresh         posts to mark as seen (reported + irrelevant)
  *   skippedSeen   posts dropped because an earlier run already reported them
  *   unscored      raw.json posts the agent left out of scored.json
  *   feedback      the feedback entries to save (with this run's agent verdicts)
  *   keywordHealth { days, keywords, suggestions } or null when there's nothing to show
+ *   sourceHealth  one entry per profile source (lib/learn.js sourceHealth)
  */
-export function buildReport({ raw, scored, seenDates = {}, now = new Date(), timeZone, candidates = null, feedback = [], keywords = [], runs = [] }) {
+export function buildReport({ raw, scored, seenDates = {}, now = new Date(), timeZone, candidates = null, feedback = [], keywords = [], sources = [], runs = [] }) {
   // Ids the agent may use: everything search.js found, plus candidates.js's list (which
   // includes the web results it gave ids to).
   const pool = candidates?.candidates ?? [];
@@ -98,10 +101,11 @@ export function buildReport({ raw, scored, seenDates = {}, now = new Date(), tim
   const health = keywordHealth({ entries: newFeedback, app: raw.app, keywords, runs, now });
   const worthShowing = suggestions.length || health.some((k) => k.shown || k.flag === "dead");
   const kwHealth = worthShowing ? { days: 30, keywords: health, suggestions } : null;
+  const srcHealth = sourceHealth({ entries: newFeedback, app: raw.app, sources, runs, now });
 
   const prefilter = candidates?.prefilter;
   const { markdown, numbered } = renderReport({ raw, posts: fresh, now, timeZone, prefilter, keywordHealth: kwHealth });
-  return { markdown, numbered, fresh, skippedSeen: posts.length - fresh.length, unscored, prefilter, feedback: newFeedback, keywordHealth: kwHealth };
+  return { markdown, numbered, fresh, skippedSeen: posts.length - fresh.length, unscored, prefilter, feedback: newFeedback, keywordHealth: kwHealth, sourceHealth: srcHealth };
 }
 
 // The fields a card needs, and nothing else (cards.json is read by the dashboard).
@@ -125,7 +129,7 @@ export function buildCards(raw, numbered, prefilter, keywordHealth = null) {
 }
 
 /** The 3-line terminal summary (plus a note line if something needs attention). */
-export function formatSummary({ app, numbered, reportPath, skippedSeen = 0, unscored = 0, keywordHealth = null }) {
+export function formatSummary({ app, numbered, reportPath, skippedSeen = 0, unscored = 0, keywordHealth = null, sourceHealth = [] }) {
   const count = (p) => numbered.filter((n) => n.post.priority === p).length;
   const total = numbered.length;
   const lines = [
@@ -142,6 +146,8 @@ export function formatSummary({ app, numbered, reportPath, skippedSeen = 0, unsc
   if (unscored) notes.push(`${unscored} post(s) from raw.json weren't in scored.json (they'll show up again next run)`);
   const flagged = (keywordHealth?.keywords ?? []).filter((k) => k.flag === "noisy" || k.flag === "dead");
   if (flagged.length) notes.push(`keyword health: ${flagged.map((k) => `"${plain(k.keyword, 40)}" is ${k.flag}`).join(", ")} (see the end of report.md)`);
+  const dead = sourceHealth.filter((x) => x.flag === "dead");
+  if (dead.length) notes.push(`source health: ${dead.map((x) => `${plain(x.source, 20)} is dead (${x.judged} posts judged in ${x.runs} runs, none medium or high)`).join(", ")}; ask before removing ${dead.length === 1 ? "it" : "them"} from the profile`);
   if (notes.length) lines.push(`Note: ${notes.join("; ")}.`);
   return lines.join("\n");
 }
@@ -159,23 +165,27 @@ function main() {
 
   const paths = getPaths();
   const now = new Date();
-  // The profile's keywords, for Keyword health. A deleted profile just means no section.
+  // The profile's keywords and sources, for Keyword and Source health. A deleted profile
+  // just means no health notes.
   let keywords = [];
+  let sources = [];
   try {
-    const kw = loadApp(raw.app, paths).keywords;
-    if (Array.isArray(kw)) keywords = kw.filter((k) => typeof k === "string");
+    const profile = loadApp(raw.app, paths);
+    if (Array.isArray(profile.keywords)) keywords = profile.keywords.filter((k) => typeof k === "string");
+    if (Array.isArray(profile.sources)) sources = profile.sources.filter((x) => typeof x === "string");
   } catch {}
   // A broken feedback.json skips the learning parts (no agent verdicts saved, no Keyword
   // health) but never stops the report, and is never overwritten.
   const fb = tryReadFeedback(paths.feedbackFile, { legacyStatusFile: paths.statusFile, now });
-  if (fb.broken) keywords = [];
-  const { markdown, numbered, fresh, skippedSeen, unscored, prefilter, feedback, keywordHealth } = buildReport({
+  if (fb.broken) keywords = sources = [];
+  const { markdown, numbered, fresh, skippedSeen, unscored, prefilter, feedback, keywordHealth, sourceHealth } = buildReport({
     raw,
     scored: readJsonFile(scoredPath, null),
     seenDates: loadSeenDates(paths.seenFile),
     candidates: readJsonFile(path.join(runDir, "candidates.json"), null),
     feedback: fb.entries,
     keywords,
+    sources,
     // The run folder's parent is <reportsDir>/<app>, which holds this app's other runs.
     runs: loadRunHistory(path.dirname(runDir)),
     now,
@@ -188,7 +198,7 @@ function main() {
   addSeen(fresh.map((p) => p.id), paths.seenFile);
   setLastRun({ app: raw.app, ranAt: raw.ranAt, opportunities: numbered.length }, paths.usageFile);
 
-  console.log(formatSummary({ app: raw.app, numbered, reportPath, skippedSeen, unscored, keywordHealth }));
+  console.log(formatSummary({ app: raw.app, numbered, reportPath, skippedSeen, unscored, keywordHealth, sourceHealth }));
   if (fb.broken) console.log(`Note: ${BROKEN_FEEDBACK}`);
 }
 

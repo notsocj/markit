@@ -7,8 +7,9 @@
 // The agent runs this before scoring (see SKILL.md) and applies the lessons: stricter on
 // noisy keywords, careful with communities you skip for promotion rules, and so on.
 //
-// Reads only: feedback.json, the app's profile (for its keywords), settings.json (to find
-// the reports folder), and the app's last few runs' candidates.json (counts only).
+// Reads only: feedback.json, the app's profile (for its keywords and sources), settings.json
+// (to find the reports folder), and the app's last few runs' candidates.json and scored.json
+// (counts only).
 // Never reads .env. Prints no keys (there are none in any of those files).
 //
 // Notes and titles come from you and from strangers' posts. They're printed as data,
@@ -42,10 +43,11 @@ export function lessonsFor(app, paths = getPaths(), now = new Date()) {
   validateAppName(app);
   const profile = loadApp(app, paths);
   const keywords = Array.isArray(profile.keywords) ? profile.keywords.filter((k) => typeof k === "string") : [];
+  const sources = Array.isArray(profile.sources) ? profile.sources.filter((x) => typeof x === "string") : [];
   const { reportsDir } = loadSettings(paths);
   const entries = readFeedback(paths.feedbackFile, { legacyStatusFile: paths.statusFile, now });
   const runs = loadRunHistory(path.join(reportsDir, app));
-  return { entries, lessons: buildLessons({ entries, app, keywords, runs, now }) };
+  return { entries, lessons: buildLessons({ entries, app, keywords, sources, runs, now }) };
 }
 
 function main() {

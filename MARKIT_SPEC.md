@@ -896,6 +896,12 @@ Reasons (codes → labels): `not_my_audience` Not my audience · `already_solved
 
 `learned.js` prints it as a "Lessons" block of ≤ ~40 lines (≤ 8 keywords, 5 communities, 10 notes). `--examples` prints, for noisy/dead keywords, up to 5 titles each keyword wrongly matched plus up to 5 titles the user replied to (labeled untrusted), as material for keyword suggestions. Reads feedback.json, the profile, settings.json, and recent runs' candidates.json only; never .env.
 
+### Source health (`sourceHealth()` in `lib/learn.js`)
+Per profile source, over the app's last 5 runs that have a `scored.json` (`loadRunHistory()` also counts, per source, posts judged and posts scored medium or high), plus the user's Replied marks from that source in the last 30 days:
+- **dead**: ≥ 20 posts judged over ≥ 2 runs, none medium or high, none replied, **and** another of the app's sources did find something. When nothing worked anywhere, the keywords are the problem, so no source is flagged.
+- **ok**: ≥ 20 judged over ≥ 2 runs; **new**: less data than that.
+Shown in the Lessons block (`learned.js`) and in report.js's summary note; the agent names a dead source with its numbers and asks before removing it (the profile changes only after the user says yes, like keywords). Medium is the bar, not low: on the saved runs up to 2026-11-08 this flags YouTube and X for gridpeek and YouTube for ledge, and nothing for apps where no source has worked yet.
+
 ### Use it
 
 - **Prefilter (candidates.js):** after pre-scoring, posts from communities skipped ≥ 3 times (this app) for "Community bans promotion" or "Not my audience" get −15 and the reason `often skipped: <reason>`. Never dropped. `prefilter.oftenSkipped` counts them.

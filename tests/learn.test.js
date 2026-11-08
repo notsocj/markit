@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { entryFrom, AGENT_REASON } from "../skills/markit-find/scripts/lib/feedback.js";
 import {
   keywordHealth, communitySkips, communityPenalties, calibration, recentNotes, buildLessons, formatLessons,
-  loadRunHistory, keywordExamples, healthDetail, RUNS_FOR_DEAD,
+  loadRunHistory, keywordExamples, healthDetail, RUNS_FOR_DEAD, sourceHealth,
 } from "../skills/markit-find/scripts/lib/learn.js";
 import { penalizeCommunities } from "../skills/markit-find/scripts/lib/filters.js";
 import { buildCandidates } from "../skills/markit-find/scripts/candidates.js";
@@ -94,6 +94,56 @@ test("loadRunHistory counts candidates per keyword from the newest runs (raw.jso
   assert.deepEqual(history.map((r) => r.run), ["2026-10-21-0900", "2026-10-20-0900"]);
   assert.deepEqual(history[0].counts, { "alternative to tripit": 2 });
   assert.deepEqual(loadRunHistory(join(dir, "missing")), []);
+});
+
+// --- source health ---------------------------------------------------------------------------
+
+const srcRuns = (list) => list.map((sources, i) => ({ run: `run-${i}`, counts: {}, sources }));
+
+test("source health: dead only when other sources found something; ok and new need 20 judged over 2 runs", () => {
+  const history = srcRuns([
+    { youtube: { judged: 12, useful: 0 }, reddit: { judged: 6, useful: 1 }, x: { judged: 15, useful: 0 } },
+    { youtube: { judged: 10, useful: 0 }, reddit: { judged: 5, useful: 0 } },
+    null, // a run that was never scored doesn't count
+  ]);
+  const health = Object.fromEntries(sourceHealth({ entries: [], app: "gridpeek", sources: ["youtube", "reddit", "x", "bluesky"], runs: history, now: NOW }).map((x) => [x.source, x]));
+  assert.deepEqual([health.youtube.flag, health.youtube.judged, health.youtube.runs], ["dead", 22, 2]);
+  assert.equal(health.reddit.flag, "new", "11 judged is not enough data");
+  assert.equal(health.x.flag, "new", "one run is not enough, however many posts");
+  assert.deepEqual([health.bluesky.flag, health.bluesky.judged], ["new", 0]);
+
+  // Nothing useful anywhere: the keywords are the problem, so no source is called dead.
+  const nothing = srcRuns([{ youtube: { judged: 12, useful: 0 }, reddit: { judged: 12, useful: 0 } }, { youtube: { judged: 12, useful: 0 }, reddit: { judged: 12, useful: 0 } }]);
+  assert.deepEqual(sourceHealth({ entries: [], app: "gridpeek", sources: ["youtube", "reddit"], runs: nothing, now: NOW }).map((x) => x.flag), ["ok", "ok"]);
+
+  // A Replied mark from a source counts as useful (for that source and as "something worked").
+  const replied = [fb({ source: "reddit", status: "replied" })];
+  const r = sourceHealth({ entries: replied, app: "gridpeek", sources: ["youtube", "reddit"], runs: nothing, now: NOW });
+  assert.deepEqual(r.map((x) => [x.source, x.flag, x.replied]), [["youtube", "dead", 0], ["reddit", "ok", 1]]);
+});
+
+test("loadRunHistory counts judged and medium-or-high posts per source from scored.json", () => {
+  const dir = mkdtempSync(join(tmpdir(), "markit-runs-"));
+  mkdirSync(join(dir, "2026-10-21-0900"));
+  writeFileSync(join(dir, "2026-10-21-0900", "candidates.json"), JSON.stringify({ candidates: [] }));
+  writeFileSync(join(dir, "2026-10-21-0900", "scored.json"), JSON.stringify({ posts: [
+    { source: "youtube", intent: "irrelevant" }, { source: "youtube", intent: "problem_discussion", priority: "low" },
+    { source: "reddit", intent: "asking_for_recommendation", priority: "medium" }, { source: "reddit", intent: "asking_for_recommendation", priority: "high" },
+  ] }));
+  mkdirSync(join(dir, "2026-10-22-0900"));
+  writeFileSync(join(dir, "2026-10-22-0900", "candidates.json"), JSON.stringify({ candidates: [] })); // not scored yet
+  const [newest, older] = loadRunHistory(dir);
+  assert.equal(newest.sources, null);
+  assert.deepEqual(older.sources, { youtube: { judged: 2, useful: 0 }, reddit: { judged: 2, useful: 2 } });
+});
+
+test("a dead source shows in the Lessons block and in report.js's summary note", () => {
+  const history = srcRuns([{ youtube: { judged: 12, useful: 0 }, reddit: { judged: 6, useful: 1 } }, { youtube: { judged: 10, useful: 0 } }]);
+  const text = formatLessons(buildLessons({ entries: [], app: "gridpeek", sources: ["youtube", "reddit"], runs: history, now: NOW }));
+  assert.match(text, /Source health/);
+  assert.match(text, /youtube: dead · 22 judged in 2 runs · 0 medium or high · 0 replied → suggest removing it from the profile \(only if the user says yes\)/);
+  const health = sourceHealth({ entries: [], app: "gridpeek", sources: ["youtube", "reddit"], runs: history, now: NOW });
+  assert.match(formatSummary({ app: "gridpeek", numbered: [], reportPath: "/r.md", sourceHealth: health }), /source health: youtube is dead \(22 posts judged in 2 runs, none medium or high\); ask before removing it/);
 });
 
 // --- communities, calibration, notes -------------------------------------------------------
