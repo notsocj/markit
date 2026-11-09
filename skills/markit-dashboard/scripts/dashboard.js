@@ -14,7 +14,7 @@
 //   GET  /app-icon/<app>   that app's icon (apps/<app>.png etc., saved by /markit-setup)
 //   GET  /api/runs?app=    that app's runs, newest first
 //   GET  /api/cards?app=&run=latest|all|<run>   cards (with Replied/Skipped status) + stats
-//                          + prefilter line + keyword health (for the Keywords panel)
+//                          + prefilter line + keyword and source health (Analytics panels)
 //   POST /api/status       { id, status, reason?, note? }: status in replied, skipped, open;
 //                          reason (skipped only) from a fixed list; note ≤ 140 chars, plain text
 //   GET  /api/settings     Settings page: which keys are SET (true/false, never values), and
@@ -260,11 +260,11 @@ export function createDashboard({ reportsDir, feedbackFile, legacyStatusFile, en
         const statusMap = data.readStatus(feedbackFile, legacyStatusFile);
         const cards = run ? data.loadCards(reportsDir, app, run, statusMap) : [];
         const prefilter = run && run !== "all" ? data.runPrefilter(reportsDir, app, run) : "";
-        // Keyword health: from the chosen run, or the newest run when showing all of them.
+        // Keyword and source health: from the chosen run, or the newest run when showing all of them.
         const healthRun = run === "all" ? data.latestRun(reportsDir, app) : run;
-        const keywordHealth = healthRun ? data.runKeywordHealth(reportsDir, app, healthRun) : null;
+        const { keywordHealth, sourceHealth } = healthRun ? data.runHealth(reportsDir, app, healthRun) : { keywordHealth: null, sourceHealth: null };
         const warning = data.feedbackWarning(feedbackFile, legacyStatusFile); // "" unless feedback.json is broken
-        return sendJson(req, res, 200, { app, run, cards, prefilter, keywordHealth, warning, stats: data.computeStats(cards, statusMap) });
+        return sendJson(req, res, 200, { app, run, cards, prefilter, keywordHealth, sourceHealth, warning, stats: data.computeStats(cards, statusMap) });
       }
       return sendJson(req, res, 404, { error: "not found" });
     }

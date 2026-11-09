@@ -336,6 +336,8 @@
   .kw-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; font-size: 13px; }
   .kw-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .kw-detail { grid-column: 1 / -1; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .src-health-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 500; }
+  .src-health-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .flag { font-size: 11.5px; font-weight: 600; border-radius: 6px; padding: 1px 8px; }
   .flag-productive { background: var(--ok-soft); color: var(--ok); }
   .flag-noisy { background: var(--medium-soft); color: var(--medium); }
@@ -411,7 +413,7 @@
     .app.is-wide .detail-col { display: none; }
     .btn.d-back { display: inline-flex; margin-left: -8px; }
     .d-scroll { padding: 18px 16px; } .d-actions { padding: 12px 16px; } .d-sep { display: none; }
-    .toast { white-space: nowrap; max-width: calc(100vw - 24px); }
+    .toast { width: max-content; max-width: calc(100vw - 24px); } /* long messages wrap instead of running off screen */
     .d-actions kbd, .btn kbd, .chip kbd { display: none; }
     .key-row { grid-template-columns: 1fr; gap: 6px; }
     .analytics, .settings { padding: 18px 16px 32px; }
@@ -959,9 +961,9 @@ async function loadCards(token) {
 }
 
 async function loadAllForAnalytics(token) {
-  const { cards, stats, keywordHealth } = await api(cardsUrl("all"));
+  const { cards, stats, keywordHealth, sourceHealth } = await api(cardsUrl("all"));
   if (token !== navToken) return false;
-  state.allCards = { cards, stats, keywordHealth };
+  state.allCards = { cards, stats, keywordHealth, sourceHealth };
   return true;
 }
 
@@ -1229,6 +1231,7 @@ function renderAnalytics() {
       el("div", { cls: "card" }, [el("h2", {}, [icon("i-tag-linear", "ic ic-sm"), "Top keywords"]), byKeyword.length ? hbars(byKeyword, total) : el("p", { cls: "muted", text: "No data yet." })]),
       el("div", { cls: "card" }, [el("h2", {}, [icon("i-target-linear", "ic ic-sm"), "What people are asking"]), byIntent.length ? hbars(byIntent, total) : el("p", { cls: "muted", text: "No data yet." })]),
       keywordPanel(state.allCards?.keywordHealth),
+      sourcePanel(state.allCards?.sourceHealth),
     ]),
   ]));
 }
@@ -1260,6 +1263,36 @@ function keywordPanel(kh) {
           el("div", { cls: "kw-sugg-foot" }, [el("span", { text: "Nothing changes until you say yes to your agent." }), copy]),
         ]);
       }),
+    ]));
+  }
+  return el("div", { cls: "card" }, parts);
+}
+
+// Source health from the newest run's cards.json: per profile source, how many posts the
+// last 5 scored runs judged and how many were medium or high. A dead source only gets a
+// ready-to-paste "Yes, remove…" message; nothing changes until you say yes to your agent.
+function sourcePanel(sh) {
+  const head = el("h2", {}, [icon("i-global-linear", "ic ic-sm"), "Source health"]);
+  if (!sh || !sh.length) {
+    return el("div", { cls: "card" }, [head, el("p", { cls: "muted", text: "After a few scored runs, marKit shows here which sources bring posts worth replying to." })]);
+  }
+  const rows = el("div", { cls: "kw-list" }, sh.map((s) => el("div", { cls: "kw-row" }, [
+    el("span", { cls: "src-health-name" }, [platBadge({ source: s.source, platform: s.label }), el("span", { text: s.label, attrs: { title: s.label } })]),
+    el("span", { cls: "flag flag-" + s.flag, text: HEALTH_LABELS[s.flag] || s.flag }),
+    el("span", { cls: "kw-detail", text: s.detail }),
+  ])));
+  const parts = [head, rows];
+  const dead = sh.filter((s) => s.flag === "dead");
+  if (dead.length) {
+    const names = dead.map((s) => s.label);
+    const ask = "Yes, remove " + names.join(" and ") + " from my " + state.app + " profile's sources";
+    const copy = el("button", { cls: "link-btn", attrs: { type: "button" } }, [icon("i-copy-linear", "ic ic-sm"), "Copy"]);
+    copy.addEventListener("click", () => copyText(ask, "Copied. Paste it in your agent's chat to update the profile."));
+    parts.push(el("div", { cls: "kw-sugg" }, [
+      el("div", { cls: "kw-sugg-item" }, [
+        el("span", { cls: "muted", text: names.join(" and ") + ": nothing worth replying to while your other sources found some. Removing " + (dead.length === 1 ? "it" : "them") + " makes runs faster (and cheaper for paid sources)." }),
+        el("div", { cls: "kw-sugg-foot" }, [el("span", { text: "Nothing changes until you say yes to your agent." }), copy]),
+      ]),
     ]));
   }
   return el("div", { cls: "card" }, parts);

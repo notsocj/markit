@@ -56,6 +56,7 @@ When you skip a card, marKit asks why with one tap: *Not my audience*, *Already 
 All of it goes to `~/.config/markit/feedback.json` (kept 180 days), together with the agent's own "irrelevant" verdicts. Plain scripts, no AI, turn it into lessons:
 
 - **Keyword health.** Each keyword is rated *productive* (leads to replies), *noisy* (mostly wrong-meaning or off-audience posts), or *dead* (nothing found in the last 5 runs). For noisy or dead keywords, your agent proposes up to 3 replacements, in the chat summary, at the end of report.md, and in the dashboard. **Your profile never changes until you say yes.**
+- **Source health.** A source is flagged *dead* when, over its last 5 scored runs, it brought 20+ posts and none was worth replying to (medium or high) while your other sources found some. Shown in the chat summary, at the end of report.md, and in the dashboard; it's only a suggestion to remove the source. **Your profile never changes until you say yes.**
 - **Communities you keep skipping.** A subreddit or forum skipped 3+ times for "Community bans promotion" or "Not my audience" drops 15 points in the prefilter. It's never hidden; your agent still decides.
 - **Calibration and notes.** How often high-score cards were skipped anyway, and why, plus your latest notes, so the agent scores closer to your judgment.
 

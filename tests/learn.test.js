@@ -299,6 +299,22 @@ test("report.md gets a Keyword health section with the agent's proposed replacem
   assert.equal(quiet.keywordHealth, null);
 });
 
+test("report.md and cards.json get a Source health table once a source can be judged", () => {
+  const runs = srcRuns([{ youtube: { judged: 12, useful: 0 }, reddit: { judged: 6, useful: 1 } }, { youtube: { judged: 10, useful: 0 } }]);
+  const r = buildReport({ raw: rawRun(), scored: scoredRun(), now: NOW, timeZone: "UTC", sources: ["youtube", "reddit"], runs });
+  assert.match(r.markdown, /## Source health/);
+  assert.match(r.markdown, /\| YouTube \| dead \| 22 judged in 2 runs · 0 medium or high · 0 replied \|/);
+  assert.match(r.markdown, /\| Reddit \| new \| 6 judged in 1 run · 1 medium or high · 0 replied \|/);
+  assert.match(r.markdown, /nothing changes until you say yes/);
+  assert.ok(r.markdown.indexOf("## Source health") > r.markdown.indexOf("## High priority"), "at the end");
+  assert.deepEqual(buildCards(rawRun(), r.numbered, null, null, r.sourceHealthShown).sourceHealth.map((s) => [s.source, s.flag]), [["youtube", "dead"], ["reddit", "new"]]);
+  // Every source still "new" → no section, nothing in cards.json, summary has no note.
+  const early = buildReport({ raw: rawRun(), scored: scoredRun(), now: NOW, timeZone: "UTC", sources: ["youtube", "reddit"], runs: runs.slice(1) });
+  assert.doesNotMatch(early.markdown, /Source health/);
+  assert.equal(early.sourceHealthShown, null);
+  assert.equal(buildCards(rawRun(), early.numbered, null, null, early.sourceHealthShown).sourceHealth, null);
+});
+
 test("keywordSuggestions are validated: profile keywords only, 1–3 replacements", () => {
   assert.deepEqual(validateKeywordSuggestions({ posts: [] }, ["a"]), []);
   assert.deepEqual(validateKeywordSuggestions([], ["a"]), [], "bare arrays have no suggestions");

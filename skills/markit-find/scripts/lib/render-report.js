@@ -3,6 +3,7 @@
 // The report must be easy to scan in any editor or GitHub preview:
 //   header → counts → source table → High cards → Medium cards → Low list (collapsed)
 //   → Keyword health (when marKit has learned something about the keywords)
+//   → Source health (once at least one source has enough scored runs to judge)
 // Cards are numbered across the whole report, so the user can say "rewrite draft #3".
 //
 // SAFETY: titles, excerpts, site names, and authors come from strangers' posts. Markdown
@@ -15,7 +16,7 @@ import { PROVIDER_LABELS } from "./reddit.js";
 import { relativeTime, stripInvisible } from "./normalize.js";
 import { contextLine } from "./context.js";
 import { prefilterLine } from "./filters.js";
-import { healthDetail } from "./learn.js";
+import { healthDetail, sourceDetail } from "./learn.js";
 
 /** Escape untrusted text so markdown shows it literally, on a single line. */
 export function escapeMd(text) {
@@ -182,6 +183,22 @@ export function keywordHealthSection({ days = 30, keywords = [], suggestions = [
 }
 
 /**
+ * The "Source health" section: one row per profile source, from the last 5 scored runs.
+ * A dead source only gets a suggestion: the profile changes only after the user says yes.
+ */
+export function sourceHealthSection(sources = []) {
+  const lines = ["## Source health", "", "_How many posts each source brought over the last 5 scored runs, and how many the agent rated medium or high._", ""];
+  lines.push("| Source | Health | Details |", "|---|---|---|");
+  for (const s of sources) lines.push(`| ${escapeMd(SOURCE_LABELS[s.source] ?? s.source)} | ${escapeMd(s.flag)} | ${escapeMd(sourceDetail(s))} |`);
+  lines.push("");
+  if (sources.some((s) => s.flag === "dead")) {
+    lines.push("**Dead** means it keeps finding nothing worth replying to while your other sources do. Removing it makes runs faster (and cheaper for paid sources); nothing changes until you say yes.", "");
+  }
+  lines.push("---", "");
+  return lines.join("\n");
+}
+
+/**
  * Build the report.
  *
  * @param {object} args
@@ -191,9 +208,10 @@ export function keywordHealthSection({ days = 30, keywords = [], suggestions = [
  * @param {string} [args.timeZone] - for the header date (defaults to this computer's)
  * @param {object} [args.prefilter] - candidates.json's prefilter summary (counts only)
  * @param {object} [args.keywordHealth] - { keywords, suggestions } from report.js, or null
+ * @param {object[]} [args.sourceHealth] - lib/learn.js sourceHealth() rows, or null
  * @returns {{ markdown: string, numbered: { number: number, post: object }[] }}
  */
-export function renderReport({ raw, posts, now = new Date(), timeZone, prefilter, keywordHealth = null }) {
+export function renderReport({ raw, posts, now = new Date(), timeZone, prefilter, keywordHealth = null, sourceHealth = null }) {
   const reported = sortPosts(posts.filter((p) => p.intent !== "irrelevant"));
   const numbered = reported.map((post, i) => ({ number: i + 1, post }));
   const high = numbered.filter((n) => n.post.priority === "high");
@@ -235,6 +253,7 @@ export function renderReport({ raw, posts, now = new Date(), timeZone, prefilter
   }
 
   if (keywordHealth) out.push(keywordHealthSection(keywordHealth));
+  if (sourceHealth) out.push(sourceHealthSection(sourceHealth));
 
   out.push("_marKit only drafts. Read each thread and its community rules before replying, and always disclose that you made the app._", "");
   return { markdown: out.join("\n"), numbered };

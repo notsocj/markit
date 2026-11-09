@@ -29,6 +29,12 @@ function fixture() {
   mkdirSync(newRun, { recursive: true });
   writeFileSync(join(newRun, "cards.json"), JSON.stringify({
     app: "gridpeek", ranAt: "2026-10-21T13:00:00Z", lookbackDays: 7, sources: [],
+    sourceHealth: [
+      { source: "youtube", flag: "dead", runs: 3, judged: 40, useful: 0, replied: 0, extra: SECRET },
+      { source: "reddit", flag: "ok", runs: 3, judged: 30, useful: 4, replied: 1 },
+      { source: "../evil", flag: "dead" },
+      { source: "x", flag: "weird", judged: -5 },
+    ],
     cards: [
       { number: 1, id: "sc-1", source: "socialcrawl", site: "Reddit r/formula1", url: "https://example.com/1", title: "<script>alert(1)</script>", excerpt: "x", intent: "asking_for_recommendation", score: 95, priority: "high", why: "fits", draftReply: "draft", extraField: SECRET },
       { number: 2, id: "hn-2", source: "hackernews", url: "https://example.com/2", title: "Ask HN", excerpt: "y", intent: "problem_discussion", score: 60, priority: "medium", why: "fits", draftReply: "d2" },
@@ -188,6 +194,16 @@ test("apps, runs, and cards come from the reports folder", async () => {
 
   const all = (await request(port, { path: "/api/cards?app=gridpeek&run=all" })).json();
   assert.deepEqual(all.cards.map((c) => c.id), ["sc-1", "hn-2", "bsky-3"], "a post in two runs appears once (newest run)");
+
+  // Source health is re-checked: known sources and flags only, plain counts, label + detail.
+  assert.deepEqual(latest.sourceHealth.map((s) => [s.source, s.flag, s.label, s.detail]), [
+    ["youtube", "dead", "YouTube", "40 judged in 3 runs · 0 medium or high · 0 replied"],
+    ["reddit", "ok", "Reddit", "30 judged in 3 runs · 4 medium or high · 1 replied"],
+    ["x", "new", "X", "0 judged in 0 runs · 0 medium or high · 0 replied"],
+  ]);
+  assert.equal(latest.sourceHealth[0].extra, undefined);
+  assert.deepEqual(all.sourceHealth, latest.sourceHealth, "all runs shows the newest run's source health");
+  assert.equal(old.sourceHealth, null, "runs from before cards.json have none");
 });
 
 test("bad or sneaky app/run names are refused before touching the disk", async () => {

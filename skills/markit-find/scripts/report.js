@@ -20,7 +20,8 @@
 //      so marKit learns which keywords bring in the wrong posts.
 //   6. Add a "Keyword health" section (lib/learn.js) with any keyword replacements the agent
 //      proposed in scored.json → keywordSuggestions. Proposals only: the profile is never
-//      changed here.
+//      changed here. Then a "Source health" table (same in cards.json for the dashboard)
+//      once any source has enough scored runs to judge.
 //   7. Print a 3-line summary, with a note naming any keyword or SOURCE that's dead (a source
 //      whose recent posts never scored medium or high while other sources did).
 
@@ -54,13 +55,14 @@ function plain(text, max = 45) {
  * @param {string[]} [args.keywords] - the profile's keywords, for the Keyword health section
  * @param {string[]} [args.sources] - the profile's sources, for Source health
  * @param {{ counts, sources }[]} [args.runs] - recent runs' counts (lib/learn.js loadRunHistory)
- * @returns {{ markdown, numbered, fresh, skippedSeen, unscored, prefilter, feedback, keywordHealth, sourceHealth }}
+ * @returns {{ markdown, numbered, fresh, skippedSeen, unscored, prefilter, feedback, keywordHealth, sourceHealth, sourceHealthShown }}
  *   fresh         posts to mark as seen (reported + irrelevant)
  *   skippedSeen   posts dropped because an earlier run already reported them
  *   unscored      raw.json posts the agent left out of scored.json
  *   feedback      the feedback entries to save (with this run's agent verdicts)
  *   keywordHealth { days, keywords, suggestions } or null when there's nothing to show
  *   sourceHealth  one entry per profile source (lib/learn.js sourceHealth)
+ *   sourceHealthShown  the same rows, or null while every source is still "new" (report.md, cards.json)
  */
 export function buildReport({ raw, scored, seenDates = {}, now = new Date(), timeZone, candidates = null, feedback = [], keywords = [], sources = [], runs = [] }) {
   // Ids the agent may use: everything search.js found, plus candidates.js's list (which
@@ -102,17 +104,20 @@ export function buildReport({ raw, scored, seenDates = {}, now = new Date(), tim
   const worthShowing = suggestions.length || health.some((k) => k.shown || k.flag === "dead");
   const kwHealth = worthShowing ? { days: 30, keywords: health, suggestions } : null;
   const srcHealth = sourceHealth({ entries: newFeedback, app: raw.app, sources, runs, now });
+  // Shown in report.md and cards.json once any source has enough runs to judge; before
+  // that every row would just say "new".
+  const srcShown = srcHealth.some((s) => s.flag !== "new") ? srcHealth : null;
 
   const prefilter = candidates?.prefilter;
-  const { markdown, numbered } = renderReport({ raw, posts: fresh, now, timeZone, prefilter, keywordHealth: kwHealth });
-  return { markdown, numbered, fresh, skippedSeen: posts.length - fresh.length, unscored, prefilter, feedback: newFeedback, keywordHealth: kwHealth, sourceHealth: srcHealth };
+  const { markdown, numbered } = renderReport({ raw, posts: fresh, now, timeZone, prefilter, keywordHealth: kwHealth, sourceHealth: srcShown });
+  return { markdown, numbered, fresh, skippedSeen: posts.length - fresh.length, unscored, prefilter, feedback: newFeedback, keywordHealth: kwHealth, sourceHealth: srcHealth, sourceHealthShown: srcShown };
 }
 
 // The fields a card needs, and nothing else (cards.json is read by the dashboard).
 const CARD_FIELDS = ["id", "source", "provider", "site", "url", "title", "excerpt", "author", "createdAt", "engagement", "matchedKeyword", "intent", "score", "priority", "why", "draftReply", "caution", "mention", "context", "alsoPostedAt", "preScore"];
 
 /** cards.json content: run info plus the numbered cards exactly as report.md shows them. */
-export function buildCards(raw, numbered, prefilter, keywordHealth = null) {
+export function buildCards(raw, numbered, prefilter, keywordHealth = null, sourceHealth = null) {
   return {
     app: raw.app,
     ranAt: raw.ranAt,
@@ -120,6 +125,7 @@ export function buildCards(raw, numbered, prefilter, keywordHealth = null) {
     sources: raw.sources ?? [],
     prefilter: prefilter ?? null,
     keywordHealth, // { days, keywords: [...], suggestions: [...] } for the dashboard's Keywords panel
+    sourceHealth, // [{ source, flag, runs, judged, useful, replied }] for the Source health panel, or null
     cards: numbered.map(({ number, post }) => {
       const card = { number };
       for (const field of CARD_FIELDS) if (post[field] !== undefined && post[field] !== "" && post[field] !== null) card[field] = post[field];
@@ -178,7 +184,7 @@ function main() {
   // health) but never stops the report, and is never overwritten.
   const fb = tryReadFeedback(paths.feedbackFile, { legacyStatusFile: paths.statusFile, now });
   if (fb.broken) keywords = sources = [];
-  const { markdown, numbered, fresh, skippedSeen, unscored, prefilter, feedback, keywordHealth, sourceHealth } = buildReport({
+  const { markdown, numbered, fresh, skippedSeen, unscored, prefilter, feedback, keywordHealth, sourceHealth, sourceHealthShown } = buildReport({
     raw,
     scored: readJsonFile(scoredPath, null),
     seenDates: loadSeenDates(paths.seenFile),
@@ -193,7 +199,7 @@ function main() {
 
   const reportPath = path.join(runDir, "report.md");
   writeTextFile(reportPath, markdown);
-  writeJsonFile(path.join(runDir, "cards.json"), buildCards(raw, numbered, prefilter, keywordHealth));
+  writeJsonFile(path.join(runDir, "cards.json"), buildCards(raw, numbered, prefilter, keywordHealth, sourceHealthShown));
   if (!fb.broken) writeFeedback(paths.feedbackFile, feedback, now);
   addSeen(fresh.map((p) => p.id), paths.seenFile);
   setLastRun({ app: raw.app, ranAt: raw.ranAt, opportunities: numbered.length }, paths.usageFile);

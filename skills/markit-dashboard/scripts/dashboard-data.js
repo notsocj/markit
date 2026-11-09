@@ -29,7 +29,8 @@ import { sortPosts, sourceLabel } from "../../markit-find/scripts/lib/render-rep
 import { cleanContext, contextLine } from "../../markit-find/scripts/lib/context.js";
 import { prefilterLine } from "../../markit-find/scripts/lib/filters.js";
 import { readFeedback, tryReadFeedback, recordDecision, statusMapFrom, validateDecision, SKIP_REASONS, REASON_LABELS, BROKEN_FEEDBACK } from "../../markit-find/scripts/lib/feedback.js";
-import { healthDetail } from "../../markit-find/scripts/lib/learn.js";
+import { healthDetail, sourceDetail } from "../../markit-find/scripts/lib/learn.js";
+import { ALL_SOURCES, SOURCE_LABELS } from "../../markit-find/scripts/lib/profile.js";
 
 // App names follow the same rule as profiles (lib/config.js validateAppName).
 export const APP_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
@@ -128,7 +129,7 @@ export function loadRun(reportsDir, app, run) {
   try {
     const cardsFile = readJsonFile(path.join(dir, "cards.json"), null);
     if (cardsFile && Array.isArray(cardsFile.cards)) {
-      return { app, run, ranAt: cardsFile.ranAt ?? "", lookbackDays: cardsFile.lookbackDays, prefilter: prefilterLine(cardsFile.prefilter), keywordHealth: cleanKeywordHealth(cardsFile.keywordHealth), cards: cardsFile.cards.map(pick) };
+      return { app, run, ranAt: cardsFile.ranAt ?? "", lookbackDays: cardsFile.lookbackDays, prefilter: prefilterLine(cardsFile.prefilter), keywordHealth: cleanKeywordHealth(cardsFile.keywordHealth), sourceHealth: cleanSourceHealth(cardsFile.sourceHealth), cards: cardsFile.cards.map(pick) };
     }
     const raw = readJsonFile(path.join(dir, "raw.json"), {});
     const scored = readJsonFile(path.join(dir, "scored.json"), null);
@@ -174,9 +175,23 @@ export function cleanKeywordHealth(kh) {
   return { keywords, suggestions };
 }
 
-/** Keyword health from one run's cards.json (null for runs made before it existed). */
-export function runKeywordHealth(reportsDir, app, run) {
-  return loadRun(reportsDir, app, run)?.keywordHealth ?? null;
+/**
+ * Re-check cards.json's sourceHealth rows the same way: known sources and flags only, plain
+ * counts, plus a display label and one-line detail for the Source health panel. Null if absent.
+ */
+export function cleanSourceHealth(sh) {
+  if (!Array.isArray(sh)) return null;
+  const rows = sh.slice(0, ALL_SOURCES.length).filter((s) => s && ALL_SOURCES.includes(s.source)).map((s) => {
+    const clean = { source: s.source, flag: ["ok", "dead", "new"].includes(s.flag) ? s.flag : "new", runs: count(s.runs), judged: count(s.judged), useful: count(s.useful), replied: count(s.replied) };
+    return { ...clean, label: SOURCE_LABELS[s.source], detail: sourceDetail(clean) };
+  });
+  return rows.length ? rows : null;
+}
+
+/** Keyword and source health from one run's cards.json (nulls for runs made before them). */
+export function runHealth(reportsDir, app, run) {
+  const r = loadRun(reportsDir, app, run);
+  return { keywordHealth: r?.keywordHealth ?? null, sourceHealth: r?.sourceHealth ?? null };
 }
 
 /** The prefilter summary line for one run ("" for runs made before candidates.js). */
